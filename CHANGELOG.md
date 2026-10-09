@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.60.0 (2026-10-09) — P2a thin seam: state + tick out of the component
+- `src/ui/App.jsx` (v57 UI) runs its month on `src/sim/tick.js` `runMonth(g, S, fx)`: 9 phases in v57 order, 3-month pressure gate inside its phase.
+- `src/sim/state.js`: `STATE_FIELDS` (107), `stateView`, `openingPosition`, `newCampaign`. `src/sim/formulas.js`: ISR (8 sites) and naval weight (7 sites) hoisted. `rng()` is the only Math.random in src/sim.
+- Static tables in `src/data/` (10 modules); COUNTRIES folded into `NATIONS[id].play`.
+- Gate: App autosaves byte-identical to v57 (3 seeds x 120 months); smoke + resume on both builds; headless month tests; v57 invariants. Both builds share one HTML shell (fixes a 20px panel-width drift at 390px).
+- Not yet: player verbs into `src/sim/actions.js` (P2b).
+
 ## 0.59.0 (2026-10-09) — P1 v57 playable from repo
 - `src/legacy-entry.jsx` mounts v57 unmodified; `window.storage` shim over guarded localStorage; `npm run build:legacy` -> `dist/index.html` (545 KB); Pages workflow; `test/legacy-smoke.test.js` (120 months, 9 tabs, autosave).
 

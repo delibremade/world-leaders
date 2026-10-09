@@ -23,3 +23,9 @@ export function makeRng(seed) {
     get draws() { return draws; },
   };
 }
+
+// P2 bridge: v57 rules draw from an unseeded stream. This is the ONLY Math.random allowed in src/sim
+// (test/purity.test.js pins it here). setRngSource lets a harness or a later seeded engine take over.
+let source = () => Math.random();
+export const rng = () => source();
+export const setRngSource = (fn) => { source = fn; };
