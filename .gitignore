@@ -1,0 +1,6 @@
+node_modules/
+dist/
+reports/failures/*.json
+reports/balance.json
+.DS_Store
+*.log
