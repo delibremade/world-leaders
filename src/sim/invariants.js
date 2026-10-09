@@ -35,3 +35,17 @@ export function assertInvariants(state) {
   if (failed.length) throw new InvariantError(failed, state);
   return state;
 }
+
+// v57 engine state (src/sim/state.js STATE_FIELDS). Ruling 6: the player never appears as a rival anywhere.
+const pid = (g) => g.country?.id;
+const finite = (v) => typeof v === 'number' && Number.isFinite(v);
+export const V57_INVARIANTS = [
+  ['player not in rivalTension', (g) => !pid(g) || !(pid(g) in (g.rivalTension || {}))],
+  ['player not in rivalHolds', (g) => !pid(g) || !(g.rivalHolds || {})[pid(g)]],
+  ['player not embargoed by self', (g) => !pid(g) || !(g.embargoes instanceof Set && g.embargoes.has(pid(g)))],
+  ['player never a blockade target', (g) => !pid(g) || Object.values(g.blockades || {}).every((b) => b?.target !== pid(g))],
+  ['tension values finite and in [0,100]', (g) => Object.values(g.rivalTension || {}).every((v) => finite(v) && v >= 0 && v <= 100)],
+  ['month counter is a non-negative integer', (g) => Number.isInteger(g.tickCount) && g.tickCount >= 0],
+  ['pressure timer within its 3-month gate', (g) => Number.isInteger(g.pressureTimer) && g.pressureTimer <= 3],
+];
+export const checkV57 = (g) => V57_INVARIANTS.filter(([, ok]) => !ok(g)).map(([n]) => n);

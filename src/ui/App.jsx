@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback, Component } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { MONTHS, GOOD, SC, ss, sc } from '../data/stats.js';
-import { NATIONS, COUNTRIES, BUYERS, DIP_TARGETS, INTEL_TARGETS, NATION_BLOC, NATION_TRAITS, INTEL_AGENCIES, COUNTRY_RES, GDB, RD_MODS, START_DEF } from '../data/nations.js';
-import { REGIONS, SPHERE_INIT, COMP_COLORS, REGION_GEO, FLASHPOINTS, REGION_BONUS } from '../data/regions.js';
+import { NATIONS, COUNTRIES, BUYERS, DIP_TARGETS, INTEL_TARGETS, NATION_BLOC, NATION_TRAITS, INTEL_AGENCIES, GDB, RD_MODS } from '../data/nations.js';
+import { REGIONS, COMP_COLORS, REGION_GEO, FLASHPOINTS, REGION_BONUS } from '../data/regions.js';
 import { PLATFORMS, BLACK_PROGRAMS, DV } from '../data/platforms.js';
 import { SOCIAL_PROGRAMS, PA, ISSUES, BASE_SECTOR, SECTOR_GAINS, SECTOR_DECAY } from '../data/economy.js';
 import { DOCTRINES, COMP_RESPONSES, WORLD_EVENTS, DECISIONS } from '../data/world.js';
@@ -14,7 +14,7 @@ import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, calcSCost, g
 import { naturalDrift } from '../sim/economy.js';
 import { rng } from '../sim/rng.js';
 import { runMonth } from '../sim/tick.js';
-import { stateView } from '../sim/state.js';
+import { stateView, openingPosition } from '../sim/state.js';
 const TABS=['overview','sitroom','economy','energy','resources','defense','intel','technology','trade'];
 const TABM={overview:{i:'🌍',l:'Overview'},economy:{i:'💰',l:'Economy'},energy:{i:'⚡',l:'Energy'},resources:{i:'⛏️',l:'Resources'},sitroom:{i:'🎖️',l:'Situation Room'},defense:{i:'🛡️',l:'Defense'},intel:{i:'🕵️',l:'Intel'},technology:{i:'💻',l:'Technology'},trade:{i:'🤝',l:'Trade'}};
 function genModelData(sk,cv,opt,drift){return Array.from({length:21},(_,m)=>{const np=cv+drift*m;const pct=Math.min(m/Math.max(opt.tm,1),1);const eff=(opt.fx||[]).find(e=>e.s===sk)?.d||0;const wp=cv+drift*Math.min(m,opt.tm*.5)+eff*pct*(opt.conf/100);return{m,'No Policy':+np.toFixed(2),'With Policy':+wp.toFixed(2)};});}
@@ -349,23 +349,7 @@ function WorldLeadersInner({resumeSignal}){
   useEffect(()=>{if(phase==='play'&&date.mo%3===0&&tickCountR.current>0)saveGame();},[date.mo,date.yr,phase]);
   useEffect(()=>{try{if(typeof window!=='undefined'&&window.__WL_TEST){window.__wl={setTension:(cid,v)=>{setRivalTension(p=>({...p,[cid]:v}));tenR.current={...tenR.current,[cid]:v};},field:(id,n)=>{blackR.current={...blackR.current,[id]:n};setBlackPrograms({...blackR.current});},fund:v=>setStats(p=>({...p,treasury:v})),platforms:o=>{platformsR.current={...platformsR.current,...o};setPlatforms({...platformsR.current});},levels:o=>{dlR.current={...dlR.current,...o};setDefLevels({...dlR.current});},event:(id,mo)=>{wEvR.current={id,mo};setWorldEvent({id,mo});},deploy:(rid,pid,n)=>{setForceDeployments(pr=>{const n2={...pr,[rid]:{...(pr[rid]||{}),[pid]:n}};fdR.current=n2;return n2;});},stat:(k,v)=>{setStats(p=>({...p,[k]:v}));if(sR.current)sR.current={...sR.current,[k]:v};},rel:(id,v)=>{setNationRelations(p=>({...p,[id]:v}));relR.current={...relR.current,[id]:v};},unfreeze:()=>{setBlocLock({});bLockR.current={};},sanction:(id)=>{setSanctions(prev=>{const n2=new Set(prev);n2.add(id);sanctR.current=n2;return n2;});}};}}catch(e){}},[]);
   const startGame=useCallback(c=>{
-    const s={...c.stats};
-    const pre=c.preload.map(t=>({type:t,id:`${t}_init`,status:'unexamined',yr:2024,mo:0}));
-    const cres=COUNTRY_RES[c.id]||{};
-    const initRes={};
-    Object.keys(RES_META).forEach(k=>{initRes[k]={r:cres[k]||0,max:cres[k]||0};});
-    initRes.renewable={solar:0,wind:0,hydro:0};
-    // Init sphere — player gets home region bonus, others from SPHERE_INIT
-    const initSphere={};
-    Object.entries(REGIONS).forEach(([rid,reg])=>{
-      const playerPct=reg.homeFor?.includes(c.id)?60:10;
-      const comps={};
-      Object.entries(SPHERE_INIT[rid]||{}).forEach(([k,v])=>{if(k!==c.id)comps[k]=v;});
-      initSphere[rid]={player:playerPct,competitors:comps};
-    });
-    // Self-exclude from global defense for competition
-    const excGDB={};
-    Object.entries(GDB).forEach(([k,v])=>{if(k!==c.id)excGDB[k]=v;});
+    const {stats:s,issues:pre,resources:initRes,sphere:initSphere,globalDef:excGDB,defLevels:sd,nationRelations:baseRel,prevSectorLevels}=openingPosition(c);
     setCountry(c);setStats(s);setIssues(pre);setInterestRate(c.ir||4.0);
     setResources(initRes);setResExtraction({});setSphere(initSphere);
     setGlobalDef(excGDB);gdR.current=excGDB;
@@ -374,7 +358,6 @@ function WorldLeadersInner({resumeSignal}){
     setBriefs({});brR.current={};setDeployments([]);depR.current=[];
     setActiveEffects([]);aeR.current=[];
     setInvestigations({});invR.current={};setActionCooldowns({});cdR.current={};
-    const sd={...(START_DEF[c.id]||{})};
     setDefLevels(sd);dlR.current=sd;setDefResearch({});drR.current={};
     setSpillApplied(new Set());spR.current=new Set();
     setDefExports({});exR.current={};setDarpaDisc({});ddR.current={};
@@ -399,7 +382,6 @@ function WorldLeadersInner({resumeSignal}){
     setCovertPrograms(new Set());covR.current=new Set();foreignOpR.current=0;absorbR.current=0;
     setIntelInfra({});infraR.current={};setMoles({});molesR.current={};setSanctions(new Set());sanctR.current=new Set();
     setImportContracts(new Set());impCR.current=new Set();setRivalHolds({});rivalHoldR.current={};
-    const baseRel={};DIP_TARGETS.forEach(t=>{const b=NATION_BLOC[t.id],mb=NATION_BLOC[c.id];baseRel[t.id]=mb&&b===mb?40:b==='neutral'||mb==='neutral'?0:-20;});
     setNationRelations(baseRel);relR.current=baseRel;
     setEmbassies(new Set());embR.current=new Set();
     setInfluenceAlloc({});iaR.current={};setInfluenceBudget(0);ibR.current=0;
@@ -413,7 +395,7 @@ function WorldLeadersInner({resumeSignal}){
     setSectorMaturity({defense:0,energy:0,healthcare:0,education:0,technology:0});
     maturityR.current={defense:0,energy:0,healthcare:0,education:0,technology:0};
     setSectorAge({defense:0,energy:0});ageR.current={defense:0,energy:0};
-    prevLvlR.current={defense:Object.values(START_DEF[c.id]||{}).reduce((a,b)=>a+(b||0),0),energy:0,healthcare:Math.floor((c.stats.healthcare||0)/20),education:Math.floor((c.stats.education||0)/20),technology:0};
+    prevLvlR.current=prevSectorLevels;
     setGrrbState({surveying:false,surveyMo:0,unlocked:false});grrbR.current={surveying:false,surveyMo:0,unlocked:false};
     taxR.current='balanced';setTaxPolicy('balanced');
     spdR.current='balanced';setSpendingMode('balanced');
