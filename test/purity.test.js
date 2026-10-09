@@ -5,7 +5,8 @@ import { join } from 'node:path';
 
 // src/sim must be headless and deterministic. Any of these tokens inside it fails the gate.
 const FORBIDDEN = [
-  /Date\.now/, /new Date\(/, /\bdocument\b/, /\bwindow\b/, /localStorage/,
+  // DOM tokens match API use (window.x, document.x, typeof window), not game text like "strategic window".
+  /Date\.now/, /new Date\(/, /\bdocument\s*[.[]/, /\bwindow\s*[.[]/, /typeof\s+(window|document)\b/, /localStorage/,
   /from ['"]react/, /require\(['"]react/, /setTimeout|setInterval/, /\bfetch\(/,
 ];
 // P2 exception (tasks/P2-thin-seam.md): Math.random is allowed exactly once, behind rng() in src/sim/rng.js.

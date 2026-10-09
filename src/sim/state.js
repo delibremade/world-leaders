@@ -18,3 +18,35 @@ export function newGame({ seed, player = 'usa' }) {
     log: [],            // [{ month, type, text }] capped by tick()
   };
 }
+
+// ── v57 game state (P2). One object, one field per v57 ref: the monthly tick (src/sim/tick.js runMonth) reads and
+// writes only these. Field names follow the v57 save keys where a save key exists.
+export const STATE_FIELDS=Object.freeze([
+  'stats','country','issues','investigations','deployments','briefs','date','activeEffects',
+  'resources','resExtraction','defLevels','defResearch','spillApplied','globalDef','defExports','sphere',
+  'activePolicies','actionCooldowns','darpaDisc','activeDecision','usedDecisions','interestRate','taxPolicy','spendingMode',
+  'intelOps','grrbState','budgetAlloc','equilibriumStats','gracePeriod','intelBudget','doctrine','platforms',
+  'socialPrograms','victory','hegHold','personnelPay','procureMode','forceDeployments','flashpoint','sphereSnapshot',
+  'trendTimer','platformsImported','covertPrograms','foreignOpTimer','absorbBonus','intelInfra','moles','sanctions',
+  'importContracts','nationRelations','embassies','influenceAlloc','influenceBudget','proxyAlloc','proxyBudget','sapOffice',
+  'blackPrograms','blackResearch','defensePacts','tradeAgreements','continuousOps','expertiseLease','talentRetention','tickCount',
+  'ipPortfolio','ipPolicy','dominance','dominanceLeverage','noticeCooldowns','rivalTension','intelPosture','blockades',
+  'disinfo','expelled','confrontation','blocTrade','blocLock','opecSwing','worldEvent','demand',
+  'currencyPosture','embassyMissions','embassyLocks','ultimatum','pariah','confrontationCooldowns','forcePosture','nukeLog',
+  'embargoes','embargoedBy','spr','sprRelease','concessions','chokeStatus','stewardship','exportShare',
+  'chokeDeals','platformDev','developed','pathHold','usedTech','rivalHolds','sectorMaturity','sectorAge',
+  'prevSectorLevels','decisionTimer','pressureTimer',
+]);
+
+// Live view over holders of {current} (the App's refs): reads and writes go straight through, so in-month writes
+// are visible to the rest of the month and to React updaters that run later, exactly as in v57.
+// Sealed: writing a field that is not in STATE_FIELDS throws.
+export function stateView(holders){
+  const v={};
+  for(const k of STATE_FIELDS){
+    const h=holders[k];if(!h||!('current' in h))throw new Error('stateView: missing holder for '+k);
+    Object.defineProperty(v,k,{get:()=>h.current,set:(x)=>{h.current=x;},enumerable:true});
+  }
+  for(const k of Object.keys(holders))if(!STATE_FIELDS.includes(k))throw new Error('stateView: unknown field '+k);
+  return Object.seal(v);
+}
