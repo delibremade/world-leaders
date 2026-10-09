@@ -10,73 +10,13 @@ import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, CRISIS_FRIENDLY, CRISIS_HOSTIL
 import { BLOC_TRADE } from '../data/trade.js';
 import { CHOKEPOINTS, IMPORT_ROUTES } from '../data/chokepoints.js';
 import { RES_META, CONCESSIONS } from '../data/energy.js';
-import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight } from '../sim/formulas.js';
+import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, calcSCost, getEnergyTier, getQualMult, getRefineMult, getDefLeverage } from '../sim/formulas.js';
+import { naturalDrift } from '../sim/economy.js';
+import { rng } from '../sim/rng.js';
 const TABS=['overview','sitroom','economy','energy','resources','defense','intel','technology','trade'];
 const TABM={overview:{i:'🌍',l:'Overview'},economy:{i:'💰',l:'Economy'},energy:{i:'⚡',l:'Energy'},resources:{i:'⛏️',l:'Resources'},sitroom:{i:'🎖️',l:'Situation Room'},defense:{i:'🛡️',l:'Defense'},intel:{i:'🕵️',l:'Intel'},technology:{i:'💻',l:'Technology'},trade:{i:'🤝',l:'Trade'}};
 function genModelData(sk,cv,opt,drift){return Array.from({length:21},(_,m)=>{const np=cv+drift*m;const pct=Math.min(m/Math.max(opt.tm,1),1);const eff=(opt.fx||[]).find(e=>e.s===sk)?.d||0;const wp=cv+drift*Math.min(m,opt.tm*.5)+eff*pct*(opt.conf/100);return{m,'No Policy':+np.toFixed(2),'With Policy':+wp.toFixed(2)};});}
 
-// Module-level cost calculator (uses refs passed in)
-function calcSCost(sector,alloc,matR){
-  const md=Math.min(0.4,Math.floor((matR.current?.[sector]||0)/12)*0.05);
-  return BASE_SECTOR[sector]*(1-md)*Math.pow((alloc||100)/100,2.5);
-}
-function getEnergyTier(res,ext,imp){
-  const ren=((res?.renewable?.solar||0)+(res?.renewable?.wind||0)+(res?.renewable?.hydro||0));
-  if(ren>=8||((ext?.uranium||0)>=2&&(res?.uranium?.r||0)>1))return 'nuclear';
-  if(ren>=4||(imp&&imp.has&&imp.has('uranium')))return 'high';
-  if((ext?.coal||0)>=3&&(res?.coal?.r||0)>1)return 'coal';
-  return 'standard';
-}
-function naturalDrift(s,ir,eq){
-  // eq = country equilibrium (starting stats). Stats gravitate back toward these values.
-  // Mean-reversion: drift = (target - current) * strength, so decay naturally slows near bottom.
-  const r=()=>Math.random(),ns={...s},nd=3.0-ir,REV=0.012,e=eq||s;
-
-  // INFLATION: mean-reverts to IR-determined target rather than accumulating
-  const inflTgt=Math.max(1.0,3+nd*1.5+(s.debtGdp>105?1.5:s.debtGdp>90?0.5:0)-(s.treasury>5000?0.4:0));// nd=3-ir: high IR → negative nd → low target
-  ns.inflation=Math.max(0,s.inflation+(inflTgt-s.inflation)*0.015+(r()-.5)*.07);
-
-  // GDP: reverts to country's potential growth + condition bonuses
-  const gdpPot=(e.gdpGrowth||1.5)+(s.education>75?(s.education-75)*0.002:0)+(s.treasury>5000?0.01:0)+(s.healthcare>80?0.01:0)+(s.inflation<4?0.04:s.inflation>10?-0.08:0);
-  ns.gdpGrowth=s.gdpGrowth+(gdpPot-s.gdpGrowth)*0.018+(r()-.5)*.1;
-
-  // UNEMPLOYMENT: reverts to structural rate
-  const uTgt=(e.unemployment||5)+(ns.gdpGrowth<1?0.7:ns.gdpGrowth>2.5?-0.4:0);
-  ns.unemployment=Math.max(0,s.unemployment+(uTgt-s.unemployment)*0.015+(r()-.5)*.05);
-
-  // STABILITY: mean-reversion + hard-capped passive penalties (-0.05/tick max combined)
-  const stabEq=(e.stability||65)+(ns.gdpGrowth>2?3:ns.gdpGrowth>0?0:-4);
-  const stabGain=(ns.gdpGrowth>2.5?0.04:ns.gdpGrowth>1?0.015:0)+(s.healthcare>80?0.02:0)+(s.foodSecurity>80?0.015:0)+(s.treasury>3000?0.015:0);
-  const rawPen=(ns.unemployment>15?-.11:ns.unemployment>12?-.04:0)+(ns.inequality>80?-.08:ns.inequality>76?-.03:0)+(ns.inflation>15?-.09:ns.inflation>11?-.03:0)+(ns.gdpGrowth<-3?-.06:0);
-  ns.stability=Math.max(0,Math.min(100,s.stability+(stabEq-s.stability)*REV+stabGain+Math.max(-0.05,rawPen)+(r()-.5)*.03));
-
-  // HEALTHCARE: balanced drift, negative bias removed
-  ns.healthcare=Math.max(0,Math.min(100,s.healthcare+((e.healthcare||70)-s.healthcare)*REV*0.5+(r()-.5)*.05+(s.gdpGrowth>2?0.015:0)));
-
-  // FOOD SECURITY
-  ns.foodSecurity=Math.max(0,Math.min(100,s.foodSecurity+((e.foodSecurity||75)-s.foodSecurity)*REV*0.5+(r()-.5)*.05+(s.gdpGrowth>1?0.01:0)));
-
-  // DEBT/GDP: mean-reverts — CRITICAL FIX (was +0.16/tick unconditionally)
-  const debtEq=(e.debtGdp||60)+Math.max(0,(1.5-ns.gdpGrowth)*2.5)+(ns.inflation>8?1.5:0);
-  ns.debtGdp=Math.max(0,s.debtGdp+(debtEq-s.debtGdp)*0.008+0.04+(r()-.5)*.04);
-
-  // INEQUALITY: attractor + education/growth effects
-  ns.inequality=Math.max(0,Math.min(100,s.inequality+((e.inequality||55)-s.inequality)*REV*0.4+(r()-.5)*.04+(s.education>78?-0.018:0)+(ns.gdpGrowth>3?-0.012:0)));
-
-  // EDUCATION: attractor, grows with prosperity
-  ns.education=Math.max(0,Math.min(100,s.education+((e.education||70)-s.education)*REV*0.4+(r()-.5)*.04+(s.gdpGrowth>2?0.012:0)));
-
-  // MILITARY: tiny noise (defense tech bonus applied separately in tick)
-  ns.military=Math.max(0,Math.min(100,s.military+(r()-.5)*.015));
-
-  // TREASURY: net revenue after base operating costs (sector budgets deducted separately in tick)
-  ns.treasury=s.treasury+Math.max(0,ns.gdpGrowth*40)+160-175-(s.healthcare>75?15:0);
-
-  return ns;
-}
-function getQualMult(v,dl){const p=DV[v]?.chain||[];if(!p.length)return 1;const ml=dl[v]||0;const ap=p.reduce((s,k)=>s+(dl[k]||0),0)/p.length;return ap>=ml?1:Math.max(0.4,1-(ml-ap)*0.2);}
-function getRefineMult(dl){const ms=dl.materials||0,pr=dl.propulsion||0;if(ms>=5&&pr>=4)return 2.4;if(ms>=3&&pr>=2)return 1.6;if(ms>=2&&pr>=1)return 1.3;return 1.0;}
-function getDefLeverage(dl,gdb,cid){const excl=Object.entries(gdb).filter(([k])=>k!==cid);if(!excl.length)return 1;const verts=Object.keys(DV);const pAvg=verts.reduce((s,v)=>s+(dl[v]||0),0)/verts.length;const gAvg=verts.reduce((s,v)=>s+(excl.reduce((mx,[,n])=>Math.max(mx,n[v]||0),0)),0)/verts.length/excl.length;return Math.min(1.5,1+Math.max(0,pAvg-gAvg)*0.1);}
 function WorldLeadersInner({resumeSignal}){
   const [phase,setPhase]=useState('select');
   const [country,setCountry]=useState(null);
@@ -532,7 +472,7 @@ function WorldLeadersInner({resumeSignal}){
     if(isrSc<iv.req.isr){showToast(`⚠ ISR ≥${iv.req.isr} required (have ${isrSc})`);return;}
     if(s.treasury<iv.cost){showToast(`⚠ Need $${iv.cost}M`);return;}
     setStats(p=>({...p,treasury:p.treasury-iv.cost}));cdR.current={...cdR.current,[`interv_${ck}`]:12};setActionCooldowns(p=>({...p,[`interv_${ck}`]:12}));
-    if(Math.random()<chance){
+    if(rng()<chance){
       setStewardship(p=>{const n2={...p,[ck]:{mo:0,tiers:0,unrest:0}};stewR.current=n2;return n2;});
       setNationRelations(p=>{const n2={...p,[cp.nation]:30};DIP_TARGETS.forEach(t=>{if(t.region===cp.region&&t.id!==cp.nation)n2[t.id]=Math.max(-100,(n2[t.id]||0)-10);});if(btR.current.opec>=1){n2.saudi=Math.max(-100,(n2.saudi||0)-10);}return n2;});
       setRivalTension(p=>{const n2={...p};['china','russia'].forEach(r=>{if(r!==c.id)n2[r]=Math.min(99,(n2[r]||0)+12);});return n2;});setStats(p=>({...p,stability:p.stability-2}));
@@ -560,7 +500,7 @@ function WorldLeadersInner({resumeSignal}){
     setStats(p=>({...p,treasury:p.treasury-6000}));cdR.current={...cdR.current,[`regime_${nid}`]:24};setActionCooldowns(p=>({...p,[`regime_${nid}`]:24}));
     const chance=Math.min(0.9,0.3+(ratio-2)*0.2+(embR.current.has(nid)?0.1:0)+(embMisR.current[nid]==='intel'?0.1:0));
     const nm=NATIONS[nid]?.n||nid;
-    if(Math.random()<chance){
+    if(rng()<chance){
       setSphere(p=>{const n2={...p};Object.keys(n2).forEach(rid=>{const v=n2[rid].competitors?.[nid]||0;if(v>0)n2[rid]={...n2[rid],competitors:{...n2[rid].competitors,[nid]:Math.max(0,v-(rid===home?40:10))}};});if(!gl&&n2[home])n2[home]={...n2[home],player:Math.min(100,(n2[home].player||0)+30)};return n2;});
       if(gl)setGlobalDef(p=>{const ng={...p};const lv={...ng[nid]};Object.keys(lv).forEach(v=>{lv[v]=Math.max(0,lv[v]-0.5);});ng[nid]=lv;return ng;});
       setNationRelations(p=>{const n2={...p};DIP_TARGETS.forEach(t=>{n2[t.id]=Math.max(-100,(n2[t.id]||0)-(ally?30:20));});n2[nid]=60;return n2;});
@@ -822,7 +762,7 @@ function WorldLeadersInner({resumeSignal}){
     setLog(p=>[{msg:`🎯 ${d.title}: ${opt.label}`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
     showToast(`🎯 ${opt.label}`);
     setActiveDecision(null);decR.current=null;
-    setUsedDecisions(prev=>new Set([...prev,d.id]));decTimer.current=7+Math.floor(Math.random()*6);
+    setUsedDecisions(prev=>new Set([...prev,d.id]));decTimer.current=7+Math.floor(rng()*6);
   },[showToast,applySfx]);
 
   const tick=useCallback(()=>{
@@ -935,7 +875,7 @@ function WorldLeadersInner({resumeSignal}){
     const ba=budgetR.current;
     let totalSectorSpend=0;
     Object.entries(ba).forEach(([sector,alloc])=>{
-      const cost=calcSCost(sector,alloc,maturityR);
+      const cost=calcSCost(sector,alloc,maturityR.current);
       cash('Sector budgets',-cost);totalSectorSpend+=cost;
       if(alloc>100){
         const over=(alloc-100)/100;
@@ -946,8 +886,8 @@ function WorldLeadersInner({resumeSignal}){
       }
     });
     // Social friction: defense+intel vs healthcare+education
-    const defSpend=calcSCost('defense',ba.defense,maturityR)+(intelBudgetR.current||1)*200/12;
-    const socialSpend=calcSCost('healthcare',ba.healthcare,maturityR)+calcSCost('education',ba.education,maturityR);
+    const defSpend=calcSCost('defense',ba.defense,maturityR.current)+(intelBudgetR.current||1)*200/12;
+    const socialSpend=calcSCost('healthcare',ba.healthcare,maturityR.current)+calcSCost('education',ba.education,maturityR.current);
     if(defSpend>socialSpend*(doctrineR.current==='fortress'?3:2))ns.stability-=0.07;
     // Guns vs butter: sustained heavy defense burden drags civilian growth unless the economy is strong
     if(defSpend>socialSpend*2.5&&ns.gdpGrowth<3)ns.gdpGrowth-=0.04;
@@ -1213,7 +1153,7 @@ function WorldLeadersInner({resumeSignal}){
       if(!suspended){cash('Foreign concessions',Math.round(cp.income*(1+Math.max(0,(dlR.current.materials||4)-4)*0.15)));
         if(sphR.current[cp.region]&&(sphR.current[cp.region].player||0)<95)setSphere(p=>({...p,[cp.region]:{...p[cp.region],player:Math.min(100,(p[cp.region]?.player||0)+0.1)}}));}
       const rivalTop=topHostile(sphR.current[cp.region]?.competitors,c.id);
-      if(rivalTop&&rivalTop[1]>(sphR.current[cp.region]?.player||0)+25&&Math.random()<0.05){
+      if(rivalTop&&rivalTop[1]>(sphR.current[cp.region]?.player||0)+25&&rng()<0.05){
         setConcessions(prev=>{const n2=new Set(prev);n2.delete(ck);concR.current=n2;return n2;});
         showToast(`🛢️ ${cp.n} lost — ${rivalTop[0]} out-muscled you in ${REGIONS[cp.region]?.n} and Caracas switched partners`);
         setLog(l=>[{msg:`🛢️ Concession lost: ${cp.n} → ${rivalTop[0]}`,yr:dateR.current.yr,mo:dateR.current.mo},...l.slice(0,19)]);}});
@@ -1225,7 +1165,7 @@ function WorldLeadersInner({resumeSignal}){
     if(embgR.current.size&&!producer){setEmbargoes(new Set());embgR.current=new Set();showToast('⚠ Embargo lapsed — you no longer produce enough to withhold');}
     // Rival embargo on you: a hostile producer (Russia) at tension ≥60 vs an energy-dependent player
     {const eb=embByR.current;if(eb){const e2={...eb,mo:eb.mo-1};if(e2.mo<=0){embByR.current=null;setEmbargoedBy(null);showToast(`⛽ ${eb.by} embargo ends — supply normalizes`);}else{embByR.current=e2;setEmbargoedBy(e2);}}
-      else if((trait.energyDep||0)>0&&c.id!=='russia'&&(tenR.current.russia||0)>=60&&Math.random()<0.05){embByR.current={by:'russia',mo:12};setEmbargoedBy({by:'russia',mo:12});showToast('⛽ RUSSIA cuts your energy supply — 12 months of squeeze unless you diversify');setLog(l=>[{msg:'⛽ Russian energy embargo imposed',yr:dateR.current.yr,mo:dateR.current.mo},...l.slice(0,19)]);}}
+      else if((trait.energyDep||0)>0&&c.id!=='russia'&&(tenR.current.russia||0)>=60&&rng()<0.05){embByR.current={by:'russia',mo:12};setEmbargoedBy({by:'russia',mo:12});showToast('⛽ RUSSIA cuts your energy supply — 12 months of squeeze unless you diversify');setLog(l=>[{msg:'⛽ Russian energy embargo imposed',yr:dateR.current.yr,mo:dateR.current.mo},...l.slice(0,19)]);}}
     const diversified=['oil','gas','coal'].filter(k=>impCR.current.has(k)).length>=2||['nuclear','high'].includes(getEnergyTier(resR.current,extR.current,impCR.current));
     if(embByR.current&&!diversified&&!sprShield){ns.inflation+=0.08;ns.gdpGrowth-=0.03;}
     // ── OIL STEWARDSHIP: you run their ministry — barrels sell through you, proceeds compound as production recovers
@@ -1237,7 +1177,7 @@ function WorldLeadersInner({resumeSignal}){
       if(!paused){cash('Oil stewardship',Math.round(cp.intervention.income*ramp*tiers*mat*(present?1:0.5)));cash('Stewardship purchases',60); // proceeds spent on your goods
         setNationRelations(p=>({...p,[cp.nation]:Math.min(100,(p[cp.nation]||0)+0.3)}));
         setSphere(p=>{const s2=p[cp.region];if(!s2)return p;const comps={...s2.competitors};['china','russia'].forEach(r2=>{if((comps[r2]||0)>0)comps[r2]=Math.max(0,comps[r2]-0.2);});return {...p,[cp.region]:{...s2,player:Math.min(100,(s2.player||0)+0.25),competitors:comps}};});}
-      if(!present&&Math.random()<0.04){st2.unrest=3;setStats(p=>({...p,stability:p.stability-3}));showToast(`🔥 Unrest in ${NATIONS[cp.nation]?.n} — with no fleet offshore, the ministry stops shipping for 3 months`);setLog(l=>[{msg:`🔥 ${NATIONS[cp.nation]?.n} unrest — stewardship paused`,yr:dateR.current.yr,mo:dateR.current.mo},...l.slice(0,19)]);}
+      if(!present&&rng()<0.04){st2.unrest=3;setStats(p=>({...p,stability:p.stability-3}));showToast(`🔥 Unrest in ${NATIONS[cp.nation]?.n} — with no fleet offshore, the ministry stops shipping for 3 months`);setLog(l=>[{msg:`🔥 ${NATIONS[cp.nation]?.n} unrest — stewardship paused`,yr:dateR.current.yr,mo:dateR.current.mo},...l.slice(0,19)]);}
       if(btR.current.opec>=1&&tickCountR.current%3===0)setNationRelations(p=>({...p,saudi:Math.max(-100,(p.saudi||0)-1),uae:Math.max(-100,(p.uae||0)-1)})); // dumping barrels outside the cartel
       stewR.current={...stewR.current,[ck]:st2};});
     if(Object.keys(stewR.current).length)setStewardship({...stewR.current});
@@ -1253,14 +1193,14 @@ function WorldLeadersInner({resumeSignal}){
       const nmU=tlU>=3?0.35:tlU===2?0.55:tlU===1?0.75:1;
       Object.entries(tenR.current).forEach(([cid,t])=>{if(cid===c.id||isAllyOf(c.id,cid)||(relR.current[cid]||0)>=20)return;
         const gl=gdR.current[cid]||{};const rs=((gl.aircraft||0)>=5?1:0)+((gl.missiles||0)>=5?1:0)+((gl.naval||0)>=5?1:0);
-        if(!ultR.current&&t>=85&&Math.random()<0.08*nmU){ultR.current={cid};setUltimatum({cid});const e={actor:cid,target:c.id,type:'ultimatum',yr:dateR.current.yr,mo:dateR.current.mo};nukeR.current=[e,...nukeR.current].slice(0,40);setNukeLog(nukeR.current);}
-        else if(t>=90&&rs>=2&&Math.random()<0.04*nmU){ // rival demonstration against you
+        if(!ultR.current&&t>=85&&rng()<0.08*nmU){ultR.current={cid};setUltimatum({cid});const e={actor:cid,target:c.id,type:'ultimatum',yr:dateR.current.yr,mo:dateR.current.mo};nukeR.current=[e,...nukeR.current].slice(0,40);setNukeLog(nukeR.current);}
+        else if(t>=90&&rs>=2&&rng()<0.04*nmU){ // rival demonstration against you
           const top=Object.entries(sphR.current).map(([r2,s2])=>[r2,s2.player||0]).sort((a,b)=>b[1]-a[1])[0];
           if(top)setSphere(p=>({...p,[top[0]]:{...p[top[0]],player:Math.max(0,(p[top[0]].player||0)-15)}}));
           ns.stability-=8;const e={actor:cid,target:c.id,region:top?.[0],type:'demonstration',yr:dateR.current.yr,mo:dateR.current.mo};nukeR.current=[e,...nukeR.current].slice(0,40);setNukeLog(nukeR.current);
           showToast(`🚨 ${cid.charAt(0).toUpperCase()+cid.slice(1)} DEMONSTRATION STRIKE — a warhead detonated over ${REGIONS[top?.[0]]?.n||'the sea'}. Your position there −15, stability −8`);
           setLog(l=>[{msg:`☢ ${cid} demonstration strike`,yr:dateR.current.yr,mo:dateR.current.mo},...l.slice(0,19)]);}
-        else if(t>=99&&rs>=3&&tlU>=2&&Math.random()<0.03){const e={actor:cid,target:c.id,type:'exchange',yr:dateR.current.yr,mo:dateR.current.mo};nukeR.current=[e,...nukeR.current].slice(0,40);setNukeLog(nukeR.current);setGameOver(`☢️ NUCLEAR EXCHANGE. ${cid.charAt(0).toUpperCase()+cid.slice(1)} launched first at the brink; your forces answered. The register records who fired — history will not.`);}
+        else if(t>=99&&rs>=3&&tlU>=2&&rng()<0.03){const e={actor:cid,target:c.id,type:'exchange',yr:dateR.current.yr,mo:dateR.current.mo};nukeR.current=[e,...nukeR.current].slice(0,40);setNukeLog(nukeR.current);setGameOver(`☢️ NUCLEAR EXCHANGE. ${cid.charAt(0).toUpperCase()+cid.slice(1)} launched first at the brink; your forces answered. The register records who fired — history will not.`);}
       });
     }
     // ── BLOCKADES: strangle the target's position; runners test your cordon; heat risks confrontation ──
@@ -1275,13 +1215,13 @@ function WorldLeadersInner({resumeSignal}){
           const rate=(b.half?0.15:0.3)*(chokeHere?1.5:1);
           if(sphB[rid]?.competitors?.[b.target]>0)sphB[rid]={...sphB[rid],competitors:{...sphB[rid].competitors,[b.target]:Math.max(0,(sphB[rid].competitors[b.target]||0)-rate)}};
           const t=tenR.current[b.target]||0;
-          if(!b.half&&t>=40&&t<70&&Math.random()<0.2){
+          if(!b.half&&t>=40&&t<70&&rng()<0.2){
             if(sphB[rid])sphB[rid]={...sphB[rid],competitors:{...sphB[rid].competitors,[b.target]:Math.min(90,(sphB[rid].competitors?.[b.target]||0)+0.5)}};
             const lk=`run_${b.target}`;const last=respCdR.current[lk]??-99;
             if(tickCountR.current-last>=12){respCdR.current[lk]=tickCountR.current;showToast(`⚓ ${b.target} blockade runners slipped the ${REGIONS[rid]?.n} cordon`);}
             setLog(l=>[{msg:`⚓ Blockade runner — ${REGIONS[rid]?.n}`,yr:dateR.current.yr,mo:dateR.current.mo},...l.slice(0,19)]);
           }
-          if(t>=70&&!confR.current&&tickCountR.current-(confCdR.current[b.target]??-99)>=24&&Math.random()<0.15*((t-70)/30)*nmB){confCdR.current[b.target]=tickCountR.current;
+          if(t>=70&&!confR.current&&tickCountR.current-(confCdR.current[b.target]??-99)>=24&&rng()<0.15*((t-70)/30)*nmB){confCdR.current[b.target]=tickCountR.current;
             confR.current={rid,target:b.target};setConfrontation({rid,target:b.target});
           }
         });
@@ -1307,7 +1247,7 @@ function WorldLeadersInner({resumeSignal}){
       const milM=ns.military>=85?0.5:ns.military>=70?0.75:1;
       Object.entries(pressure).forEach(([compId,rids])=>{
         const responses=COMP_RESPONSES[compId];
-        const resp=responses[Math.floor(Math.random()*responses.length)];
+        const resp=responses[Math.floor(rng()*responses.length)];
         const moleM=(molesR.current?.[compId]||0)>0?0.5:1;
         const detM=Math.min(nm,milM)*moleM;
         const isrDamp=rids.filter(r2=>postureR.current[r2]==='isr'&&sumDep(fdR.current?.[r2])>0).length;
@@ -1331,8 +1271,8 @@ function WorldLeadersInner({resumeSignal}){
     intelR.current.forEach(op=>{
       if(op.monthsLeft<=1){
         const tRg=NATIONS[op.targetId]?.region;const misB=(embMisR.current[op.targetId]==='intel'?0.12:0)+((tRg&&postureR.current[tRg]==='isr'&&sumDep(fdR.current?.[tRg])>0)?0.25:0);
-        const success=Math.random()<Math.min(0.95,op.successRate+misB);
-        const discovered=Math.random()<op.discoverRate;
+        const success=rng()<Math.min(0.95,op.successRate+misB);
+        const discovered=rng()<op.discoverRate;
         if(success&&op.opId==='tech_acq'){
           // Find the vertical where target leads and player is most behind
           const tLvls=gdR.current[op.targetId]||{};const pLvls=dlR.current;
@@ -1454,15 +1394,15 @@ function WorldLeadersInner({resumeSignal}){
     {const d2={...demR.current};Object.keys(DV).forEach(v=>{const cur=d2[v]??1;let ev=0;const we=wEvR.current;
       if(we){const def=WORLD_EVENTS[we.id];ev=(def?.demand?.[v]||0)+((def?.allMult?def.allMult-1:0));}
       const target=1+ev;
-      d2[v]=Math.max(0.7,Math.min(1.5,cur+(target-cur)*0.12+(Math.random()-0.5)*0.02));});
+      d2[v]=Math.max(0.7,Math.min(1.5,cur+(target-cur)*0.12+(rng()-0.5)*0.02));});
       demR.current=d2;setDemand(d2);}
     if(wEvR.current){const we={...wEvR.current};const def=WORLD_EVENTS[we.id];
       Object.entries(def?.fx||{}).forEach(([k,v])=>{if(k in ns)ns[k]+=v;});
       we.mo--; if(we.mo<=0){showToast(`${def.i} ${def.n} — conditions normalize`);wEvR.current=null;setWorldEvent(null);}else{wEvR.current=we;setWorldEvent(we);}}
-    else if(graceR.current<=0&&Math.random()<0.045){
-      const keys=Object.keys(WORLD_EVENTS);const id=keys[Math.floor(Math.random()*keys.length)];const def=WORLD_EVENTS[id];
+    else if(graceR.current<=0&&rng()<0.045){
+      const keys=Object.keys(WORLD_EVENTS);const id=keys[Math.floor(rng()*keys.length)];const def=WORLD_EVENTS[id];
       if(id==='breakthrough'){
-        const rv=['russia','china','usa','germany'].filter(r=>r!==c.id);const tgt=rv[Math.floor(Math.random()*rv.length)];
+        const rv=['russia','china','usa','germany'].filter(r=>r!==c.id);const tgt=rv[Math.floor(rng()*rv.length)];
         setGlobalDef(p=>{const ng={...p};const lv=ng[tgt];if(lv){const top=Object.entries(lv).sort((a,b)=>b[1]-a[1])[0];if(top)ng[tgt]={...lv,[top[0]]:Math.min(7,top[1]+0.8)};}return ng;});
         showToast(`💡 ${tgt.charAt(0).toUpperCase()+tgt.slice(1)} announces a major breakthrough — your lead narrows`);
         setLog(l=>[{msg:`💡 Breakthrough abroad: ${tgt}`,yr:dateR.current.yr,mo:dateR.current.mo},...l.slice(0,19)]);
@@ -1481,7 +1421,7 @@ function WorldLeadersInner({resumeSignal}){
     {const el={...embLockR.current};let elCh=false;Object.keys(el).forEach(k=>{if(el[k]>0){el[k]--;elCh=true;}});if(elCh)embLockR.current=el;}
     ['china','russia','usa','germany'].forEach(host=>{
       if(host===c.id||!embR.current.has(host))return;
-      if((tenR.current[host]||0)>=60&&Math.random()<0.06){
+      if((tenR.current[host]||0)>=60&&rng()<0.06){
         setEmbassies(prev=>{const n2=new Set(prev);n2.delete(host);embR.current=n2;return n2;});
         embLockR.current={...embLockR.current,[host]:12};
         setEmbassyMissions(p=>{const n2={...p};delete n2[host];embMisR.current=n2;return n2;});
@@ -1602,12 +1542,12 @@ function WorldLeadersInner({resumeSignal}){
     const cnExpose=(btR.current.cn>=2&&(dlR.current.cyber||0)<4)?0.08:0; // corridor tech comes with listeners
     const opRate=Math.min(0.8,0.22+targetValue*0.22+maxTen/300+cnExpose); // advanced powers + hot rivalries face far more espionage
     const opInterval=Math.max(5,9-Math.floor(targetValue*3));
-    if(foreignOpR.current>=opInterval&&graceR.current<=0&&Math.random()<opRate){
+    if(foreignOpR.current>=opInterval&&graceR.current<=0&&rng()<opRate){
       foreignOpR.current=0;
       // Russia & China are the aggressive collectors; they hit advanced targets hardest
-      const pool=['russia','china','russia','china','usa','germany'].filter(a=>a!==c.id&&((!isAllyOf(c.id,a)&&(relR.current[a]||0)<60)||Math.random()<0.3));
+      const pool=['russia','china','russia','china','usa','germany'].filter(a=>a!==c.id&&((!isAllyOf(c.id,a)&&(relR.current[a]||0)<60)||rng()<0.3));
       if(!pool.length)return;
-      const atk=pool[Math.floor(Math.random()*pool.length)];
+      const atk=pool[Math.floor(rng()*pool.length)];
       const ciActive=intelR.current.some(o=>o.opId==='counter_int');
       const ipDef=ipPolR.current==='protect'?0.12:ipPolR.current==='license'?-0.08:0; // protecting IP hardens you; licensing opens you
       const intercept=Math.min(0.95,0.25+(dlR.current.cyber||0)*0.06+(intelBudgetR.current||1)*0.05+(ciActive?0.25:0)+(covR.current.has('counter_intel_grid')?0.25:0)+(infraR.current.listening_posts?0.12:0)+(infraR.current.crypt_center?0.10:0)+(infraR.current.paramilitary?0.05:0)+Math.min(0.10,(platformsR.current.satellite_net||0)*0.02)+ipDef);
@@ -1615,7 +1555,7 @@ function WorldLeadersInner({resumeSignal}){
       if((expelR.current[atk]||0)>0){ /* their station expelled — no operations against you */ }
       else {
       const burned=!!disinfoR.current[atk];if(burned)delete disinfoR.current[atk];
-      if(burned||Math.random()<intercept){
+      if(burned||rng()<intercept){
         ns.stability+=1;
         // ── INTEL RESPONSE DOCTRINE: interception is an opportunity, not just a save ──
         if(burned){
@@ -1632,7 +1572,7 @@ function WorldLeadersInner({resumeSignal}){
           showToast(`✈️ ${atkName} intelligence station expelled — their operations against you blind for 24mo`);
           setLog(p=>[{msg:`✈️ Expelled ${atkName} station`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
         } else {
-          if(Math.random()<0.30){
+          if(rng()<0.30){
             molesR.current={...molesR.current,[atk]:12};setMoles({...molesR.current});
             showToast(`🕳️ ${atkName} officer flipped in place — you now have a mole (12mo)`);
             setLog(p=>[{msg:`🕳️ Flipped ${atkName} officer`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
@@ -1646,21 +1586,21 @@ function WorldLeadersInner({resumeSignal}){
         setRivalTension(p=>({...p,[atk]:Math.min(100,(p[atk]||0)+3)}));
         // If you hold black programs, rivals prioritize stealing them — the crown jewels
         const stealableBlack=Object.keys(blackR.current||{});
-        const goForBlack=stealableBlack.length>0&&Math.random()<0.4;
+        const goForBlack=stealableBlack.length>0&&rng()<0.4;
         let ot='steal';
         if(goForBlack){
-          const stolen=stealableBlack[Math.floor(Math.random()*stealableBlack.length)];ot='blacktheft';
+          const stolen=stealableBlack[Math.floor(rng()*stealableBlack.length)];ot='blacktheft';
           // Attacker gains a major GDB boost in the program's key vertical
           const bp=BLACK_PROGRAMS[stolen];const kv=Object.keys(bp.req)[0];
           setGlobalDef(p=>{const ng={...p};if(ng[atk])ng[atk]={...ng[atk],[kv]:Math.min(5,(ng[atk][kv]||0)+1.2)};return ng;});
           showToast(`🚨 CLASSIFIED BREACH — ${atkName} exfiltrated ${bp.n} designs`);
         } else {
-          const opTypes=['steal','destab','econ'];ot=opTypes[Math.floor(Math.random()*opTypes.length)];
+          const opTypes=['steal','destab','econ'];ot=opTypes[Math.floor(rng()*opTypes.length)];
           if(ot==='steal'){const verts=Object.keys(DV);const v=verts.reduce((b,vv)=>(dlR.current[vv]||0)>(dlR.current[b]||0)?vv:b,verts[0]);setGlobalDef(p=>{const ng={...p};if(ng[atk])ng[atk]={...ng[atk],[v]:Math.min(5,(ng[atk][v]||0)+0.5)};return ng;});}
           else if(ot==='destab'){ns.stability-=4;}
           else {ns.inflation+=1.2;ns.treasury-=250;}
         }
-        if(goForBlack||Math.random()<0.55){
+        if(goForBlack||rng()<0.55){
           setRivalTension(p=>({...p,[atk]:Math.min(100,(p[atk]||0)+10)}));
           setIntelCrisis({type:'stolen',targetId:atk,opId:ot,responses:CRISIS_STOLEN});
           if(!goForBlack)showToast(`🚨 ${atkName} operation detected on your soil — choose your response`);
@@ -1682,11 +1622,11 @@ function WorldLeadersInner({resumeSignal}){
         setLog(p=>[fpLogEntry,...p.slice(0,19)]);
         fpR.current=null;setFlashpoint(null);
       } else {fpR.current={...fpR.current,t:nt};setFlashpoint({...fpR.current});}
-    } else if(graceR.current<=0&&Math.random()<0.08){
+    } else if(graceR.current<=0&&rng()<0.08){
       const rids=Object.keys(REGIONS).filter(r=>{const pv=sphR.current[r]?.player||0;return pv>15&&pv<75;});
       if(rids.length){
-        const rid=rids[Math.floor(Math.random()*rids.length)];
-        const types=Object.keys(FLASHPOINTS);const type=types[Math.floor(Math.random()*types.length)];
+        const rid=rids[Math.floor(rng()*rids.length)];
+        const types=Object.keys(FLASHPOINTS);const type=types[Math.floor(rng()*types.length)];
         const fp={rid,type,t:6+(infraR.current.isr_fusion?3:0)};fpR.current=fp;setFlashpoint(fp);
         showToast(`${FLASHPOINTS[type].i} ${FLASHPOINTS[type].n} — ${REGIONS[rid].n}. Respond on the map.`);
         setLog(p=>[{msg:`${FLASHPOINTS[type].i} ${FLASHPOINTS[type].n}: ${REGIONS[rid].n}`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
@@ -1705,7 +1645,7 @@ function WorldLeadersInner({resumeSignal}){
     if(decTimer.current<=0&&!decR.current){
       const dctx={ns,ten:tenR.current,rel:relR.current,bt:btR.current,ex:exR.current,dl:dlR.current};
       const avail=DECISIONS.filter(d=>!usedR.current.has(d.id)&&(!d.when||d.when(dctx)));
-      if(avail.length){const d=avail[Math.floor(Math.random()*avail.length)];setActiveDecision(d);decR.current=d;showToast(`🎯 Decision: ${d.title}`);}
+      if(avail.length){const d=avail[Math.floor(rng()*avail.length)];setActiveDecision(d);decR.current=d;showToast(`🎯 Decision: ${d.title}`);}
       else{usedR.current=new Set();setUsedDecisions(new Set());decTimer.current=6;}
     }
 
@@ -2000,7 +1940,7 @@ function WorldLeadersInner({resumeSignal}){
             <div style={{display:'grid',gap:'8px'}}>
               <button onClick={()=>{setBlockades(p=>{const n2={};Object.entries(p).forEach(([r2,b])=>{if(b.target!==cid)n2[r2]=b;});blkR.current=n2;return n2;});setRivalTension(p=>({...p,[cid]:Math.max(0,(p[cid]||0)-25)}));const top=Object.entries(sphere).map(([r2,s2])=>[r2,s2.competitors?.[cid]||0]).sort((a,b)=>b[1]-a[1])[0];if(top)setSphere(p=>({...p,[top[0]]:{...p[top[0]],player:Math.max(0,(p[top[0]].player||0)-6)}}));showToast(`🕊 Stood down — blockades vs ${rn} lifted, tension −25, a region conceded −6`);setLog(p=>[{msg:`🕊 Stood down to ${rn} ultimatum`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);close();}} style={{background:'#0d1117',border:'1px solid #374151',color:'#9ca3af',padding:'10px',borderRadius:'7px',fontSize:'11px',fontWeight:700,textAlign:'left'}}>🕊 Stand down<div style={{fontSize:'9px',color:'#6b7280',fontWeight:400}}>Lift blockades against them · tension −25 · concede −6 sphere in their top region</div></button>
               <button onClick={()=>{setRivalTension(p=>({...p,[cid]:Math.min(99,(p[cid]||0)+6)}));setStats(p=>({...p,stability:p.stability-2}));showToast(`⚠ Holding firm — ${rn} tension +6, the world holds its breath`);close();}} style={{background:'rgba(240,192,64,.08)',border:'1px solid #f0c040',color:'#f0c040',padding:'10px',borderRadius:'7px',fontSize:'11px',fontWeight:700,textAlign:'left'}}>✊ Hold the line<div style={{fontSize:'9px',color:'#9ca3af',fontWeight:400}}>Tension +6 · stability −2 · they may issue it again</div></button>
-              <button onClick={()=>{if(tlM<2){showToast('⚠ Counter-threat needs 2+ strategic legs — they know you cannot answer');return;}const backs=Math.random()<0.6;if(backs){setRivalTension(p=>({...p,[cid]:Math.max(0,(p[cid]||0)-20)}));showToast(`🛡 ${rn} blinked — tension −20`);setLog(p=>[{msg:`🛡 Counter-threat: ${rn} backed down`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);}else{setRivalTension(p=>({...p,[cid]:Math.min(99,(p[cid]||0)+5)}));setStats(p=>({...p,stability:p.stability-4}));showToast(`⚠ ${rn} did not blink — tension +5, stability −4`);}close();}} style={{background:'rgba(239,68,68,.1)',border:'1px solid #ef4444',color:'#ef4444',padding:'10px',borderRadius:'7px',fontSize:'11px',fontWeight:700,textAlign:'left'}}>☢ Counter-threat{tlM<2?' 🔒':''}<div style={{fontSize:'9px',color:'#9ca3af',fontWeight:400}}>60% they back down (−20) · else +5 and −4 stability</div></button>
+              <button onClick={()=>{if(tlM<2){showToast('⚠ Counter-threat needs 2+ strategic legs — they know you cannot answer');return;}const backs=rng()<0.6;if(backs){setRivalTension(p=>({...p,[cid]:Math.max(0,(p[cid]||0)-20)}));showToast(`🛡 ${rn} blinked — tension −20`);setLog(p=>[{msg:`🛡 Counter-threat: ${rn} backed down`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);}else{setRivalTension(p=>({...p,[cid]:Math.min(99,(p[cid]||0)+5)}));setStats(p=>({...p,stability:p.stability-4}));showToast(`⚠ ${rn} did not blink — tension +5, stability −4`);}close();}} style={{background:'rgba(239,68,68,.1)',border:'1px solid #ef4444',color:'#ef4444',padding:'10px',borderRadius:'7px',fontSize:'11px',fontWeight:700,textAlign:'left'}}>☢ Counter-threat{tlM<2?' 🔒':''}<div style={{fontSize:'9px',color:'#9ca3af',fontWeight:400}}>60% they back down (−20) · else +5 and −4 stability</div></button>
             </div>
           </div>
         </div>);})()}
