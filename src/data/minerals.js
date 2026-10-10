@@ -64,6 +64,16 @@ export const SLOT_INPUTS = {
   carrier: { rareEarth: 6, gallium: 3, nickel: 8, titanium: 4, tungsten: 2, enrichment: 8 },
 };
 export const PROGRAM_INPUTS = {};
+// E8 (#20) closes E4's scope gap: regular platform builds (PLATFORMS) draw inputs too, per unit built. Smaller than a tranche.
+// Imports are bought finished abroad and draw nothing.
+export const PLATFORM_INPUTS = {
+  fighter_wing: { titanium: 2, rareEarth: 1 }, missile_brigade: { tungsten: 1, rareEarth: 1 }, carrier_group: { nickel: 3, titanium: 2, rareEarth: 1 },
+  sub_fleet: { nickel: 2, titanium: 1, rareEarth: 1 }, satellite_net: { gallium: 1, germanium: 1 }, cyber_command: { gallium: 1 },
+  drone_swarm: { rareEarth: 1, lithium: 1, gallium: 1 }, rq170: { titanium: 1, gallium: 1 }, rq180: { titanium: 1, gallium: 1, germanium: 1 },
+  fa_xx: { titanium: 2, rareEarth: 2, gallium: 1 }, mq25: { titanium: 1 }, frigate: { nickel: 1, rareEarth: 1 }, zumwalt: { nickel: 2, rareEarth: 1, gallium: 1 },
+  hypersonic_bty: { tungsten: 2, rareEarth: 1, titanium: 1 }, mech_division: { nickel: 1 }, frigate_sqn: { nickel: 1 },
+  ssbn_fleet: { nickel: 3, titanium: 2, enrichment: 2 }, strategic_bombers: { titanium: 2, rareEarth: 1 }, icbm_force: { tungsten: 1, enrichment: 2 },
+};
 // Monthly bounds and levers. capex/upkeep in $M; mo = build months; add = capacity units/month a plant brings online.
 export const MINERAL_RULES = {
   capMax: 120, stockMax: 40, reserveMax: 80,
