@@ -27,7 +27,7 @@ export function Hud({ version, country, date, stats, ledger = {}, history = [], 
       <div className="wl-hud-row">
         <div className="wl-hud-nation">
           <span style={{ fontSize: 22 }} aria-hidden="true">{country?.flag}</span>
-          <div style={{ minWidth: 0 }}><b>{country?.name}</b><br /><small>{MONTHS[date.mo]} {date.yr} · v{version}{doctrineLabel ? ` · ${doctrineLabel}` : ''}{lastSaved ? ` · 💾 ${lastSaved}` : ''}</small></div>
+          <div style={{ minWidth: 0 }}><b>{country?.name}</b><small>{MONTHS[date.mo]} {date.yr} · v{version}{doctrineLabel ? ` · ${doctrineLabel}` : ''}{lastSaved ? ` · 💾 ${lastSaved}` : ''}</small></div>
         </div>
         {pauseReason && <span className="wl-pause-chip" data-pause-reason data-kind={pauseReason.kind}>⏸ {pauseReason.label}</span>}
         <div className="wl-speed" role="group" aria-label="Game speed" data-speed>

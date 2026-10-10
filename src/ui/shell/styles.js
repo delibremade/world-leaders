@@ -5,23 +5,25 @@ import { COLOR, SIZE, SPACE, RADIUS, TAP, ELEVATION, MOTION, Z, BREAK } from '..
 
 const c = COLOR;
 export const SHELL_CSS = `
-.wl-app{display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;grid-template-areas:"hud" "cards" "main" "nav";height:100vh;height:100dvh;background:${c.bg.canvas};color:${c.text.secondary};overflow:hidden}
+.wl-app{display:grid;grid-template-columns:minmax(0,1fr);width:100%;max-width:100vw;grid-template-rows:auto auto minmax(0,1fr) auto;grid-template-areas:"hud" "cards" "main" "nav";height:100vh;height:100dvh;background:${c.bg.canvas};color:${c.text.secondary};overflow:hidden}
 .wl-hud{grid-area:hud;background:${c.bg.panel};border-bottom:1px solid ${c.border.base};padding:${SPACE[2]}px ${SPACE[5]}px;display:flex;flex-direction:column;gap:${SPACE[2]}px}
 .wl-hud-row{display:flex;flex-wrap:wrap;align-items:center;gap:${SPACE[2]}px ${SPACE[4]}px;min-height:${TAP - 8}px}
 .wl-hud-nation{display:flex;align-items:center;gap:${SPACE[3]}px;min-width:0;flex:1}
-.wl-hud-nation b{font-size:${SIZE.md}px;color:${c.text.primary};white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.wl-hud-nation small{font-size:${SIZE.caption}px;color:${c.text.dim};white-space:nowrap}
+.wl-hud-nation b{display:block;font-size:${SIZE.md}px;color:${c.text.primary};white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-hud-nation>div{min-width:0;overflow:hidden}
+.wl-hud-nation small{display:block;font-size:${SIZE.caption}px;color:${c.text.dim};white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wl-speed{display:inline-flex;border:1px solid ${c.border.strong};border-radius:${RADIUS.lg}px;overflow:hidden;flex-shrink:0}
 .wl-speed button{min-width:38px;min-height:36px;border:none;background:transparent;color:${c.text.muted};font-size:${SIZE.small}px;font-weight:700;padding:0 ${SPACE[3]}px}
 .wl-speed button[aria-pressed=true]{background:${c.accent.commandDeep};color:${c.text.onAccent}}
 .wl-speed button[data-pause][aria-pressed=true]{background:${c.accent.goodDeep};color:${c.accent.good}}
-.wl-hud-figs{display:flex;gap:${SPACE[2]}px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none}
-.wl-hud-figs::-webkit-scrollbar{display:none}
-.wl-fig{flex:1 1 0;min-width:0;overflow:hidden;min-height:${TAP}px;display:flex;align-items:center;gap:${SPACE[3]}px;padding:${SPACE[2]}px ${SPACE[4]}px;border-radius:${RADIUS.lg}px;border:1px solid ${c.border.base};background:${c.bg.inset};color:inherit;text-align:left;font:inherit}
+.wl-hud-figs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:${SPACE[2]}px}
+.wl-fig{min-width:0;overflow:hidden;min-height:${TAP}px;display:flex;flex-direction:column-reverse;align-items:flex-start;justify-content:center;gap:2px;padding:${SPACE[2]}px ${SPACE[4]}px;border-radius:${RADIUS.lg}px;border:1px solid ${c.border.base};background:${c.bg.inset};color:inherit;text-align:left;font:inherit}
 .wl-fig-l{font-size:${SIZE.micro}px;color:${c.text.dim};text-transform:uppercase;letter-spacing:.5px;line-height:1.2;white-space:nowrap}
 .wl-fig-v{font-size:${SIZE.md}px;font-weight:700;line-height:1.2;white-space:nowrap}
 .wl-fig-d{font-size:${SIZE.micro}px;font-weight:700;margin-left:3px}
-.wl-fig svg{flex-shrink:0}
+.wl-fig svg,.wl-fig .recharts-wrapper{flex-shrink:0;max-width:100%}
+.wl-fig>div{min-width:0;max-width:100%}
+.wl-fig-v{overflow:hidden;text-overflow:ellipsis}
 .wl-pause-chip{order:9;flex-basis:100%;text-align:center;font-size:${SIZE.caption}px;color:${c.accent.warn};border:1px solid ${c.accent.warnDeep};background:rgba(240,192,64,.08);padding:3px ${SPACE[4]}px;border-radius:${RADIUS.md}px;white-space:nowrap;flex-shrink:0}
 .wl-pause-chip[data-kind=you]{color:${c.accent.good};border-color:${c.accent.good};background:rgba(74,222,128,.1)}
 .wl-cards{grid-area:cards;display:flex;gap:${SPACE[4]}px;overflow-x:auto;padding:${SPACE[4]}px ${SPACE[6]}px;scroll-snap-type:x mandatory;background:${c.bg.surface};border-bottom:1px solid ${c.border.base}}
@@ -38,13 +40,18 @@ export const SHELL_CSS = `
 .wl-main{grid-area:main;display:flex;min-height:0;overflow:hidden}
 .wl-body{grid-area:main;overflow-x:clip;min-width:0}
 .wl-body>*{min-width:0}
-.wl-nav{grid-area:nav;display:flex;background:${c.bg.panel};border-top:1px solid ${c.border.base};overflow-x:auto;scrollbar-width:none;padding-bottom:env(safe-area-inset-bottom)}
-.wl-nav::-webkit-scrollbar{display:none}
-.wl-nav button{position:relative;flex:1 0 64px;min-height:56px;border:none;background:transparent;color:${c.text.dim};font-size:${SIZE.caption}px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:${SPACE[2]}px 0}
+.wl-nav{grid-area:nav;display:flex;background:${c.bg.panel};border-top:1px solid ${c.border.base};padding-bottom:env(safe-area-inset-bottom)}
+.wl-nav button{position:relative;flex:1 1 0;min-width:0;min-height:56px;border:none;background:transparent;color:${c.text.dim};font-size:${SIZE.caption}px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:${SPACE[2]}px 0}
 .wl-nav button span:first-child{font-size:18px;line-height:1}
+.wl-nav button .wl-nav-l{display:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wl-nav button[aria-current=page]{flex:0 0 68px}
+.wl-nav button[aria-current=page] .wl-nav-l{display:block}
 .wl-nav button[aria-current=page]{color:${c.text.primary}}
 .wl-nav button[aria-current=page]::after{content:"";position:absolute;top:0;left:18%;right:18%;height:2px;background:${c.accent.command};border-radius:0 0 2px 2px}
-.wl-badge{position:absolute;top:6px;right:calc(50% - 22px);min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:${c.accent.warn};color:#000;font-size:${SIZE.micro}px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.wl-badge{position:absolute;top:4px;right:calc(50% - 16px);min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:${c.accent.warn};color:#000;font-size:${SIZE.micro}px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.wl-help{width:${TAP - 8}px;height:${TAP - 8}px;border-radius:50%;border:1px solid ${c.border.strong};background:transparent;color:${c.text.muted};font-weight:700;font-size:${SIZE.body}px;flex-shrink:0}
+.wl-help-row{display:flex;gap:${SPACE[3]}px;padding:4px 0;border-bottom:1px solid ${c.border.base};font-size:${SIZE.small}px;line-height:1.4}
+.wl-help-row:last-of-type{border-bottom:none}
 .wl-badge[data-sev=alert]{background:${c.accent.alert};color:#fff}
 .wl-outliner{position:fixed;left:0;right:0;bottom:calc(56px + env(safe-area-inset-bottom));z-index:${Z.outliner};background:${c.bg.panel};border-top:1px solid ${c.border.strong};box-shadow:${ELEVATION.raised};display:flex;flex-direction:column;transition:height ${MOTION.drawer} ${MOTION.ease};height:32px;touch-action:none}
 .wl-outliner[data-open=true]{height:62vh}
@@ -89,13 +96,15 @@ export const SHELL_CSS = `
 .wl-why-note{margin-top:${SPACE[3]}px;font-size:${SIZE.caption}px;color:${c.text.dim}}
 .wl-why-arrow{fill:${c.accent.command}}
 @media (min-width:${BREAK.tablet}px){
-  .wl-app{grid-template-columns:76px minmax(0,1fr) 300px;grid-template-rows:auto auto minmax(0,1fr);grid-template-areas:"hud hud hud" "nav cards outliner" "nav main outliner"}
+  .wl-app{grid-template-columns:76px minmax(0,1fr) 280px;grid-template-rows:auto auto minmax(0,1fr);grid-template-areas:"hud hud hud" "nav cards outliner" "nav main outliner"}
   .wl-nav{flex-direction:column;border-top:none;border-right:1px solid ${c.border.base};overflow-y:auto;padding-bottom:0}
-  .wl-nav button{flex:0 0 auto;min-height:64px}
+  .wl-nav button,.wl-nav button[aria-current=page]{flex:0 0 auto;min-height:64px}
+  .wl-nav button .wl-nav-l{display:block}
   .wl-outliner{position:static;grid-area:outliner;height:auto!important;border-top:none;border-left:1px solid ${c.border.base};box-shadow:none;transition:none}
   .wl-outliner-handle::before{display:none}
   .wl-outliner[data-open=false] .wl-outliner-body{display:block}
   .wl-hud-figs{overflow:visible}
-  .wl-fig{flex:0 1 200px}
+  .wl-hud-figs{grid-template-columns:repeat(3,minmax(0,220px))}
+  .wl-fig{flex-direction:row;align-items:center;gap:${SPACE[3]}px}
 }
 `;
