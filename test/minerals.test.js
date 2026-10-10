@@ -232,26 +232,40 @@ test('invariants: stocks non-negative, capacity and stockpiles bounded, records 
   h.g.minerals = { ...h.g.minerals, against: {}, queue: [{ id: 'f35', left: { gallium: -2 }, need: { gallium: 2 } }] }; assert.ok(checkV57(h.g).some((n) => /queued tranches/.test(n)));
 });
 
-test('App: Resources shows the minerals view with every lever; Defense shows supply and the binding mineral when slowed', async () => {
+test('App: Resources shows the minerals view with every lever on five screens; Arsenal shows supply and the binding mineral when slowed', async () => {
   const settle = async () => { for (let i = 0; i < 6; i++) await new Promise((r) => setTimeout(r, 0)); };
   const origErr = console.error; console.error = () => {};
   const g = await mount(BUNDLES.app, { seed: 7, testHook: true });
   try {
     await g.pickCountry(idx('usa')); g.w.__wl.fund(200000); await settle();
     g.tabBtn('resources').click(); await settle();
-    const view = g.doc.querySelector('[data-minerals]');
-    assert.ok(view, 'minerals view');
-    assert.equal(view.querySelectorAll('[data-mineral]').length, 10);
+    const view = () => g.doc.querySelector('[data-minerals]');
+    const sub = async (id) => { g.doc.querySelector(`[data-seg=${id}]`).click(); await settle(); };
+    assert.ok(view(), 'minerals view opens on Reserves');
+    const rowsIn = () => view().querySelectorAll('[data-mineral]').length;
+    assert.equal(rowsIn(), 10);
+    assert.ok(view().querySelector('[data-re-export]'), 'v57 rare-earth export extraction merged into Reserves');
     const row = (m = 'gallium') => g.doc.querySelector(`[data-mineral=${m}]`);
-    const open = async (m) => { row(m).querySelector('[data-mineral-head]').click(); await settle(); };
     const press = async (re, root = row()) => { const b = [...root.querySelectorAll('button')].find((x) => re.test(x.textContent)); assert.ok(b, `button ${re}`); b.click(); await settle(); };
-    await open('gallium');
-    for (const re of [/Build plant/, /Buy reserve/, /Release/, /Recycl/]) await press(re);
+    // Reserves: rare-earth extraction level 3 sets the export lever.
+    await press(/^3$/, view().querySelector('[data-re-export]'));
+    assert.equal(view().querySelector('[data-re-export] [aria-pressed=true]').textContent, '3', 'extraction level 3 set');
+    
+    await sub('processing'); assert.equal(rowsIn(), 10);
+    for (const re of [/Build plant/, /Recycl/]) await press(re);
+    assert.match(row().textContent, /plant .*36mo|🏗️ 36mo/i);
+    await sub('stockpile'); assert.equal(rowsIn(), 10);
+    for (const re of [/Buy reserve/, /Release/]) await press(re);
+    assert.match(row().textContent, /reserve 10/i);
+    await sub('deals');
     await press(/Offtake .*Japan/);
-    assert.match(row().textContent, /plant .*36mo/i); assert.match(row().textContent, /reserve 10/i); assert.match(row().textContent, /Japan/);
-    await press(/Processing pact/, view);
-    await open('rareEarth');
-    assert.ok([...row('rareEarth').querySelectorAll('button')].some((b) => /Export control/.test(b.textContent)), 'export control offered where we process');
+    assert.match(g.doc.querySelector('[data-deal^=gallium_]').textContent, /Japan/);
+    await press(/Processing pact/, view());
+    await sub('controls');
+    const rare = row('rareEarth'); assert.ok([...rare.querySelectorAll('button')].some((b) => /Export control/.test(b.textContent)), 'export control offered where we process');
+    await press(/Export control/, rare);
+    assert.ok(g.doc.querySelector('[data-confirm]'), 'export control goes through the confirm sheet');
+    [...g.doc.querySelectorAll('[data-confirm-ok]')][0].click(); await settle();
     // Slow F-35 production: empty every stockpile, China controls its exports, produce.
     const drain = async () => { for (const m of MINERAL_IDS) g.w.__wl.mineral(m, { stock: 0, reserve: 0 }); await settle(); };
     await drain(); g.w.__wl.setTension('china', 90); await settle();

@@ -25,7 +25,7 @@ function Programs({ v, dispatch }) {
   const by = Object.fromEntries(STAGES.map(([k]) => [k, rows.filter((r) => r.stage === k).length]));
   const short = (stats?.treasury || 0) < 1500;
   return <>
-    <Panel id="pipeline" title="Pipeline · R&D → prototype → LRIP → full rate" figure={`${rows.length} programs`}>
+    <Panel id="pipeline" title="Pipeline" figure={`${rows.length} programs`}>
       <div className="wl-row" style={{ flexWrap: 'wrap', gap: 6 }}>
         {STAGES.map(([k, n]) => <span key={k} className={`wl-chip${by[k] ? ' wl-chip-command' : ''}`} data-stage-count={k}>{n} {by[k]}</span>)}
       </div>
@@ -102,7 +102,7 @@ function Deterrence({ v }) {
       <Row title="Conventional deterrence" sub="Military 70+ and 85+" value={mil >= 85 ? '−50%' : mil >= 70 ? '−25%' : 'none'} tone={mil >= 70 ? 'good' : undefined}><Bar pct={mil} tone={tone(mil, 40, 70)} marker={70} /></Row>
       <div className="wl-note">−25% foreign pressure and sphere loss at Military 70, −50% at 85.</div>
     </Panel>
-    <Panel id="mad" title="MAD parity · your triad vs their strategic weight" figure={`${foes.filter((id) => strategicWeight(globalDef[id] || {}) >= legs && legs > 0).length} parity`}>
+    <Panel id="mad" title="MAD parity" figure={`${foes.filter((id) => strategicWeight(globalDef[id] || {}) >= legs && legs > 0).length} parity`}>
       {foes.map((id) => { const w = strategicWeight(globalDef[id] || {}); const par = w >= legs && legs > 0; return <Row key={id} data-mad={id} title={`${NATIONS[id].flag || ''} ${NATIONS[id].n}`} sub={`Strategic weight ${w}/3 vs your triad ${legs}/4`} value={par ? 'PARITY = MAD' : w < legs ? 'you lead' : 'no triad'} tone={par ? 'alert' : legs > w ? 'good' : undefined} />; })}
       <div className="wl-note">Parity is mutual destruction: a nuclear exchange ends most runs badly for everyone. Final options live in the Situation Room.</div>
     </Panel>

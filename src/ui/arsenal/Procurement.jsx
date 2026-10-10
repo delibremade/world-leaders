@@ -37,7 +37,7 @@ export function Procurement({ v, dispatch }) {
         {POLICIES.map(([m, l, d]) => <button key={m} type="button" className="wl-verb" aria-pressed={procureMode === m} onClick={() => dispatch({ type: 'setProcurement', payload: { mode: m } })}><span><b>{l}</b><small>{d}</small></span></button>)}
       </div>
     </Panel>
-    <Panel id="platforms" title="Platforms · develop, then build" figure={Object.keys(PLATFORMS).length}>
+    <Panel id="platforms" title="Platforms" figure={Object.keys(PLATFORMS).length}>
       {Object.entries(PLATFORMS).map(([pid, p]) => {
         const ct = platforms[pid] || 0; const imp = platformsImported[pid] || 0; const ok = meetsReq(p.req, defLevels);
         const over = Object.entries(p.req).reduce((o, [vv, rq]) => o + Math.max(0, (defLevels[vv] || 0) - rq), 0);
@@ -57,7 +57,7 @@ export function Procurement({ v, dispatch }) {
         </Row>;
       })}
     </Panel>
-    <Panel id="rd" title="R&D readiness · research is in Technology" figure={`${Object.values(defLevels).reduce((a, b) => a + (b || 0), 0)} levels`}>
+    <Panel id="rd" title="R&D readiness" figure={`${Object.values(defLevels).reduce((a, b) => a + (b || 0), 0)} levels`}>
       {Object.entries(DV).map(([vert, def]) => { const lvl = defLevels[vert] || 0; return <Row key={vert} title={`${def.i} ${def.n}`} value={`L${lvl}/7`} tone={tone(lvl, 2, 4)}><Bar pct={(lvl / 7) * 100} tone={tone(lvl, 2, 4)} /></Row>; })}
       {queue.map(([vert, mo]) => { const def = DV[vert]; if (!def) return null; const tot = def.lvl[defLevels[vert] || 0]?.mo || mo; return <Row key={`q_${vert}`} title={`In research: ${def.n}`} sub={`→ L${(defLevels[vert] || 0) + 1}: ${def.lvl[defLevels[vert] || 0]?.n}`} value={`${mo}mo`}><Bar pct={Math.max(0, ((tot - mo) / tot) * 100)} /></Row>; })}
     </Panel>
