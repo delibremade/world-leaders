@@ -18,7 +18,17 @@ import { stateView, openingPosition } from '../sim/state.js';
 import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups } from '../sim/selectors.js';
 import { VERSION, BUILD_STAMP } from './version.js';
 import { MapView } from './map/MapView.jsx';
+import { Hud } from './shell/Hud.jsx';
+import { BottomNav } from './shell/BottomNav.jsx';
+import { Sheet } from './shell/Sheet.jsx';
+import { NationSheet } from './shell/NationSheet.jsx';
+import { nationName } from './shell/nation-verbs.js';
+import { Outliner } from './shell/Outliner.jsx';
+import { buildOutliner } from './shell/outliner.js';
+import { EventCards } from './shell/EventCards.jsx';
+import { SHELL_CSS } from './shell/styles.js';
 const TABS=['overview','sitroom','economy','energy','resources','defense','intel','technology','trade'];
+const TAB_SHORT={overview:'Overview',sitroom:'Sit Room',economy:'Economy',energy:'Energy',resources:'Resources',defense:'Defense',intel:'Intel',technology:'Tech',trade:'Trade'};
 const TABM={overview:{i:'🌍',l:'Overview'},economy:{i:'💰',l:'Economy'},energy:{i:'⚡',l:'Energy'},resources:{i:'⛏️',l:'Resources'},sitroom:{i:'🎖️',l:'Situation Room'},defense:{i:'🛡️',l:'Defense'},intel:{i:'🕵️',l:'Intel'},technology:{i:'💻',l:'Technology'},trade:{i:'🤝',l:'Trade'}};
 function genModelData(sk,cv,opt,drift){return Array.from({length:21},(_,m)=>{const np=cv+drift*m;const pct=Math.min(m/Math.max(opt.tm,1),1);const eff=(opt.fx||[]).find(e=>e.s===sk)?.d||0;const wp=cv+drift*Math.min(m,opt.tm*.5)+eff*pct*(opt.conf/100);return{m,'No Policy':+np.toFixed(2),'With Policy':+wp.toFixed(2)};});}
 
@@ -123,6 +133,9 @@ function WorldLeadersInner({resumeSignal}){
   const [usedDecisions,setUsedDecisions]=useState(new Set());
   const [activeTab,setActiveTab]=useState('overview');
   const [mapMode,setMapMode]=useState('sphere');
+  const [selNation,setSelNation]=useState(null);      // P3c nation sheet (presentation)
+  const [outlinerOpen,setOutlinerOpen]=useState(false);
+  const [history,setHistory]=useState([]);            // 24-month HUD sparklines (presentation, not saved)
   const [interestRate,setInterestRate]=useState(4.0);
   const [taxPolicy,setTaxPolicy]=useState(28);
   const [spendingMode,setSpendingMode]=useState('balanced');
@@ -483,6 +496,10 @@ function WorldLeadersInner({resumeSignal}){
     </div>;
   };
 
+  // P3c HUD sparklines: 24-month presentation history (not saved). Hooks must precede the select-phase return.
+  const hegRef=useRef(0);
+  useEffect(()=>{if(phase!=='play'||!stats){if(phase!=='play')setHistory(h=>h.length?[]:h);return;}setHistory(h=>{const t=`${date.yr}-${date.mo}`;if(h.length&&h[h.length-1].t===t)return h;return [...h.slice(-23),{t,treasury:stats.treasury,stability:stats.stability,heg:hegRef.current}];});},[phase,date.mo,date.yr]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── SELECT ──────────────────────────────────────────────────────────────────
   if(phase==='select')return(
     <div style={{background:'#06090d',minHeight:'100vh',color:'#d1d5db',fontFamily:"'SF Pro Display',-apple-system,'Segoe UI',Roboto,'Helvetica Neue',sans-serif",WebkitFontSmoothing:'antialiased',padding:'36px 20px',backgroundImage:'radial-gradient(ellipse at 50% -20%,rgba(30,60,100,.4) 0%,transparent 60%)'}}>
@@ -529,6 +546,7 @@ function WorldLeadersInner({resumeSignal}){
   const pillarI=hAvgSph;
   const pillarT=stats?Math.min(100,stats.education*0.4+(hTotDL/70)*100*0.6):0;
   const hegScore=(pillarE+pillarM+pillarI+pillarT)/4;
+  hegRef.current=hegScore; // read by the sparkline effect above (hooks sit before the select-phase return)
   const rivalScores=Object.entries(globalDef).map(([cid,lvls])=>{
     const rAvg=Object.values(lvls).reduce((a,b)=>a+b,0)/Math.max(1,Object.keys(lvls).length);
     const rSph=Object.values(sphere).reduce((a,s2)=>a+(s2.competitors?.[cid]||0),0)/Math.max(1,hSphVals.length);
@@ -595,7 +613,8 @@ function WorldLeadersInner({resumeSignal}){
   };
 
   return(
-    <div style={{minHeight:'100vh',height:'100vh',color:'#d1d5db',fontFamily:"'SF Pro Display',-apple-system,'Segoe UI',Roboto,'Helvetica Neue',sans-serif",WebkitFontSmoothing:'antialiased',MozOsxFontSmoothing:'grayscale',display:'flex',flexDirection:'column',overflow:'hidden',background:'radial-gradient(1100px 540px at 72% -8%,rgba(59,130,246,.07),transparent 62%),radial-gradient(900px 480px at -4% 108%,rgba(167,139,250,.05),transparent 58%),#06090d'}}>
+    <div className="wl-app" style={{backgroundImage:'radial-gradient(1100px 540px at 72% -8%,rgba(59,130,246,.07),transparent 62%),radial-gradient(900px 480px at -4% 108%,rgba(167,139,250,.05),transparent 58%)'}}>
+      <style>{SHELL_CSS}</style>
       <style>{`
         *{font-variant-numeric:tabular-nums}
         ::selection{background:rgba(59,130,246,.35)}
@@ -631,17 +650,6 @@ function WorldLeadersInner({resumeSignal}){
           <button onClick={()=>{setPhase('select');setGameOver(null);}} style={{background:'transparent',border:'1px solid #374151',color:'#9ca3af',padding:'9px 20px',borderRadius:'6px',fontSize:'13px'}}>New Nation</button>
         </div>
       </div></div>)}
-      {!doctrine&&!gameOver&&(<div style={{position:'fixed',inset:0,background:'rgba(4,7,12,.74)',backdropFilter:'blur(7px)',WebkitBackdropFilter:'blur(7px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1900}}><div style={{maxWidth:'720px',width:'94%'}}>
-        <div style={{textAlign:'center',marginBottom:'16px'}}><div style={{fontSize:'11px',color:'#3b82f6',letterSpacing:'3px',textTransform:'uppercase',marginBottom:'6px'}}>Choose Your National Doctrine</div><div style={{fontSize:'13px',color:'#9ca3af'}}>This defines your path to hegemony. First nation to 80% Hegemony wins the era. Rivals are racing you.</div></div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'10px'}}>
-        {Object.entries(DOCTRINES).map(([id,d])=>(<div key={id} onClick={()=>dispatch({type:'chooseDoctrine',payload:{doctrine:id}})} style={{background:'#0d1117',border:`1px solid ${d.col}55`,borderRadius:'10px',padding:'16px',cursor:'pointer',transition:'all .15s'}}>
-          <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'7px'}}><span style={{fontSize:'24px'}}>{d.i}</span><div style={{fontSize:'15px',fontWeight:700,color:d.col}}>{d.n}</div></div>
-          <div style={{fontSize:'12px',color:'#9ca3af',lineHeight:'1.5',marginBottom:'9px'}}>{d.d}</div>
-          {d.pros.map(p2=><div key={p2} style={{fontSize:'11px',color:'#4ade80',marginBottom:'2px'}}>+ {p2}</div>)}
-          {d.cons.map(c2=><div key={c2} style={{fontSize:'11px',color:'#ef4444',marginBottom:'2px'}}>− {c2}</div>)}
-        </div>))}
-        </div>
-      </div></div>)}
       {gameOver&&(<div style={{position:'fixed',inset:0,background:'rgba(4,7,12,.78)',backdropFilter:'blur(7px)',WebkitBackdropFilter:'blur(7px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:2000}}><div style={{background:'#111827',border:`1px solid ${gameOver?.startsWith('🏆')?'#4ade80':'#ef4444'}`,borderRadius:'10px',padding:'48px 40px',textAlign:'center',maxWidth:'400px'}}><div style={{fontSize:'48px',marginBottom:'14px'}}>{gameOver?.startsWith('🏆')?'🏆':'☠'}</div><div style={{fontSize:'16px',color:'#f9fafb',fontFamily:'Georgia,serif',marginBottom:'10px'}}>{country?.name}</div><div style={{fontSize:'13px',color:'#9ca3af',lineHeight:'1.7',marginBottom:'26px'}}>{gameOver}</div><div style={{display:'flex',gap:'10px',justifyContent:'center'}}><button onClick={()=>{setPhase('select');setGameOver(null);}} style={{background:'transparent',border:'1px solid #374151',color:'#9ca3af',padding:'9px 20px',borderRadius:'6px',fontSize:'13px'}}>New Nation</button><button onClick={()=>dispatch({type:'imfBailout'})} style={{background:'#14532d',border:'1px solid #4ade80',color:'#4ade80',padding:'9px 20px',borderRadius:'6px',fontSize:'13px'}}>💰 IMF Bailout</button></div></div></div>)}
 
       {ultimatum&&(()=>{const cid=ultimatum.cid;const rn=cid.charAt(0).toUpperCase()+cid.slice(1);const tlM=triadLegs(platforms,blackPrograms);return(
@@ -672,31 +680,10 @@ function WorldLeadersInner({resumeSignal}){
         </div>);})()}
       {intelCrisis&&(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1500}}><div style={{background:'#111827',border:'2px solid #ef4444',borderRadius:'10px',padding:'28px',maxWidth:'480px',width:'90%'}}><div style={{fontSize:'11px',color:'#ef4444',textTransform:'uppercase',letterSpacing:'2px',marginBottom:'8px'}}>🚨 Intelligence Crisis</div><div style={{fontSize:'14px',fontWeight:700,color:'#f9fafb',marginBottom:'8px'}}>{intelCrisis.type==='friendly'?'Operation Discovered by Ally':intelCrisis.type==='stolen'?'Foreign Operation Against You Detected':'Operation Discovered by Adversary'}</div><div style={{fontSize:'12px',color:'#9ca3af',marginBottom:'14px'}}>Target: {intelCrisis.targetId} · Op: {INTEL_OPS.find(o=>o.id===intelCrisis.opId)?.n}. Choose your response carefully — consequences are real.</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>{intelCrisis.responses.map(r=><div key={r.id} onClick={()=>dispatch({type:'respondIntelCrisis',payload:{response:r.id,crisis:intelCrisis}})} style={{background:'#0d1117',border:'1px solid #374151',borderRadius:'7px',padding:'10px',cursor:'pointer'}}><div style={{fontSize:'12px',fontWeight:700,color:'#f9fafb',marginBottom:'4px'}}>{r.label}</div>{r.tags.map((t,i)=><div key={i} style={{fontSize:'10px',color:'#6b7280'}}>· {t}</div>)}</div>)}</div></div></div>)}
 
-      {/* HUD */}
-      <div style={{background:'#0d1117',borderBottom:'1px solid #1f2937',padding:'0 14px',height:'48px',display:'flex',alignItems:'center',gap:'8px',flexShrink:0}}>
-        <span style={{fontSize:'9px',color:'#4b5563',letterSpacing:'1px',flexShrink:0}}>v{VERSION}</span>
-        <span style={{fontSize:'19px'}}>{country?.flag}</span>
-        <div style={{borderRight:'1px solid #1f2937',paddingRight:'10px',marginRight:'2px',flexShrink:0}}><div style={{fontSize:'12px',fontWeight:700,color:'#f9fafb'}}>{country?.name}</div><div style={{fontSize:'10px',color:'#6b7280'}}>{MONTHS[date.mo]} {date.yr}</div></div>
-        {stats&&['treasury','gdpGrowth','unemployment','inflation','stability','military'].map(k=>{const st=ss(k,stats[k]);const col=sc(st);const d=statsTrend[k]||0;const thr=k==='treasury'?20:0.04;const goodUp=!['unemployment','inflation'].includes(k);const fav=(d>0)===goodUp;return(<div key={k} style={{display:'flex',flexDirection:'column',background:'#1f2937',padding:'3px 8px',borderRadius:'5px',border:`1px solid ${st==='ok'?'#374151':col+'55'}`,flexShrink:0}}><div style={{fontSize:'9px',color:'#6b7280'}}>{SC[k].label}</div><div style={{fontSize:'12px',fontWeight:700,color:col}}>{SC[k].fmt(stats[k])}{Math.abs(d)>=thr&&<span style={{fontSize:'9px',marginLeft:'3px',color:fav?'#4ade80':'#ef4444'}}>{d>0?'▲':'▼'}{k==='treasury'?Math.abs(Math.round(d)):Math.abs(d).toFixed(1)}</span>}</div></div>);})}
-        {defLev>1.1&&<div style={{fontSize:'10px',color:'#4ade80',padding:'3px 8px',background:'rgba(74,222,128,.1)',border:'1px solid #4ade80',borderRadius:'4px',flexShrink:0}}>⚔ Leverage ×{defLev.toFixed(2)}</div>}
-        {activePolicies.has('petrodollar')&&<div style={{fontSize:'10px',color:'#fbbf24',padding:'3px 8px',background:'rgba(251,191,36,.1)',border:'1px solid #fbbf24',borderRadius:'4px',flexShrink:0}}>💵 Petrodollar</div>}
-        <div style={{flex:1}}/>
-        {doctrine&&<div style={{fontSize:'10px',color:DOCTRINES[doctrine].col,padding:'2px 7px',background:'rgba(0,0,0,.3)',border:`1px solid ${DOCTRINES[doctrine].col}55`,borderRadius:'4px',flexShrink:0}}>{DOCTRINES[doctrine].i} {DOCTRINES[doctrine].n}</div>}
-        <div style={{fontSize:'10px',color:hegScore>=60?'#4ade80':'#9ca3af',padding:'2px 7px',background:'rgba(0,0,0,.3)',border:'1px solid #374151',borderRadius:'4px',flexShrink:0}}>👑 {hegScore.toFixed(0)}%</div>
-        {gracePeriod>0&&<div style={{fontSize:'10px',color:'#06b6d4',padding:'2px 7px',background:'rgba(6,182,212,.1)',border:'1px solid #06b6d455',borderRadius:'4px',flexShrink:0}}>🛡 Grace {gracePeriod}mo</div>}
-        {activeDecision&&<div style={{fontSize:'11px',color:'#f0c040',animation:'pulse 1.5s infinite',flexShrink:0}}>⚠ Decision</div>}
-        {activeIssues.filter(i=>i.status==='unexamined').length>0&&<div style={{fontSize:'11px',color:'#ef4444',animation:'pulse 1.8s infinite',flexShrink:0}}>● {activeIssues.filter(i=>i.status==='unexamined').length}</div>}
-        <button onClick={()=>setGameSpeed(s=>s===1?2:s===2?4:1)} style={{background:gameSpeed>1?'#1d4ed8':'transparent',border:`1px solid ${gameSpeed>1?'#3b82f6':'#374151'}`,color:gameSpeed>1?'white':'#9ca3af',padding:'4px 10px',borderRadius:'5px',fontSize:'11px',fontWeight:700,flexShrink:0}}>▶▶ {gameSpeed}×</button>
-        {(()=>{const r=ultimatum?'Nuclear ultimatum':confrontation?'Confrontation':intelCrisis?'Intel crisis':(victory&&!victoryShown)?'Victory':(activeTab==='overview'&&selectedRegion&&flashpoint&&flashpoint.rid===selectedRegion)?'Crisis briefing':null;return r&&!paused?<span style={{fontSize:'10px',color:'#f0c040',border:'1px solid #78350f',background:'rgba(240,192,64,.08)',padding:'3px 8px',borderRadius:'5px',flexShrink:0}}>⏸ {r}</span>:null;})()}
-        {lastSaved&&<span title="Autosaves every 3 months" style={{fontSize:'9px',color:'#4b5563',flexShrink:0}}>💾 {lastSaved}</span>}
-        <button onClick={()=>setPaused(p=>!p)} style={{background:paused?'#14532d':'transparent',border:`1px solid ${paused?'#4ade80':'#374151'}`,color:paused?'#4ade80':'#9ca3af',padding:'4px 12px',borderRadius:'5px',fontSize:'11px',flexShrink:0}}>{paused?'▶':'⏸'}</button>
-        <button onClick={()=>{setPhase('select');setGameOver(null);}} style={{background:'transparent',border:'1px solid #374151',color:'#6b7280',padding:'4px 8px',borderRadius:'5px',fontSize:'11px',flexShrink:0}}>✕</button>
-      </div>
-
-      {/* TABS */}
-      <div style={{background:'#0d1117',borderBottom:'1px solid #1f2937',display:'flex',flexShrink:0,overflowX:'auto'}}>
-        {TABS.map(tab=><button key={tab} onClick={()=>{setActiveTab(tab);setVitalsDrill(null);}} style={{background:'transparent',border:'none',borderBottom:`2px solid ${activeTab===tab?'#3b82f6':'transparent'}`,color:activeTab===tab?'#f9fafb':'#6b7280',padding:'9px 14px',fontSize:'12px',fontWeight:activeTab===tab?700:400,display:'flex',alignItems:'center',gap:'5px',whiteSpace:'nowrap',flexShrink:0}}>{TABM[tab].i} {TABM[tab].l}</button>)}
-      </div>
+      <Hud version={VERSION} country={country} date={date} stats={stats} ledger={ledger} history={history} hegScore={hegScore} pillars={{e:pillarE,m:pillarM,i:pillarI,t:pillarT}} activeEffects={activeEffects}
+        pauseReason={paused?{kind:'you',label:'Paused by you'}:ultimatum?{kind:'engine',label:'Nuclear ultimatum'}:confrontation?{kind:'engine',label:'Blockade confrontation'}:intelCrisis?{kind:'engine',label:'Intel crisis'}:gameOver?{kind:'engine',label:'Game over'}:(victory&&!victoryShown)?{kind:'engine',label:'Victory'}:(activeTab==='overview'&&selectedRegion&&flashpoint&&flashpoint.rid===selectedRegion)?{kind:'engine',label:'Crisis briefing'}:null}
+        paused={paused} onPause={setPaused} gameSpeed={gameSpeed} onSpeed={setGameSpeed} lastSaved={lastSaved} onQuit={()=>{setPhase('select');setGameOver(null);}} doctrineLabel={doctrine?`${DOCTRINES[doctrine].i} ${DOCTRINES[doctrine].n}`:null}/>
+      <EventCards doctrine={doctrine} activeDecision={activeDecision} decisionDesc={activeDecision?(typeof activeDecision.desc==='function'?activeDecision.desc({ten:rivalTension,bt:blocTrade,ns:stats||{}}):activeDecision.desc):''} worldEvent={worldEvent} flashpoint={flashpoint} dispatch={dispatch} fxBadge={fxBadge} onOpenRegion={rid=>{setActiveTab('overview');setSelNation(null);setSelectedRegion(rid);}}/>
 
       <div className="wl-body" style={{flex:1,display:'flex',overflow:'hidden'}}>
         {/* Left vitals — always visible, clickable */}
@@ -725,14 +712,6 @@ function WorldLeadersInner({resumeSignal}){
             {/* Intel Crisis */}
             {/* (handled by modal above) */}
 
-            {/* Active Decision */}
-            {activeDecision&&(()=>{const dDesc=typeof activeDecision.desc==='function'?activeDecision.desc({ten:rivalTension,bt:blocTrade,ns:stats||{}}):activeDecision.desc;return <div style={{background:'#111827',border:'2px solid #f0c040',borderRadius:'10px',padding:'14px',animation:'fadeIn .3s ease'}}>
-              <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'6px'}}><span style={{fontSize:'20px'}}>{activeDecision.icon}</span><div><div style={{fontSize:'10px',color:'#f0c040',textTransform:'uppercase',letterSpacing:'2px'}}>Decision Required</div><div style={{fontSize:'14px',fontWeight:700,color:'#f9fafb'}}>{activeDecision.title}</div></div></div>
-              <div style={{fontSize:'12px',color:'#9ca3af',marginBottom:'12px'}}>{dDesc}</div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'7px'}}>
-                {activeDecision.options.map(opt=>(<div key={opt.id} onMouseEnter={()=>setHovOpt(opt.id)} onMouseLeave={()=>setHovOpt(null)} onClick={()=>dispatch({type:'makeDecision',payload:{option:opt.id}})} style={{background:hovOpt===opt.id?'#1f2937':'#0d1117',border:`1px solid ${hovOpt===opt.id?'#f0c040':'#374151'}`,borderRadius:'7px',padding:'10px',cursor:'pointer',transition:'all .15s'}}><div style={{fontSize:'12px',fontWeight:700,color:hovOpt===opt.id?'#fbbf24':'#e5e7eb',marginBottom:'4px'}}>{opt.label}</div>{opt.tags.map((t,i)=><div key={i} style={{fontSize:'10px',color:'#6b7280',marginBottom:'2px'}}>· {t}</div>)}{hovOpt===opt.id&&<div style={{marginTop:'6px',borderTop:'1px solid #374151',paddingTop:'6px',display:'flex',flexWrap:'wrap',gap:'3px'}}>{Object.entries(opt.effects||{}).map(([k,v])=>fxBadge(k,v,true))}</div>}</div>))}
-              </div>
-            </div>;})()}
 
             {/* ── HEGEMONY RACE ─────────────────────────────────── */}
             <div style={{background:'#0d1117',border:'1px solid #1f2937',borderRadius:'10px',padding:'12px'}}>
@@ -762,85 +741,6 @@ function WorldLeadersInner({resumeSignal}){
               <MapView mode={mapMode} onModeChange={setMapMode} onRegionTap={rid=>setSelectedRegion(selectedRegion===rid?null:rid)}
                 view={{country,sphere,selectedRegion,forceDeployments,flashpoint,sphereTrend,intelOps,defExports,doctrine,nationRelations,embassies,defensePacts,chokeStatus,rivalTension,blockades,tradeAgreements,importContracts,embargoes,embargoedBy,forcePosture,sanctions,moles,expelled:expelR.current,concessions}}/>
 
-              {/* Selected region panel */}
-              {selectedRegion&&<div style={{marginTop:'10px',background:'#111827',borderRadius:'8px',padding:'12px',border:`1px solid ${country?.color||'#4ade80'}55`}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
-                  <div style={{fontSize:'14px',fontWeight:700,color:'#f9fafb'}}>{REGIONS[selectedRegion].n}</div>
-                  <button onClick={()=>setSelectedRegion(null)} style={{background:'transparent',border:'none',color:'#6b7280',fontSize:'14px'}}>✕</button>
-                </div>
-                {/* Sphere bars */}
-                <div style={{marginBottom:'10px'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:'3px'}}><span style={{fontSize:'11px',color:'#9ca3af'}}>Your Influence</span><span style={{fontSize:'12px',fontWeight:700,color:country?.color||'#4ade80'}}>{Math.round(sphere[selectedRegion]?.player||0)}%</span></div>
-                  <div style={{height:'4px',background:'#1f2937',borderRadius:'2px',marginBottom:'6px'}}><div style={{height:'100%',width:`${sphere[selectedRegion]?.player||0}%`,background:country?.color||'#4ade80',borderRadius:'2px'}}/></div>
-                  {Object.entries(sphere[selectedRegion]?.competitors||{}).sort(([ca,a],[cb,b])=>(isAllyOf(country?.id,ca)?1:0)-(isAllyOf(country?.id,cb)?1:0)||b-a).slice(0,3).map(([cid,pct])=>{const al=isAllyOf(country?.id,cid);return <div key={cid} style={{marginBottom:'4px'}}>
-                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:'2px'}}><span style={{fontSize:'11px',color:al?'#60a5fa':'#6b7280'}}>{cid.charAt(0).toUpperCase()+cid.slice(1)}{al?' · allied presence':''}</span><span style={{fontSize:'11px',color:'#9ca3af'}}>{Math.round(pct)}%</span></div>
-                    <div style={{height:'3px',background:'#1f2937',borderRadius:'2px'}}><div style={{height:'100%',width:`${pct}%`,background:al?'#1e3a8a':{usa:'#3b82f6',russia:'#ef4444',china:'#d97706',germany:'#f59e0b'}[cid]||'#6b7280',borderRadius:'2px'}}/></div>
-                  </div>;})}
-                </div>
-                {REGION_BONUS[selectedRegion]&&<div style={{fontSize:'11px',padding:'6px 8px',background:'rgba(74,222,128,.06)',border:'1px solid rgba(74,222,128,.25)',borderRadius:'5px',marginBottom:'7px'}}>
-                  <span style={{color:'#4ade80',fontWeight:600}}>Dominance dividend (hold &gt;60%):</span> <span style={{color:'#9ca3af'}}>{Object.entries(REGION_BONUS[selectedRegion]).map(([k,v])=>`${SC[k]?.label||k} ${v>0?'+':''}${v}/mo`).join(' · ')}{doctrine==='hegemon'?' (×1.5 Hegemon)':''}</span>
-                  {(sphere[selectedRegion]?.player||0)>60&&<span style={{color:'#4ade80',fontWeight:700}}> — PAYING NOW</span>}
-                </div>}
-                <div style={{fontSize:'11px',color:'#6b7280',marginBottom:'8px'}}>Contested by: {REGIONS[selectedRegion].contestedBy?.join(', ')}</div>
-                {flashpoint?.rid===selectedRegion&&(()=>{const fp=FLASHPOINTS[flashpoint.type];const dep=sumDep(forceDeployments[selectedRegion]);const canInt=dep>0||(stats?.military||0)>=70;return <div style={{marginBottom:'8px',padding:'9px',background:'rgba(239,68,68,.07)',border:'1px solid #ef4444',borderRadius:'6px'}}>
-                  <div style={{fontSize:'12px',fontWeight:700,color:'#ef4444',marginBottom:'3px'}}>{fp.i} {fp.n} — {flashpoint.t}mo to act</div>
-                  <div style={{fontSize:'10px',color:'#9ca3af',marginBottom:'7px'}}>{fp.d} Ignoring cedes ground to rivals (−5 you, +12 them).</div>
-                  <div style={{display:'flex',gap:'6px'}}>
-                    <button onClick={()=>dispatch({type:'flashpointResponse',payload:{region:selectedRegion,response:'intervene'}})} style={{flex:1,background:'rgba(239,68,68,.12)',border:'1px solid #ef4444',color:'#ef4444',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>🪖 Intervene $500M{!canInt?' 🔒':''}</button>
-                    <button onClick={()=>dispatch({type:'flashpointResponse',payload:{region:selectedRegion,response:'mediate'}})} style={{flex:1,background:'rgba(74,222,128,.08)',border:'1px solid #4ade80',color:'#4ade80',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>🕊 Mediate $300M</button>
-                    {(()=>{const embHere=DIP_TARGETS.some(d=>d.region===selectedRegion&&embassies.has(d.id));return <button onClick={()=>dispatch({type:'flashpointResponse',payload:{region:selectedRegion,response:'diplomatic'}})} style={{flex:1,background:embHere?'rgba(96,165,250,.1)':'rgba(0,0,0,.35)',border:`1px solid ${embHere?'#60a5fa':'#374151'}`,color:embHere?'#60a5fa':'#4b5563',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>🏛️ Diplomatic $200M{embHere?'':' 🔒'}</button>;})()}
-                  </div>
-                </div>;})()}
-                {(()=>{
-                  const DEPLOYABLE=['carrier_group','sub_fleet','fighter_wing','drone_swarm','fa_xx','mq25','frigate','zumwalt'];
-                  const owned=pid=>(platforms[pid]||0)+(platformsImported[pid]||0);
-                  const deployedOf=pid=>Object.values(forceDeployments).reduce((a,r)=>a+((r&&r[pid])||0),0);
-                  const hereObj=forceDeployments[selectedRegion]||{};
-                  const hereTot=sumDep(hereObj);
-                  const poolTot=DEPLOYABLE.reduce((a,p)=>a+owned(p),0)+['b21','sr72','ssnx'].reduce((a,b)=>a+(+blackPrograms[b]||0),0);
-                  const availTot=poolTot-Object.values(forceDeployments).reduce((a,r)=>a+sumDep(r),0);
-                  return <div style={{marginBottom:'8px',padding:'8px',background:'#0d1117',borderRadius:'6px',border:`1px solid ${hereTot>0?'#1d4ed8':'#1f2937'}`}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5px'}}>
-                    <span style={{fontSize:'11px',color:hereTot>0?'#60a5fa':'#9ca3af',fontWeight:600}}>⚓ Forward Deployment — {hereTot} stationed · {Math.max(0,availTot)} available fleet-wide</span>
-                  </div>
-                  {[...DEPLOYABLE.map(pid=>({pid,meta:PLATFORMS[pid],own:owned(pid)})),...['b21','sr72','ssnx'].filter(b=>blackPrograms[b]).map(b=>({pid:b,meta:BLACK_PROGRAMS[b],own:+blackPrograms[b]||1}))].map(({pid,meta:p,own})=>{if(own<=0)return null;const hereN=hereObj[pid]||0;const avail=own-deployedOf(pid);return(
-                    <div key={pid} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 6px',background:'#111827',borderRadius:'4px',marginBottom:'3px'}}>
-                      <span style={{fontSize:'10px',color:'#9ca3af'}}>{p.i} {p.n} <span style={{color:'#4b5563'}}>· {hereN} here / {avail} free / {own} owned</span></span>
-                      <div style={{display:'flex',gap:'4px'}}>
-                        <button onClick={()=>dispatch({type:'adjustDeployment',payload:{region:selectedRegion,unit:pid,delta:1}})} style={{background:'#1d4ed8',border:'none',color:'white',padding:'2px 9px',borderRadius:'4px',fontSize:'11px',fontWeight:700}}>+</button>
-                        <button onClick={()=>dispatch({type:'adjustDeployment',payload:{region:selectedRegion,unit:pid,delta:-1}})} style={{background:'transparent',border:'1px solid #374151',color:'#9ca3af',padding:'2px 9px',borderRadius:'4px',fontSize:'11px'}}>−</button>
-                      </div>
-                    </div>);})}
-                  <div style={{fontSize:'10px',color:'#6b7280',marginTop:'3px'}}>+0.12 sphere/mo each · suppression weight: B-21/SSN(X) ×2, SR-72 ×0.6 · top rival −{(wSum(hereObj)*0.08).toFixed(2)}/mo · halves rival pushback · unlocks Intervene & Kinetic Strike · $4M/unit/mo basing</div>
-                  {hereTot>0&&(()=>{const cur=forcePosture[selectedRegion]||'deter';const cpHere=Object.entries(CHOKEPOINTS).find(([,cp])=>cp.region===selectedRegion);const nw=navalWeight(hereObj);
-                    const P=[['deter',POSTURE_LABELS.deter,'+0.12/unit · suppresses top hostile'],['escort',POSTURE_LABELS.escort,cpHere?`Keeps ${cpHere[1].n} open for you (naval 2+, have ${nw}) · +tension`:'No chokepoint here — presence only'],['isr',POSTURE_LABELS.isr,'+25% op success in-region · rival pressure −30% · half suppression'],['exercise',POSTURE_LABELS.exercise,'Allies here +0.5 rel/mo · coalition ×2 · +0.06/unit'],['humanitarian',POSTURE_LABELS.humanitarian,'During crises: +1 rel/mo region-wide, +0.2/unit · $30M/unit/mo']];
-                    return <div style={{marginTop:'7px'}}><div style={{fontSize:'9px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'4px'}}>Posture · what your {hereTot} unit{hereTot>1?'s':''} here are actually doing</div>
-                      <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'4px'}}>{P.map(([k,l,sub])=><button key={k} onClick={()=>dispatch({type:'setPosture',payload:{region:selectedRegion,posture:k}})} style={{background:cur===k?'#1e3a8a':'#0d1117',border:`1px solid ${cur===k?'#3b82f6':'#374151'}`,color:cur===k?'white':'#9ca3af',padding:'5px 6px',borderRadius:'4px',fontSize:'10px',fontWeight:700,textAlign:'left'}}>{l}<div style={{fontSize:'8px',fontWeight:400,color:cur===k?'#bfdbfe':'#6b7280'}}>{sub}</div></button>)}</div></div>;})()}
-                  {(()=>{const navalW=navalWeight(hereObj);const blk=blockades[selectedRegion];const topR2=topHostile(sphere[selectedRegion]?.competitors,country?.id);
-                    if(blk)return <button onClick={()=>dispatch({type:'liftBlockade',payload:{region:selectedRegion}})} style={{width:'100%',marginTop:'6px',background:'rgba(96,165,250,.1)',border:'1px solid #60a5fa',color:'#60a5fa',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>⚓ Lift Blockade vs {blk.target}{blk.half?' (porous)':''} — saving $120M/mo</button>;
-                    if(!topR2||topR2[1]<8)return null;
-                    const can=navalW>=4;
-                    return <button onClick={()=>dispatch({type:'declareBlockade',payload:{region:selectedRegion}})}
-                      style={{width:'100%',marginTop:'6px',background:can?'rgba(96,165,250,.1)':'rgba(0,0,0,.3)',border:`1px solid ${can?'#60a5fa':'#374151'}`,color:can?'#60a5fa':'#4b5563',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>⚓ Declare Blockade vs {topR2[0]} — $120M/mo · their sphere strangled · arms lanes cut{can?'':` · need naval 4+ (have ${navalW})`}</button>;})()}
-                  {hereTot>=3&&(()=>{const topR=topHostile(sphere[selectedRegion]?.competitors,country?.id);const kcd=actionCooldowns[`kin_${selectedRegion}`]||0;if(!topR||topR[1]<10)return null;const isrSc=isrScore(platforms,defLevels,intelInfra,blackPrograms);const kDmg=kineticDamage(isrSc,hereObj);return <button onClick={()=>dispatch({type:'kineticStrike',payload:{region:selectedRegion}})} style={{width:'100%',marginTop:'6px',background:kcd>0?'rgba(0,0,0,.3)':'rgba(239,68,68,.12)',border:`1px solid ${kcd>0?'#374151':'#ef4444'}`,color:kcd>0?'#4b5563':'#ef4444',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{kcd>0?`🎯 Regrouping — ${kcd}mo`:`🎯 Kinetic Strike vs ${topR[0]} — $400M · their sphere −${kDmg}, yours +6, stability −3`}</button>;})()}
-                </div>;})()}
-                <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'6px'}}>
-                  {(()=>{const iaW2=influenceAlloc||{};const iTot=Object.values(iaW2).reduce((a,b)=>a+(b||0),0);const pool=(influenceBudget||0)*50;
-                    const infl=DIP_TARGETS.filter(d=>d.region===selectedRegion).reduce((s,d)=>{const w=iaW2[d.id]||0;if(!w||!iTot)return s;const sh=pool*(w/iTot);const stC=(stats?.stability||60)<40?0.6:(stats?.stability||60)>75?1.15:1;const rgC=(sphere[selectedRegion]?.player||0)>60?1.4:1;return s+0.04*Math.min(6,(sh/40)*(embassies.has(d.id)?1.8:1)*(doctrine==='hegemon'?1.5:doctrine==='fortress'?0.7:1)*stC*rgC);},0);
-                    const prox=(()=>{const paW2=proxyAlloc||{};const pTot=Object.values(paW2).reduce((a,b)=>a+(b||0),0);const pPool=(proxyBudget||0)*80;const w=paW2[selectedRegion]||0;if(!w||!pTot)return 0;return Math.min(1.4,(pPool*(w/pTot)/120)*(doctrine==='shadow'?1.5:1));})();
-                    const hereObj2=forceDeployments[selectedRegion]||{};const dep=Object.values(hereObj2).reduce((a,b)=>a+(b||0),0)*0.12+((forceDeployments[selectedRegion]?.sr72||0)>0?0.04:0);
-                    const pact2=[...defensePacts].some(nid=>DIP_TARGETS.find(d=>d.id===nid)?.region===selectedRegion)?0.06:0;
-                    const allies=DIP_TARGETS.filter(d=>d.region===selectedRegion&&(nationRelations[d.id]||0)>60).length*0.04;
-                    const supp=wSum(hereObj2)*0.08;
-                    const rows=[['🗳️ Influence',infl],['🕵️ Proxy ops',prox],['🪖 Deployments',dep],['🛡️ Pact anchor',pact2],['🤝 Allied trickle',allies]].filter(([,v])=>v>0.001);
-                    return <div style={{marginBottom:'8px',padding:'8px',background:'#0d1117',border:'1px solid #1f2937',borderRadius:'6px'}}>
-                      <div style={{fontSize:'9px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'5px'}}>Sphere flows here · per month</div>
-                      {rows.length?rows.map(([l,v])=><div key={l} style={{display:'flex',justifyContent:'space-between',fontSize:'10px',color:'#9ca3af',marginBottom:'2px'}}><span>{l}</span><span style={{color:'#4ade80',fontWeight:700}}>+{v.toFixed(2)}</span></div>):<div style={{fontSize:'10px',color:'#4b5563'}}>No active levers — fund influence, proxies, or station forces.</div>}
-                      {supp>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:'10px',color:'#9ca3af'}}><span>⚔️ Rival suppression</span><span style={{color:'#ef4444',fontWeight:700}}>−{supp.toFixed(2)} them</span></div>}
-                    </div>;})()}
-                  {[['pact','🛡️ Activate Alliance','Requires a Defense Pact ally here: basing rights +18% (12mo cd)',0],['intel','🕵️ Deploy Intel','ISR-scaled: boosts you, suppresses rival, lasting network',600]].map(([type,label,desc,cost])=>{const short=cost>0&&(stats?.treasury||0)<cost;return <button key={type} onClick={()=>dispatch({type:type==='intel'?'regionIntel':'activateAlliance',payload:{region:selectedRegion}})} disabled={short} style={{background:'#0d1117',border:`1px solid ${short?'#7f1d1d':'#374151'}`,color:short?'#4b5563':'#d1d5db',padding:'8px',borderRadius:'6px',fontSize:'11px',textAlign:'left',lineHeight:'1.4',opacity:short?0.7:1}}><div style={{fontWeight:700,marginBottom:'2px'}}>{label}{cost>0&&<span style={{color:short?'#ef4444':'#6b7280',fontWeight:400}}> · ${cost}M</span>}</div><div style={{color:short?'#ef4444':'#6b7280',fontSize:'10px'}}>{short?`Need $${cost}M — treasury short`:desc}</div></button>;})}
-                </div>
-              </div>}
             </div>
 
             {/* Active Issues */}
@@ -1905,6 +1805,98 @@ function WorldLeadersInner({resumeSignal}){
         </div>}
 
       </div>
+      <BottomNav active={activeTab} onSelect={t=>{setActiveTab(t);setVitalsDrill(null);}} tabs={TABS.map(id=>{const live=(flashpoint?1:0)+Object.values(rivalHolds||{}).filter(m=>m>0).length+Object.keys(blockades).length+Object.values(chokeStatus).filter(st=>st==='disrupted').length+Object.entries(rivalTension).filter(([cid,t])=>t>=70&&cid!==country?.id&&!isAllyOf(country?.id,cid)).length;
+        const badge={overview:(activeDecision?1:0)+(doctrine?0:1),sitroom:live+(ultimatum?1:0)+(confrontation?1:0),economy:issues.filter(i=>i.status==='unexamined'||i.status==='ready').length,energy:Object.values(chokeStatus).filter(st=>st==='disrupted').length,intel:intelCrisis?1:0,trade:Object.keys(blocLock||{}).length}[id]||0;
+        return {id,icon:TABM[id].i,label:TABM[id].l,short:TAB_SHORT[id],badge,sev:(id==='sitroom'||id==='intel')&&badge?'alert':'warn'};})}/>
+      <Outliner open={outlinerOpen} onOpenChange={setOutlinerOpen} onJump={({tab,region,nation})=>{setActiveTab(tab);setVitalsDrill(null);if(region){setSelNation(null);setSelectedRegion(region);}if(nation)setSelNation(nation);setOutlinerOpen(false);}}
+        rows={buildOutliner({flashpoint,worldEvent,ultimatum,confrontation,blockades,intelOps,continuousOps,investigations,platformDev,blackResearch,deployments,defResearch,defLevels,gracePeriod,pariah,hegHold,embargoedBy,expelled:expelR.current,embassyLocks:embLockR.current,blocLock,concessions,sprRelease,actionCooldowns})}/>
+      <Sheet open={!!selectedRegion||!!selNation} onClose={()=>{setSelectedRegion(null);setSelNation(null);}} back={!!selNation&&!!selectedRegion} onBack={()=>setSelNation(null)}
+        title={selNation?`${NATIONS[selNation]?.flag||''} ${nationName(selNation)}`:selectedRegion?REGIONS[selectedRegion]?.n:''} subtitle={selNation?'Every action on this nation':selectedRegion?`${Math.round(sphere[selectedRegion]?.player||0)}% your sphere · tap a nation for its actions`:''}>
+        {selNation?<NationSheet nation={selNation} dispatch={dispatch} view={{country,stats,nationRelations,embassies,defensePacts,tradeAgreements,sanctions,embargoes,embassyMissions,influenceAlloc,influenceBudget,dominance:domR.current,doctrine,defLevels,defExports,intelOps,continuousOps,rivalTension,actionCooldowns,embassyLocks:embLockR.current,resExtraction,platforms,blackPrograms,intelInfra,covertPrograms,intelBudget,absorbBonus:absorbR.current}}/>
+        :<>
+          {selectedRegion&&<div data-region-nations><div className="wl-label" style={{margin:'4px 0 2px'}}>Nations here · tap for every action</div>
+            {Object.entries(NATIONS).filter(([,n])=>n.region===selectedRegion).map(([id,n])=><button key={id} type="button" className="wl-nation-row" data-nation-row={id} onClick={()=>setSelNation(id)}><span aria-hidden="true" style={{fontSize:18}}>{n.flag}</span><b>{n.n}</b><span className={`wl-chip${id===country?.id?' wl-chip-command':isAllyOf(country?.id,id)?' wl-chip-good':''}`}>{id===country?.id?'you':isAllyOf(country?.id,id)?'ally':NATION_BLOC[id]||'non-aligned'}</span></button>)}
+          </div>}
+          {selectedRegion&&<div data-region-panel style={{marginTop:'8px',background:'#111827',borderRadius:'8px',padding:'12px',border:`1px solid ${country?.color||'#4ade80'}55`}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
+                  <div style={{fontSize:'14px',fontWeight:700,color:'#f9fafb'}}>{REGIONS[selectedRegion].n}</div>
+                  <button onClick={()=>setSelectedRegion(null)} style={{background:'transparent',border:'none',color:'#6b7280',fontSize:'14px'}}>✕</button>
+                </div>
+                {/* Sphere bars */}
+                <div style={{marginBottom:'10px'}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:'3px'}}><span style={{fontSize:'11px',color:'#9ca3af'}}>Your Influence</span><span style={{fontSize:'12px',fontWeight:700,color:country?.color||'#4ade80'}}>{Math.round(sphere[selectedRegion]?.player||0)}%</span></div>
+                  <div style={{height:'4px',background:'#1f2937',borderRadius:'2px',marginBottom:'6px'}}><div style={{height:'100%',width:`${sphere[selectedRegion]?.player||0}%`,background:country?.color||'#4ade80',borderRadius:'2px'}}/></div>
+                  {Object.entries(sphere[selectedRegion]?.competitors||{}).sort(([ca,a],[cb,b])=>(isAllyOf(country?.id,ca)?1:0)-(isAllyOf(country?.id,cb)?1:0)||b-a).slice(0,3).map(([cid,pct])=>{const al=isAllyOf(country?.id,cid);return <div key={cid} style={{marginBottom:'4px'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:'2px'}}><span style={{fontSize:'11px',color:al?'#60a5fa':'#6b7280'}}>{cid.charAt(0).toUpperCase()+cid.slice(1)}{al?' · allied presence':''}</span><span style={{fontSize:'11px',color:'#9ca3af'}}>{Math.round(pct)}%</span></div>
+                    <div style={{height:'3px',background:'#1f2937',borderRadius:'2px'}}><div style={{height:'100%',width:`${pct}%`,background:al?'#1e3a8a':{usa:'#3b82f6',russia:'#ef4444',china:'#d97706',germany:'#f59e0b'}[cid]||'#6b7280',borderRadius:'2px'}}/></div>
+                  </div>;})}
+                </div>
+                {REGION_BONUS[selectedRegion]&&<div style={{fontSize:'11px',padding:'6px 8px',background:'rgba(74,222,128,.06)',border:'1px solid rgba(74,222,128,.25)',borderRadius:'5px',marginBottom:'7px'}}>
+                  <span style={{color:'#4ade80',fontWeight:600}}>Dominance dividend (hold &gt;60%):</span> <span style={{color:'#9ca3af'}}>{Object.entries(REGION_BONUS[selectedRegion]).map(([k,v])=>`${SC[k]?.label||k} ${v>0?'+':''}${v}/mo`).join(' · ')}{doctrine==='hegemon'?' (×1.5 Hegemon)':''}</span>
+                  {(sphere[selectedRegion]?.player||0)>60&&<span style={{color:'#4ade80',fontWeight:700}}> — PAYING NOW</span>}
+                </div>}
+                <div style={{fontSize:'11px',color:'#6b7280',marginBottom:'8px'}}>Contested by: {REGIONS[selectedRegion].contestedBy?.join(', ')}</div>
+                {flashpoint?.rid===selectedRegion&&(()=>{const fp=FLASHPOINTS[flashpoint.type];const dep=sumDep(forceDeployments[selectedRegion]);const canInt=dep>0||(stats?.military||0)>=70;return <div style={{marginBottom:'8px',padding:'9px',background:'rgba(239,68,68,.07)',border:'1px solid #ef4444',borderRadius:'6px'}}>
+                  <div style={{fontSize:'12px',fontWeight:700,color:'#ef4444',marginBottom:'3px'}}>{fp.i} {fp.n} — {flashpoint.t}mo to act</div>
+                  <div style={{fontSize:'10px',color:'#9ca3af',marginBottom:'7px'}}>{fp.d} Ignoring cedes ground to rivals (−5 you, +12 them).</div>
+                  <div style={{display:'flex',gap:'6px'}}>
+                    <button onClick={()=>dispatch({type:'flashpointResponse',payload:{region:selectedRegion,response:'intervene'}})} style={{flex:1,background:'rgba(239,68,68,.12)',border:'1px solid #ef4444',color:'#ef4444',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>🪖 Intervene $500M{!canInt?' 🔒':''}</button>
+                    <button onClick={()=>dispatch({type:'flashpointResponse',payload:{region:selectedRegion,response:'mediate'}})} style={{flex:1,background:'rgba(74,222,128,.08)',border:'1px solid #4ade80',color:'#4ade80',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>🕊 Mediate $300M</button>
+                    {(()=>{const embHere=DIP_TARGETS.some(d=>d.region===selectedRegion&&embassies.has(d.id));return <button onClick={()=>dispatch({type:'flashpointResponse',payload:{region:selectedRegion,response:'diplomatic'}})} style={{flex:1,background:embHere?'rgba(96,165,250,.1)':'rgba(0,0,0,.35)',border:`1px solid ${embHere?'#60a5fa':'#374151'}`,color:embHere?'#60a5fa':'#4b5563',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>🏛️ Diplomatic $200M{embHere?'':' 🔒'}</button>;})()}
+                  </div>
+                </div>;})()}
+                {(()=>{
+                  const DEPLOYABLE=['carrier_group','sub_fleet','fighter_wing','drone_swarm','fa_xx','mq25','frigate','zumwalt'];
+                  const owned=pid=>(platforms[pid]||0)+(platformsImported[pid]||0);
+                  const deployedOf=pid=>Object.values(forceDeployments).reduce((a,r)=>a+((r&&r[pid])||0),0);
+                  const hereObj=forceDeployments[selectedRegion]||{};
+                  const hereTot=sumDep(hereObj);
+                  const poolTot=DEPLOYABLE.reduce((a,p)=>a+owned(p),0)+['b21','sr72','ssnx'].reduce((a,b)=>a+(+blackPrograms[b]||0),0);
+                  const availTot=poolTot-Object.values(forceDeployments).reduce((a,r)=>a+sumDep(r),0);
+                  return <div style={{marginBottom:'8px',padding:'8px',background:'#0d1117',borderRadius:'6px',border:`1px solid ${hereTot>0?'#1d4ed8':'#1f2937'}`}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5px'}}>
+                    <span style={{fontSize:'11px',color:hereTot>0?'#60a5fa':'#9ca3af',fontWeight:600}}>⚓ Forward Deployment — {hereTot} stationed · {Math.max(0,availTot)} available fleet-wide</span>
+                  </div>
+                  {[...DEPLOYABLE.map(pid=>({pid,meta:PLATFORMS[pid],own:owned(pid)})),...['b21','sr72','ssnx'].filter(b=>blackPrograms[b]).map(b=>({pid:b,meta:BLACK_PROGRAMS[b],own:+blackPrograms[b]||1}))].map(({pid,meta:p,own})=>{if(own<=0)return null;const hereN=hereObj[pid]||0;const avail=own-deployedOf(pid);return(
+                    <div key={pid} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 6px',background:'#111827',borderRadius:'4px',marginBottom:'3px'}}>
+                      <span style={{fontSize:'10px',color:'#9ca3af'}}>{p.i} {p.n} <span style={{color:'#4b5563'}}>· {hereN} here / {avail} free / {own} owned</span></span>
+                      <div style={{display:'flex',gap:'4px'}}>
+                        <button onClick={()=>dispatch({type:'adjustDeployment',payload:{region:selectedRegion,unit:pid,delta:1}})} style={{background:'#1d4ed8',border:'none',color:'white',padding:'2px 9px',borderRadius:'4px',fontSize:'11px',fontWeight:700}}>+</button>
+                        <button onClick={()=>dispatch({type:'adjustDeployment',payload:{region:selectedRegion,unit:pid,delta:-1}})} style={{background:'transparent',border:'1px solid #374151',color:'#9ca3af',padding:'2px 9px',borderRadius:'4px',fontSize:'11px'}}>−</button>
+                      </div>
+                    </div>);})}
+                  <div style={{fontSize:'10px',color:'#6b7280',marginTop:'3px'}}>+0.12 sphere/mo each · suppression weight: B-21/SSN(X) ×2, SR-72 ×0.6 · top rival −{(wSum(hereObj)*0.08).toFixed(2)}/mo · halves rival pushback · unlocks Intervene & Kinetic Strike · $4M/unit/mo basing</div>
+                  {hereTot>0&&(()=>{const cur=forcePosture[selectedRegion]||'deter';const cpHere=Object.entries(CHOKEPOINTS).find(([,cp])=>cp.region===selectedRegion);const nw=navalWeight(hereObj);
+                    const P=[['deter',POSTURE_LABELS.deter,'+0.12/unit · suppresses top hostile'],['escort',POSTURE_LABELS.escort,cpHere?`Keeps ${cpHere[1].n} open for you (naval 2+, have ${nw}) · +tension`:'No chokepoint here — presence only'],['isr',POSTURE_LABELS.isr,'+25% op success in-region · rival pressure −30% · half suppression'],['exercise',POSTURE_LABELS.exercise,'Allies here +0.5 rel/mo · coalition ×2 · +0.06/unit'],['humanitarian',POSTURE_LABELS.humanitarian,'During crises: +1 rel/mo region-wide, +0.2/unit · $30M/unit/mo']];
+                    return <div style={{marginTop:'7px'}}><div style={{fontSize:'9px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'4px'}}>Posture · what your {hereTot} unit{hereTot>1?'s':''} here are actually doing</div>
+                      <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'4px'}}>{P.map(([k,l,sub])=><button key={k} onClick={()=>dispatch({type:'setPosture',payload:{region:selectedRegion,posture:k}})} style={{background:cur===k?'#1e3a8a':'#0d1117',border:`1px solid ${cur===k?'#3b82f6':'#374151'}`,color:cur===k?'white':'#9ca3af',padding:'5px 6px',borderRadius:'4px',fontSize:'10px',fontWeight:700,textAlign:'left'}}>{l}<div style={{fontSize:'8px',fontWeight:400,color:cur===k?'#bfdbfe':'#6b7280'}}>{sub}</div></button>)}</div></div>;})()}
+                  {(()=>{const navalW=navalWeight(hereObj);const blk=blockades[selectedRegion];const topR2=topHostile(sphere[selectedRegion]?.competitors,country?.id);
+                    if(blk)return <button onClick={()=>dispatch({type:'liftBlockade',payload:{region:selectedRegion}})} style={{width:'100%',marginTop:'6px',background:'rgba(96,165,250,.1)',border:'1px solid #60a5fa',color:'#60a5fa',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>⚓ Lift Blockade vs {blk.target}{blk.half?' (porous)':''} — saving $120M/mo</button>;
+                    if(!topR2||topR2[1]<8)return null;
+                    const can=navalW>=4;
+                    return <button onClick={()=>dispatch({type:'declareBlockade',payload:{region:selectedRegion}})}
+                      style={{width:'100%',marginTop:'6px',background:can?'rgba(96,165,250,.1)':'rgba(0,0,0,.3)',border:`1px solid ${can?'#60a5fa':'#374151'}`,color:can?'#60a5fa':'#4b5563',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>⚓ Declare Blockade vs {topR2[0]} — $120M/mo · their sphere strangled · arms lanes cut{can?'':` · need naval 4+ (have ${navalW})`}</button>;})()}
+                  {hereTot>=3&&(()=>{const topR=topHostile(sphere[selectedRegion]?.competitors,country?.id);const kcd=actionCooldowns[`kin_${selectedRegion}`]||0;if(!topR||topR[1]<10)return null;const isrSc=isrScore(platforms,defLevels,intelInfra,blackPrograms);const kDmg=kineticDamage(isrSc,hereObj);return <button onClick={()=>dispatch({type:'kineticStrike',payload:{region:selectedRegion}})} style={{width:'100%',marginTop:'6px',background:kcd>0?'rgba(0,0,0,.3)':'rgba(239,68,68,.12)',border:`1px solid ${kcd>0?'#374151':'#ef4444'}`,color:kcd>0?'#4b5563':'#ef4444',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{kcd>0?`🎯 Regrouping — ${kcd}mo`:`🎯 Kinetic Strike vs ${topR[0]} — $400M · their sphere −${kDmg}, yours +6, stability −3`}</button>;})()}
+                </div>;})()}
+                <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'6px'}}>
+                  {(()=>{const iaW2=influenceAlloc||{};const iTot=Object.values(iaW2).reduce((a,b)=>a+(b||0),0);const pool=(influenceBudget||0)*50;
+                    const infl=DIP_TARGETS.filter(d=>d.region===selectedRegion).reduce((s,d)=>{const w=iaW2[d.id]||0;if(!w||!iTot)return s;const sh=pool*(w/iTot);const stC=(stats?.stability||60)<40?0.6:(stats?.stability||60)>75?1.15:1;const rgC=(sphere[selectedRegion]?.player||0)>60?1.4:1;return s+0.04*Math.min(6,(sh/40)*(embassies.has(d.id)?1.8:1)*(doctrine==='hegemon'?1.5:doctrine==='fortress'?0.7:1)*stC*rgC);},0);
+                    const prox=(()=>{const paW2=proxyAlloc||{};const pTot=Object.values(paW2).reduce((a,b)=>a+(b||0),0);const pPool=(proxyBudget||0)*80;const w=paW2[selectedRegion]||0;if(!w||!pTot)return 0;return Math.min(1.4,(pPool*(w/pTot)/120)*(doctrine==='shadow'?1.5:1));})();
+                    const hereObj2=forceDeployments[selectedRegion]||{};const dep=Object.values(hereObj2).reduce((a,b)=>a+(b||0),0)*0.12+((forceDeployments[selectedRegion]?.sr72||0)>0?0.04:0);
+                    const pact2=[...defensePacts].some(nid=>DIP_TARGETS.find(d=>d.id===nid)?.region===selectedRegion)?0.06:0;
+                    const allies=DIP_TARGETS.filter(d=>d.region===selectedRegion&&(nationRelations[d.id]||0)>60).length*0.04;
+                    const supp=wSum(hereObj2)*0.08;
+                    const rows=[['🗳️ Influence',infl],['🕵️ Proxy ops',prox],['🪖 Deployments',dep],['🛡️ Pact anchor',pact2],['🤝 Allied trickle',allies]].filter(([,v])=>v>0.001);
+                    return <div style={{marginBottom:'8px',padding:'8px',background:'#0d1117',border:'1px solid #1f2937',borderRadius:'6px'}}>
+                      <div style={{fontSize:'9px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'5px'}}>Sphere flows here · per month</div>
+                      {rows.length?rows.map(([l,v])=><div key={l} style={{display:'flex',justifyContent:'space-between',fontSize:'10px',color:'#9ca3af',marginBottom:'2px'}}><span>{l}</span><span style={{color:'#4ade80',fontWeight:700}}>+{v.toFixed(2)}</span></div>):<div style={{fontSize:'10px',color:'#4b5563'}}>No active levers — fund influence, proxies, or station forces.</div>}
+                      {supp>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:'10px',color:'#9ca3af'}}><span>⚔️ Rival suppression</span><span style={{color:'#ef4444',fontWeight:700}}>−{supp.toFixed(2)} them</span></div>}
+                    </div>;})()}
+                  {[['pact','🛡️ Activate Alliance','Requires a Defense Pact ally here: basing rights +18% (12mo cd)',0],['intel','🕵️ Deploy Intel','ISR-scaled: boosts you, suppresses rival, lasting network',600]].map(([type,label,desc,cost])=>{const short=cost>0&&(stats?.treasury||0)<cost;return <button key={type} onClick={()=>dispatch({type:type==='intel'?'regionIntel':'activateAlliance',payload:{region:selectedRegion}})} disabled={short} style={{background:'#0d1117',border:`1px solid ${short?'#7f1d1d':'#374151'}`,color:short?'#4b5563':'#d1d5db',padding:'8px',borderRadius:'6px',fontSize:'11px',textAlign:'left',lineHeight:'1.4',opacity:short?0.7:1}}><div style={{fontWeight:700,marginBottom:'2px'}}>{label}{cost>0&&<span style={{color:short?'#ef4444':'#6b7280',fontWeight:400}}> · ${cost}M</span>}</div><div style={{color:short?'#ef4444':'#6b7280',fontSize:'10px'}}>{short?`Need $${cost}M — treasury short`:desc}</div></button>;})}
+                </div>
+              </div>}
+        </>}
+      </Sheet>
     </div>
   );
 }

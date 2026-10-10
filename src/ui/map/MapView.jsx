@@ -27,7 +27,7 @@ export function MapView({ view, mode = 'sphere', onModeChange, onRegionTap, heig
     if (renderer !== 'pixi' || !host.current) return;
     let alive = true;
     import('./pixi-map.js').then(({ createPixiMap }) => createPixiMap(host.current, { onTap: (rid) => rid && tapRef.current?.(rid) }))
-      .then((m) => { if (!alive) { m.destroy(); return; } map.current = m; m.update(latest.current); if (globalThis.__WL_TEST) globalThis.__wlMap = { renderer: 'pixi', fps: m.fps, frames: m.frames, pan: m.pan, zoom: m.zoom, scale: m.scale, focus: m.focus, scene: () => latest.current }; })
+      .then((m) => { if (!alive) { m.destroy(); return; } map.current = m; m.update(latest.current); if (globalThis.__WL_TEST) globalThis.__wlMap = { renderer: 'pixi', fps: m.fps, frames: m.frames, pan: m.pan, zoom: m.zoom, scale: m.scale, focus: m.focus, scene: () => latest.current, tapRegion: (rid) => tapRef.current?.(rid) }; })
       .catch((e) => { console.error('pixi map unavailable, falling back to SVG', e); if (alive) setRenderer('svg'); });
     return () => { alive = false; map.current?.destroy(); map.current = null; if (globalThis.__wlMap?.renderer === 'pixi') delete globalThis.__wlMap; };
   }, [renderer]);

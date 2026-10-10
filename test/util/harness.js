@@ -37,13 +37,15 @@ export async function mount(entry, { seed = null, testHook = false, preload = nu
     const r = mulberry32(seed);
     w.eval('0'); // materialize the context globals before patching them
     w.Math.random = r;
-    let t = 1700000000000; w.Date.now = () => (t += 1000);
   }
   if (testHook) w.__WL_TEST = true;
   if (preload) for (const [k, v] of Object.entries(preload)) w.localStorage.setItem('wl:' + k, v);
   const saves = [];
   w.eval(js);
   await flush();
+  // The deterministic clock starts once the bundle has initialised: library start-up (lodash's shortOut in the
+  // App bundle) must not shift the game's timestamps. Every game-time call is still counted on both bundles.
+  if (seed != null) { let t = 1700000000000; w.Date.now = () => (t += 1000); }
   const set = w.storage.set.bind(w.storage);
   w.storage.set = (k, v) => { if (k === 'wl_save') saves.push(v); return set(k, v); };
   const doc = w.document;
@@ -52,11 +54,10 @@ export async function mount(entry, { seed = null, testHook = false, preload = nu
     text: () => doc.body.textContent,
     faulted: () => /Simulation fault contained/.test(doc.body.textContent),
     pickCountry: async (i = 0) => { doc.querySelectorAll('.cc')[i].click(); await flush(); await flush(); },
-    tabBtn: (t) => [...doc.querySelectorAll('button')].find((b) => b.style.borderBottom && b.textContent.toLowerCase().includes(t === 'sitroom' ? 'situation' : t)),
+    tabBtn: (t) => doc.querySelector(`[data-tab=${t}]`) || [...doc.querySelectorAll('button')].find((b) => b.style.borderBottom && b.textContent.toLowerCase().includes(t === 'sitroom' ? 'situation' : t)),
     // v57 pauses for modals (doctrine, intel crises, confrontations, ultimatums, victory). Answer the first option.
     answerModal: () => {
-      const overlays = [...doc.querySelectorAll('div')].filter((d) => d.style.position === 'fixed' && d.style.inset);
-      const overlay = overlays.sort((x, y) => (+y.style.zIndex || 0) - (+x.style.zIndex || 0))[0];
+      const overlay = topOverlay(doc);
       const target = overlay && [...overlay.querySelectorAll('button, div')].find((d) => d.tagName === 'BUTTON' || d.style.cursor === 'pointer');
       if (!target) return false;
       target.click(); return true;
@@ -77,5 +78,13 @@ export async function mount(entry, { seed = null, testHook = false, preload = nu
   };
   return api;
 }
+
+// The thing a player answers when the game stalls: the top-most fixed overlay (v57 modals), or a non-blocking
+// decision card the new shell renders with data-modal=<priority> (P3c: the doctrine card keeps v57's z=1900 slot).
+export const topOverlay = (doc) => {
+  const fixed = [...doc.querySelectorAll('div')].filter((d) => d.style.position === 'fixed' && d.style.inset).map((d) => [d, +d.style.zIndex || 0]);
+  const cards = [...doc.querySelectorAll('[data-modal]')].map((d) => [d, +d.getAttribute('data-modal') || 0]);
+  return [...fixed, ...cards].sort((x, y) => y[1] - x[1])[0]?.[0];
+};
 
 export const gameEnded = (doc) => /game over|victory|defeat|NUCLEAR EXCHANGE|Treasury exhausted|Regime collapse|held global hegemony/i.test(doc.body.textContent);

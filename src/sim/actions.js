@@ -7,7 +7,7 @@ import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, INTEL_POSTURE_LABELS } from '.
 import { BLOC_TRADE, CURRENCY_LABELS } from '../data/trade.js';
 import { RES_META, CONCESSIONS } from '../data/energy.js';
 import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRunCost, recapCost, getQualMult } from './formulas.js';
-import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups } from './selectors.js';
+import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups, opOddsTerms } from './selectors.js';
 import { rng } from './rng.js';
 
 // ── Toy-engine action vocabulary (scaffold for the pure tick(state, actions, rng) API in tick.js). Not used by the v57 UI.
@@ -262,16 +262,8 @@ function runIntelOp(g,S,fx,opId,targetId){
   if(opId==='mole'&&(g.intelInfra.overseas_stations||0)<3){fx.toast('⚠ Requires 3+ Overseas Stations');return;}
   const opCost=Math.round(op.cost*(g.doctrine==='shadow'?0.75:1));
   if(s.treasury<opCost){fx.toast('⚠ Insufficient treasury');return;}
-  const cyberLvl=g.defLevels.cyber||0;
-  const budgetBonus=((g.intelBudget||1)-1)*0.04;
-  const shB=g.doctrine==='shadow'?0.12:0;const shD=g.doctrine==='shadow'?0.10:0;
-  const asB=g.covertPrograms.has('asset_recruitment')?0.08:0;const asD=g.covertPrograms.has('asset_recruitment')?0.05:0;
-  const stB=Math.min(0.15,(g.intelInfra.overseas_stations||0)*0.03);
-  const isrSc=isrScore(g.platforms,g.defLevels,g.intelInfra,g.blackPrograms);
-  const isrB=Math.min(0.10,isrSc*0.01);const lpD=g.intelInfra.listening_posts?0.04:0;
-  const abB=g.absorbBonus>0?0.15:0;if(g.absorbBonus>0)g.absorbBonus--;
-  const successRate=Math.min(0.95,op.baseSuccess+(cyberLvl-2)*0.05+budgetBonus+shB+asB+abB+stB+isrB);
-  const discoverRate=Math.max(0.05,op.baseDiscover-(cyberLvl-2)*0.03-budgetBonus-shD-asD-lpD);
+  const {successRate,discoverRate,cyberLvl,budgetBonus,lpD}=opOddsTerms(g,opId); // one implementation with the op card why-breakdown
+  if(g.absorbBonus>0)g.absorbBonus--;
   S.setStats(p=>({...p,treasury:p.treasury-opCost}));
   S.setIntelOps(p=>[...p,{id:`${opId}_${targetId}_${fx.now()}`,opId,targetId,monthsLeft:op.mo,successRate,discoverRate,type:op.type}]);
   S.setLog(p=>[{msg:`${op.i} Op launched vs ${targetId} — ${op.mo}mo`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
