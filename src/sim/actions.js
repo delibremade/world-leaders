@@ -2,11 +2,11 @@ import { NATIONS, BUYERS, DIP_TARGETS, NATION_BLOC, RD_MODS } from '../data/nati
 import { REGIONS, POSTURE_LABELS } from '../data/regions.js';
 import { DOCTRINES } from '../data/world.js';
 import { PLATFORMS, BLACK_PROGRAMS, DV } from '../data/platforms.js';
-import { PA, ISSUES, SOCIAL_PROGRAMS, SECTOR_LABELS } from '../data/economy.js';
+import { PA, ISSUES, SOCIAL_PROGRAMS, SECTOR_LABELS, IP_POLICY_LABELS } from '../data/economy.js';
 import { INTEL_OPS } from '../data/intel.js';
 import { BLOC_TRADE } from '../data/trade.js';
 import { CONCESSIONS } from '../data/energy.js';
-import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, kineticDamage, getQualMult } from './formulas.js';
+import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, kineticDamage, meetsReq, procurementCost, sapRunCost, recapCost, getQualMult } from './formulas.js';
 import { rng } from './rng.js';
 
 // ── Toy-engine action vocabulary (scaffold for the pure tick(state, actions, rng) API in tick.js). Not used by the v57 UI.
@@ -512,6 +512,42 @@ function buildRenewable(g,S,fx,k){const lvl=g.resources?.renewable?.[k]||0;
   if(!g.stats||g.stats.treasury<400){fx.toast('⚠ Insufficient');return;}if(lvl>=5){fx.toast('Max level');return;}S.setStats(p=>({...p,treasury:p.treasury-400}));S.setResources(p=>({...p,renewable:{...p.renewable,[k]:(p.renewable?.[k]||0)+1}}));S.setActiveEffects(p=>[...p,{id:`ren_${k}_${fx.now()}`,source:`renewable_${k}`,stat:'inflation',d:-0.04,monthsLeft:999,totalMonths:999}]);
 }
 
+// Defense tab: arms marketplace, recapitalization, Japan normalization, SAP office and programs, pay, procurement,
+// platform develop / build / import / decommission, export deal cut-off. Technology tab: IP policy.
+function offerArms(g,S,fx,buyerId,vert){
+  const buyer=BUYERS.find(b=>b.id===buyerId);const hasDeal=g.defExports[`${buyer.id}_${vert}`];const wontBuy=vert&&(buyer.noBuy||[]).includes(vert);
+  const nationRelations=g.nationRelations;const bRel=nationRelations[buyer.id]!==undefined?nationRelations[buyer.id]:buyer.rel;const hostile=bRel<-30;const canSell=vert&&!wontBuy&&!hostile&&(g.defLevels[vert]||0)>=1;
+  hasDeal?fx.toast('Deal active'):wontBuy?fx.toast(`${buyer.n} builds ${DV[vert].n} domestically`):hostile?fx.toast(`${buyer.n} relations too hostile (${Math.round(bRel)}) — build influence first`):canSell?sellDefTech(g,S,fx,buyer.id,vert):fx.toast(`⚠ Develop ${DV[vert].n} first`);
+}
+function recapitalizeForces(g,S,fx){const cost=recapCost(g.stats?.treasury);
+  if((g.stats?.treasury||0)<cost){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-cost,military:Math.min(100,p.military+12)}));S.setSectorAge(p=>({...p,defense:0}));g.sectorAge={...g.sectorAge,defense:0};fx.toast(`🔄 Force recapitalization complete — next-generation fleet fielded`);S.setLog(p=>[{msg:`🔄 Defense recapitalization — $${cost.toLocaleString()}M`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+}
+function japanNormalization(g,S,fx){if((g.stats?.treasury||0)<500){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-500,stability:Math.max(0,p.stability-6)}));S.setActiveEffects(p=>[...p,{id:`jpn_${fx.now()}`,source:'jp_normalization',stat:'stability',d:-0.05,monthsLeft:12,totalMonths:12}]);S.setActivePolicies(p=>{const n2=new Set(p);n2.add('jp_normalization');g.activePolicies=n2;return n2;});fx.toast('🇯🇵 Defense Normalization enacted — weapons R&D penalty lifted');S.setLog(p=>[{msg:'🇯🇵 Constitutional reinterpretation: Defense Normalization',yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
+function establishSapOffice(g,S,fx){if((g.stats?.treasury||0)<1500){fx.toast('⚠ SAP office requires $1,500M');return;}S.setStats(p=>({...p,treasury:p.treasury-1500}));S.setSapOffice(true);g.sapOffice=true;fx.toast('🔒 Special Access Program office established — black projects unlocked');S.setLog(p=>[{msg:'🔒 SAP office established',yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
+function sapTranche(g,S,fx,bid){
+  const bp=BLACK_PROGRAMS[bid];const n=+g.blackPrograms[bid]||1;const runCost=sapRunCost(bp,n);const indOk=(g.defLevels.materials||0)>=4;
+  if(!indOk){fx.toast('⚠ Production run needs Material Science L4+ (industrial base)');return;}if((g.stats?.treasury||0)<runCost){fx.toast(`⚠ Need $${runCost}M for a production run`);return;}S.setStats(p=>({...p,treasury:p.treasury-runCost,military:Math.min(100,p.military+bp.mil*(Math.sqrt(n+1)-Math.sqrt(n)))}));g.blackPrograms={...g.blackPrograms,[bid]:n+1};S.setBlackPrograms({...g.blackPrograms});fx.toast(`${bp.i} ${bp.n} unit #${n+1} delivered — production line hot`);S.setLog(p=>[{msg:`${bp.i} ${bp.n} #${n+1} produced`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+}
+function sapInitiate(g,S,fx,bid){
+  const bp=BLACK_PROGRAMS[bid];const blackResearch=g.blackResearch;const busy=blackResearch&&!(blackResearch?.id===bid);const reqMet=meetsReq(bp.req,g.defLevels);
+  if(busy){fx.toast('⚠ SAP office already running a program');return;}if(!reqMet){fx.toast('⚠ R&D requirements not met');return;}if((g.stats?.treasury||0)<bp.cost){fx.toast('⚠ Insufficient black budget');return;}S.setStats(p=>({...p,treasury:p.treasury-bp.cost}));S.setBlackResearch({id:bid,prog:0,mo:bp.mo});g.blackResearch={id:bid,prog:0,mo:bp.mo};fx.toast(`🔒 ${bp.n} program initiated — $${bp.cost.toLocaleString()}M, ${bp.mo}mo`);
+}
+function setPersonnelPay(g,S,fx,pay){S.setPersonnelPay(pay);}
+function setProcurement(g,S,fx,mode){S.setProcureMode(mode);}
+function developPlatform(g,S,fx,pid){const p=PLATFORMS[pid];const reqsMet=meetsReq(p.req,g.defLevels);
+  if(!reqsMet){fx.toast('⚠ Research requirements not met');return;}if((g.stats?.treasury||0)<p.dev.cost){fx.toast(`⚠ Program needs $${p.dev.cost}M`);return;}S.setStats(pr=>({...pr,treasury:pr.treasury-p.dev.cost}));S.setPlatformDev(pr=>{const n2={...pr,[pid]:{mo:p.dev.mo}};g.platformDev=n2;return n2;});fx.toast(`🔬 ${p.n} program launched — ${p.dev.mo}mo to first article`);S.setLog(pr=>[{msg:`🔬 ${p.n} development started`,yr:g.date.yr,mo:g.date.mo},...pr.slice(0,19)]);
+}
+function buildPlatform(g,S,fx,pid){const p=PLATFORMS[pid];const reqsMet=meetsReq(p.req,g.defLevels);const procCost=procurementCost(p,g.procureMode);
+  if(!reqsMet){fx.toast('⚠ Research requirements not met');return;}if((g.stats?.treasury||0)<procCost){fx.toast('⚠ Insufficient treasury');return;}S.setStats(pr=>({...pr,treasury:pr.treasury-procCost}));S.setPlatforms(pr=>({...pr,[pid]:(pr[pid]||0)+1}));S.setLog(pr=>[{msg:`${p.i} ${p.n} deployed — $${procCost}M`,yr:g.date.yr,mo:g.date.mo},...pr.slice(0,19)]);fx.toast(`${p.i} ${p.n} deployed`);
+}
+function importPlatform(g,S,fx,pid){const p=PLATFORMS[pid];
+  const impCost=Math.round(p.cost*1.8);if((g.stats?.treasury||0)<impCost){fx.toast('⚠ Insufficient treasury');return;}S.setStats(pr=>({...pr,treasury:pr.treasury-impCost}));S.setPlatformsImported(pr=>({...pr,[pid]:(pr[pid]||0)+1}));S.setLog(pr=>[{msg:`🌐 ${p.n} purchased abroad — $${impCost}M`,yr:g.date.yr,mo:g.date.mo},...pr.slice(0,19)]);fx.toast(`🌐 ${p.n} imported (90% effectiveness, +25% maintenance)`);
+}
+function decommissionPlatform(g,S,fx,pid){const p=PLATFORMS[pid];S.setPlatforms(pr=>({...pr,[pid]:Math.max(0,(pr[pid]||0)-1)}));fx.toast(`${p.n} decommissioned`);}
+function retireImported(g,S,fx,pid){const p=PLATFORMS[pid];S.setPlatformsImported(pr=>({...pr,[pid]:Math.max(0,(pr[pid]||0)-1)}));fx.toast(`Imported ${p.n} retired`);}
+function cutExportDeal(g,S,fx,k){const nd={...g.defExports};delete nd[k];S.setDefExports(nd);fx.toast('Deal terminated');}
+function setIpPolicy(g,S,fx,k){const lab=IP_POLICY_LABELS[k];S.setIpPolicy(k);g.ipPolicy=k;fx.toast(`IP policy: ${lab.replace(/[^ -~]/g,'').trim()}`);}
+
 // type -> (g, S, fx, payload). Return values are UI hints only (true = the verb went through).
 export const VERBS={
   // issues, policies, decisions
@@ -581,6 +617,22 @@ export const VERBS={
   ggrbPhase2:(g,S,fx)=>ggrbPhase2(g,S,fx),
   ggrbSurvey:(g,S,fx)=>ggrbSurvey(g,S,fx),
   buildRenewable:(g,S,fx,{kind})=>buildRenewable(g,S,fx,kind),
+  // defense and technology
+  offerArms:(g,S,fx,{nation,vertical})=>offerArms(g,S,fx,nation,vertical),
+  recapitalizeForces:(g,S,fx)=>recapitalizeForces(g,S,fx),
+  japanNormalization:(g,S,fx)=>japanNormalization(g,S,fx),
+  establishSapOffice:(g,S,fx)=>establishSapOffice(g,S,fx),
+  sapTranche:(g,S,fx,{program})=>sapTranche(g,S,fx,program),
+  sapInitiate:(g,S,fx,{program})=>sapInitiate(g,S,fx,program),
+  setPersonnelPay:(g,S,fx,{pay})=>setPersonnelPay(g,S,fx,pay),
+  setProcurement:(g,S,fx,{mode})=>setProcurement(g,S,fx,mode),
+  developPlatform:(g,S,fx,{platform})=>developPlatform(g,S,fx,platform),
+  buildPlatform:(g,S,fx,{platform})=>buildPlatform(g,S,fx,platform),
+  importPlatform:(g,S,fx,{platform})=>importPlatform(g,S,fx,platform),
+  decommissionPlatform:(g,S,fx,{platform})=>decommissionPlatform(g,S,fx,platform),
+  retireImported:(g,S,fx,{platform})=>retireImported(g,S,fx,platform),
+  cutExportDeal:(g,S,fx,{deal})=>cutExportDeal(g,S,fx,deal),
+  setIpPolicy:(g,S,fx,{policy})=>setIpPolicy(g,S,fx,policy),
 };
 
 export function applyVerb(g,S,fx,action){

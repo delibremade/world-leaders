@@ -4,13 +4,13 @@ import { MONTHS, GOOD, SC, ss, sc } from '../data/stats.js';
 import { NATIONS, COUNTRIES, BUYERS, DIP_TARGETS, INTEL_TARGETS, NATION_BLOC, NATION_TRAITS, INTEL_AGENCIES, GDB, RD_MODS } from '../data/nations.js';
 import { REGIONS, COMP_COLORS, REGION_GEO, FLASHPOINTS, REGION_BONUS, POSTURE_LABELS } from '../data/regions.js';
 import { PLATFORMS, BLACK_PROGRAMS, DV } from '../data/platforms.js';
-import { SOCIAL_PROGRAMS, PA, ISSUES, BASE_SECTOR, SECTOR_GAINS, SECTOR_DECAY, SECTOR_LABELS } from '../data/economy.js';
+import { SOCIAL_PROGRAMS, PA, ISSUES, BASE_SECTOR, SECTOR_GAINS, SECTOR_DECAY, SECTOR_LABELS, IP_POLICY_LABELS } from '../data/economy.js';
 import { DOCTRINES, COMP_RESPONSES, WORLD_EVENTS, DECISIONS } from '../data/world.js';
 import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, CRISIS_FRIENDLY, CRISIS_HOSTILE, CRISIS_STOLEN } from '../data/intel.js';
 import { BLOC_TRADE } from '../data/trade.js';
 import { CHOKEPOINTS, IMPORT_ROUTES } from '../data/chokepoints.js';
 import { RES_META, CONCESSIONS } from '../data/energy.js';
-import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, kineticDamage, calcSCost, getEnergyTier, getQualMult, getRefineMult, getDefLeverage } from '../sim/formulas.js';
+import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, kineticDamage, meetsReq, procurementCost, sapRate, sapRunCost, recapCost, calcSCost, getEnergyTier, getQualMult, getRefineMult, getDefLeverage } from '../sim/formulas.js';
 import { naturalDrift } from '../sim/economy.js';
 import { rng } from '../sim/rng.js';
 import { runMonth } from '../sim/tick.js';
@@ -1407,7 +1407,7 @@ function WorldLeadersInner({resumeSignal}){
                       <div style={{display:'flex',alignItems:'center',gap:'6px'}}><span style={{fontSize:'18px'}}>{buyer.flag}</span><div><div style={{fontSize:'11px',fontWeight:700,color:'#f9fafb'}}>{buyer.n}</div><div style={{fontSize:'9px',color:'#6b7280'}}>{buyer.align} · ${buyer.budget}M budget</div></div></div>
                     </div>
                     {Object.entries(defExports).filter(([k])=>k.startsWith(buyer.id)).map(([k,d])=><div key={k} style={{fontSize:'9px',color:'#4ade80',marginBottom:'3px'}}>✓ {DV[k.split('_')[1]]?.n} L{d.level} — ${d.revenue}M/yr</div>)}
-                    {selExportVert&&<button onClick={()=>hasDeal?showToast('Deal active'):wontBuy?showToast(`${buyer.n} builds ${DV[selExportVert].n} domestically`):hostile?showToast(`${buyer.n} relations too hostile (${Math.round(bRel)}) — build influence first`):canSell?dispatch({type:'sellDefTech',payload:{nation:buyer.id,vertical:selExportVert}}):showToast(`⚠ Develop ${DV[selExportVert].n} first`)} style={{width:'100%',background:hasDeal?'#14532d':wontBuy||hostile?'rgba(0,0,0,.5)':canSell?'#1d4ed8':'rgba(0,0,0,.4)',border:`1px solid ${hasDeal?'#4ade80':wontBuy?'#1f2937':hostile?'#7f1d1d':canSell?'#3b82f6':'#374151'}`,color:hasDeal?'#4ade80':wontBuy?'#4b5563':hostile?'#ef4444':canSell?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>{hasDeal?'Active':wontBuy?'Domestic producer':hostile?'Hostile':canSell?`Offer L${defLevels[selExportVert]||0}${advantage2>0?' ✦':''}`:'Develop first'}</button>}
+                    {selExportVert&&<button onClick={()=>dispatch({type:'offerArms',payload:{nation:buyer.id,vertical:selExportVert}})} style={{width:'100%',background:hasDeal?'#14532d':wontBuy||hostile?'rgba(0,0,0,.5)':canSell?'#1d4ed8':'rgba(0,0,0,.4)',border:`1px solid ${hasDeal?'#4ade80':wontBuy?'#1f2937':hostile?'#7f1d1d':canSell?'#3b82f6':'#374151'}`,color:hasDeal?'#4ade80':wontBuy?'#4b5563':hostile?'#ef4444':canSell?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>{hasDeal?'Active':wontBuy?'Domestic producer':hostile?'Hostile':canSell?`Offer L${defLevels[selExportVert]||0}${advantage2>0?' ✦':''}`:'Develop first'}</button>}
                     {selExportVert&&canSell&&!hasDeal&&(()=>{const ch=[];if((sphere[buyer.region]?.player||0)>60)ch.push('sphere ×1.18');if(embassies.has(buyer.id))ch.push('attaché ×1.10');if(blocTrade.eu>=2&&BLOC_TRADE.eu.members.includes(buyer.id))ch.push('EU ×1.15');if(advantage2>0)ch.push(`lead +${(advantage2*13)}%`);return ch.length?<div style={{fontSize:'8px',color:'#60a5fa',marginTop:'3px'}}>{ch.join(' · ')}</div>:null;})()}
                   </div>);
                 })}
@@ -1415,14 +1415,14 @@ function WorldLeadersInner({resumeSignal}){
             </div>
 
             {/* Intelligence Services */}
-            {(()=>{const age=sectorAge.defense||0;if(age<=360)return null;const eff=age>480?Math.max(0.7,1-(age-480)*0.0008):1;const cost=Math.max(1500,Math.min(8000,Math.round((stats?.treasury||0)*0.08)));return(
+            {(()=>{const age=sectorAge.defense||0;if(age<=360)return null;const eff=age>480?Math.max(0.7,1-(age-480)*0.0008):1;const cost=recapCost(stats?.treasury);return(
               <div style={{padding:'10px',background:age>480?'rgba(239,68,68,.07)':'rgba(240,192,64,.06)',border:`1px solid ${age>480?'#ef4444':'#f0c040'}`,borderRadius:'8px'}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px'}}>
                   <div>
                     <div style={{fontSize:'12px',fontWeight:700,color:age>480?'#ef4444':'#f0c040'}}>{age>480?`⚠ Force Obsolescence — fleet effectiveness ×${eff.toFixed(2)}`:`⏱ Aging Force — obsolescence in ${480-age}mo`}</div>
                     <div style={{fontSize:'10px',color:'#9ca3af',marginTop:'2px'}}>Platforms older than 40 years lose effectiveness ({age}mo since last recapitalization). Recapitalize to reset the clock and restore full power.</div>
                   </div>
-                  <button onClick={()=>{if((sR.current?.treasury||0)<cost){showToast('⚠ Insufficient treasury');return;}setStats(p=>({...p,treasury:p.treasury-cost,military:Math.min(100,p.military+12)}));setSectorAge(p=>({...p,defense:0}));ageR.current={...ageR.current,defense:0};showToast(`🔄 Force recapitalization complete — next-generation fleet fielded`);setLog(p=>[{msg:`🔄 Defense recapitalization — $${cost.toLocaleString()}M`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);}} style={{background:'rgba(74,222,128,.1)',border:'1px solid #4ade80',color:'#4ade80',padding:'8px 14px',borderRadius:'6px',fontSize:'11px',fontWeight:700,flexShrink:0}}>🔄 Recapitalize Forces — ${cost.toLocaleString()}M</button>
+                  <button onClick={()=>dispatch({type:'recapitalizeForces'})} style={{background:'rgba(74,222,128,.1)',border:'1px solid #4ade80',color:'#4ade80',padding:'8px 14px',borderRadius:'6px',fontSize:'11px',fontWeight:700,flexShrink:0}}>🔄 Recapitalize Forces — ${cost.toLocaleString()}M</button>
                 </div>
               </div>);})()}
             {panelBox('oob','🗺️ Order of Battle · every theater asset, where it is, what it is doing','#1e3a5f',(()=>{
@@ -1448,7 +1448,7 @@ function WorldLeadersInner({resumeSignal}){
                     <div style={{fontSize:'12px',fontWeight:700,color:'#f9fafb'}}>🇯🇵 Article 9 — Constitutional Constraint</div>
                     <div style={{fontSize:'10px',color:'#9ca3af',marginTop:'2px',maxWidth:'520px'}}>Munitions and Missile programs carry +40% cost under the pacifist constitution. Defense Normalization removes the penalty permanently — counterstrike doctrine, standoff weapons, 2%-GDP posture — at real political cost: −6 stability now, political turmoil −0.05/mo for a year.</div>
                   </div>
-                  <button onClick={()=>{if((sR.current?.treasury||0)<500){showToast('⚠ Insufficient treasury');return;}setStats(p=>({...p,treasury:p.treasury-500,stability:Math.max(0,p.stability-6)}));setActiveEffects(p=>[...p,{id:`jpn_${Date.now()}`,source:'jp_normalization',stat:'stability',d:-0.05,monthsLeft:12,totalMonths:12}]);setActivePolicies(p=>{const n2=new Set(p);n2.add('jp_normalization');apR.current=n2;return n2;});showToast('🇯🇵 Defense Normalization enacted — weapons R&D penalty lifted');setLog(p=>[{msg:'🇯🇵 Constitutional reinterpretation: Defense Normalization',yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);}} style={{background:'rgba(239,68,68,.1)',border:'1px solid #ef4444',color:'#ef4444',padding:'8px 14px',borderRadius:'6px',fontSize:'11px',fontWeight:700,flexShrink:0}}>⚖️ Enact Normalization — $500M · −6 stability</button>
+                  <button onClick={()=>dispatch({type:'japanNormalization'})} style={{background:'rgba(239,68,68,.1)',border:'1px solid #ef4444',color:'#ef4444',padding:'8px 14px',borderRadius:'6px',fontSize:'11px',fontWeight:700,flexShrink:0}}>⚖️ Enact Normalization — $500M · −6 stability</button>
                 </div>
               </div>)}
             {country?.id==='japan'&&activePolicies.has('jp_normalization')&&(
@@ -1459,13 +1459,13 @@ function WorldLeadersInner({resumeSignal}){
               {!sapOffice?(
                 <div style={{padding:'10px',background:'#0d1117',border:'1px solid #1f2937',borderRadius:'8px'}}>
                   <div style={{fontSize:'11px',color:'#9ca3af',marginBottom:'7px'}}>Establish a classified Special Access Program office to pursue next-generation platforms — stealth bombers, 6th-gen fighters, hypersonic ISR. Requires deep R&D and a black budget. <span style={{color:'#f0c040'}}>These become prime espionage targets once fielded.</span></div>
-                  <button onClick={()=>{if((sR.current?.treasury||0)<1500){showToast('⚠ SAP office requires $1,500M');return;}setStats(p=>({...p,treasury:p.treasury-1500}));setSapOffice(true);sapR.current=true;showToast('🔒 Special Access Program office established — black projects unlocked');setLog(p=>[{msg:'🔒 SAP office established',yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);}} disabled={(stats?.treasury||0)<1500} style={{background:'rgba(167,139,250,.1)',border:`1px solid ${(stats?.treasury||0)<1500?'#7f1d1d':'#a78bfa'}`,color:(stats?.treasury||0)<1500?'#4b5563':'#a78bfa',padding:'8px 14px',borderRadius:'6px',fontSize:'11px',fontWeight:700,opacity:(stats?.treasury||0)<1500?0.7:1}}>🔒 Establish SAP Office — $1,500M{(stats?.treasury||0)<1500?' (short)':''}</button>
+                  <button onClick={()=>dispatch({type:'establishSapOffice'})} disabled={(stats?.treasury||0)<1500} style={{background:'rgba(167,139,250,.1)',border:`1px solid ${(stats?.treasury||0)<1500?'#7f1d1d':'#a78bfa'}`,color:(stats?.treasury||0)<1500?'#4b5563':'#a78bfa',padding:'8px 14px',borderRadius:'6px',fontSize:'11px',fontWeight:700,opacity:(stats?.treasury||0)<1500?0.7:1}}>🔒 Establish SAP Office — $1,500M{(stats?.treasury||0)<1500?' (short)':''}</button>
                 </div>
               ):(
                 <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'7px'}}>
                   {Object.entries(BLACK_PROGRAMS).map(([bid,bp])=>{
                     const owned=blackPrograms[bid];const researching=blackResearch?.id===bid;
-                    const reqMet=Object.entries(bp.req).every(([v,rq])=>(defLevels[v]||0)>=rq);
+                    const reqMet=meetsReq(bp.req,defLevels);
                     const busy=blackResearch&&!researching;
                     return(<div key={bid} style={{background:owned?'rgba(167,139,250,.06)':'#0d1117',border:`1px solid ${owned?'#a78bfa':researching?'#3b82f6':'#1f2937'}`,borderRadius:'7px',padding:'10px',opacity:reqMet||owned?1:0.55}}>
                       <div style={{display:'flex',justifyContent:'space-between',marginBottom:'3px'}}>
@@ -1474,13 +1474,13 @@ function WorldLeadersInner({resumeSignal}){
                       </div>
                       <div style={{fontSize:'9px',color:'#6b7280',marginBottom:'4px'}}>{bp.d}</div>
                       <div style={{fontSize:'9px',marginBottom:'5px'}}>Req: {Object.entries(bp.req).map(([v,rq])=><span key={v} style={{color:(defLevels[v]||0)>=rq?'#4ade80':'#ef4444',marginRight:'4px'}}>{DV[v]?.n} L{rq}</span>)}</div>
-                      {owned?(()=>{const n=+blackPrograms[bid]||1;const rate=n<3?0.35:n<6?0.30:0.25;const runCost=Math.round(bp.cost*rate);const indOk=(defLevels.materials||0)>=4;const canRun=indOk&&(stats?.treasury||0)>=runCost;
+                      {owned?(()=>{const n=+blackPrograms[bid]||1;const rate=sapRate(n);const runCost=sapRunCost(bp,n);const indOk=(defLevels.materials||0)>=4;const canRun=indOk&&(stats?.treasury||0)>=runCost;
                         return <div>
                           <div style={{fontSize:'9px',color:'#a78bfa'}}>+{bp.mil} military{bp.bonus==='isr'?' · +6 ISR':bp.bonus==='multiplier'?' · air ×1.15':bp.bonus==='deterrent'?' · nuclear deterrent':''} · <b style={{color:'#c4b5fd'}}>{n} unit{n>1?'s':''}</b> · force mil +{Math.round(bp.mil*Math.sqrt(n))} · next tranche at {Math.round(rate*100)}% of program</div>
-                          {<button onClick={()=>{if(!indOk){showToast('⚠ Production run needs Material Science L4+ (industrial base)');return;}if((sR.current?.treasury||0)<runCost){showToast(`⚠ Need $${runCost}M for a production run`);return;}setStats(p=>({...p,treasury:p.treasury-runCost,military:Math.min(100,p.military+bp.mil*(Math.sqrt(n+1)-Math.sqrt(n)))}));blackR.current={...blackR.current,[bid]:n+1};setBlackPrograms({...blackR.current});showToast(`${bp.i} ${bp.n} unit #${n+1} delivered — production line hot`);setLog(p=>[{msg:`${bp.i} ${bp.n} #${n+1} produced`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);}} style={{marginTop:'4px',width:'100%',background:canRun?'rgba(167,139,250,.12)':'rgba(0,0,0,.35)',border:`1px solid ${canRun?'#a78bfa':'#374151'}`,color:canRun?'#c4b5fd':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>🏭 Tranche #{n+1} — ${runCost}M{indOk?'':' · needs Materials L4'}</button>}
+                          {<button onClick={()=>dispatch({type:'sapTranche',payload:{program:bid}})} style={{marginTop:'4px',width:'100%',background:canRun?'rgba(167,139,250,.12)':'rgba(0,0,0,.35)',border:`1px solid ${canRun?'#a78bfa':'#374151'}`,color:canRun?'#c4b5fd':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>🏭 Tranche #{n+1} — ${runCost}M{indOk?'':' · needs Materials L4'}</button>}
                         </div>;})()
                       :researching?<div style={{fontSize:'10px',color:'#3b82f6',fontWeight:700}}>⏳ {blackResearch.mo-blackResearch.prog}mo to operational</div>
-                      :<button onClick={()=>{if(busy){showToast('⚠ SAP office already running a program');return;}if(!reqMet){showToast('⚠ R&D requirements not met');return;}if((sR.current?.treasury||0)<bp.cost){showToast('⚠ Insufficient black budget');return;}setStats(p=>({...p,treasury:p.treasury-bp.cost}));setBlackResearch({id:bid,prog:0,mo:bp.mo});blackResR.current={id:bid,prog:0,mo:bp.mo};showToast(`🔒 ${bp.n} program initiated — $${bp.cost.toLocaleString()}M, ${bp.mo}mo`);}} style={{width:'100%',background:reqMet&&!busy?'#4c1d95':'rgba(0,0,0,.4)',border:`1px solid ${reqMet&&!busy?'#a78bfa':'#374151'}`,color:reqMet&&!busy?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{busy?'SAP busy':`Initiate $${(bp.cost/1000).toFixed(1)}B · ${bp.mo}mo`}</button>}
+                      :<button onClick={()=>dispatch({type:'sapInitiate',payload:{program:bid}})} style={{width:'100%',background:reqMet&&!busy?'#4c1d95':'rgba(0,0,0,.4)',border:`1px solid ${reqMet&&!busy?'#a78bfa':'#374151'}`,color:reqMet&&!busy?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{busy?'SAP busy':`Initiate $${(bp.cost/1000).toFixed(1)}B · ${bp.mo}mo`}</button>}
                     </div>);})}
                 </div>
               )}
@@ -1504,7 +1504,7 @@ function WorldLeadersInner({resumeSignal}){
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'8px'}}>
                 <div style={{background:'#0d1117',border:'1px solid #1f2937',borderRadius:'7px',padding:'10px'}}>
                   <div style={{display:'flex',justifyContent:'space-between',marginBottom:'5px'}}><span style={{fontSize:'11px',color:'#9ca3af'}}>Personnel Pay</span><span style={{fontSize:'12px',fontWeight:700,color:personnelPay<90?'#ef4444':personnelPay>=120?'#4ade80':'#f0c040'}}>{personnelPay}%</span></div>
-                  <input type="range" min="80" max="150" step="5" value={personnelPay} onChange={e=>setPersonnelPay(+e.target.value)} style={{width:'100%',accentColor:personnelPay<90?'#ef4444':personnelPay>=120?'#4ade80':'#3b82f6'}}/>
+                  <input type="range" min="80" max="150" step="5" value={personnelPay} onChange={e=>dispatch({type:'setPersonnelPay',payload:{pay:+e.target.value}})} style={{width:'100%',accentColor:personnelPay<90?'#ef4444':personnelPay>=120?'#4ade80':'#3b82f6'}}/>
                   <div style={{fontSize:'10px',color:'#6b7280',marginTop:'3px'}}>
                     {personnelPay<90?'⚠ Readiness −15%, morale drain (−0.03 stability/mo)':personnelPay>=120?'✓ Readiness +10%, veteran loyalty (+0.02 stability/mo)':'Standard readiness'}
                   </div>
@@ -1513,17 +1513,17 @@ function WorldLeadersInner({resumeSignal}){
                 <div style={{background:'#0d1117',border:'1px solid #1f2937',borderRadius:'7px',padding:'10px'}}>
                   <div style={{fontSize:'11px',color:'#9ca3af',marginBottom:'6px'}}>Acquisition Policy</div>
                   {[['efficiency','💲 Efficiency','Build −15%, maint −15%, effectiveness −5%'],['balanced','⚖️ Balanced','Standard terms'],['surge','🚀 Surge','Build +25%, maint +20%, effectiveness +8%']].map(([m,l,d])=>(
-                    <button key={m} onClick={()=>setProcureMode(m)} style={{display:'block',width:'100%',marginBottom:'4px',background:procureMode===m?'#1d4ed8':'transparent',border:`1px solid ${procureMode===m?'#3b82f6':'#374151'}`,color:procureMode===m?'white':'#9ca3af',padding:'5px 8px',borderRadius:'4px',fontSize:'10px',textAlign:'left',fontWeight:procureMode===m?700:400}}>{l} — {d}</button>
+                    <button key={m} onClick={()=>dispatch({type:'setProcurement',payload:{mode:m}})} style={{display:'block',width:'100%',marginBottom:'4px',background:procureMode===m?'#1d4ed8':'transparent',border:`1px solid ${procureMode===m?'#3b82f6':'#374151'}`,color:procureMode===m?'white':'#9ca3af',padding:'5px 8px',borderRadius:'4px',fontSize:'10px',textAlign:'left',fontWeight:procureMode===m?700:400}}>{l} — {d}</button>
                   ))}
                 </div>
               </div>
               <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'7px'}}>
                 {Object.entries(PLATFORMS).map(([pid,p])=>{
                   const ct=platforms[pid]||0;
-                  const reqsMet=Object.entries(p.req).every(([v,rq])=>(defLevels[v]||0)>=rq);
+                  const reqsMet=meetsReq(p.req,defLevels);
                   const over=Object.entries(p.req).reduce((o,[v,rq])=>o+Math.max(0,(defLevels[v]||0)-rq),0);
                   const eff=Math.min(2,1+0.07*over)*(procureMode==='surge'?1.08:procureMode==='efficiency'?0.95:1);
-                  const procCost=Math.round(p.cost*(procureMode==='efficiency'?0.85:procureMode==='surge'?1.25:1));
+                  const procCost=procurementCost(p,procureMode);
                   return(<div key={pid} style={{background:'#0d1117',border:`1px solid ${ct>0?'#14532d':'#1f2937'}`,borderRadius:'7px',padding:'10px',opacity:reqsMet?1:0.55}}>
                     <div style={{display:'flex',justifyContent:'space-between',marginBottom:'4px'}}>
                       <div style={{display:'flex',alignItems:'center',gap:'6px'}}><span style={{fontSize:'17px'}}>{p.i}</span><div style={{fontSize:'11px',fontWeight:700,color:'#f9fafb'}}>{p.n}</div></div>
@@ -1535,11 +1535,11 @@ function WorldLeadersInner({resumeSignal}){
                     <div style={{fontSize:'8px',letterSpacing:'1px',marginBottom:'4px',color:['carrier_group','sub_fleet','fighter_wing','drone_swarm','fa_xx','mq25','frigate','zumwalt','b21','sr72','ssnx'].includes(pid)?'#f0c040':'#6b7280'}}>{['carrier_group','sub_fleet','fighter_wing','drone_swarm','fa_xx','mq25','frigate','zumwalt','b21','sr72','ssnx'].includes(pid)?'THEATER ASSET — station it in a region to act':'NATIONAL ASSET — effect applies automatically'}</div>
                     {p.triad&&<div style={{fontSize:'9px',color:'#ef4444',marginBottom:'4px',letterSpacing:'1px'}}>☢ STRATEGIC — cannot be purchased abroad; domestic program only</div>}
                     <div style={{display:'flex',gap:'5px',flexWrap:'wrap'}}>
-                      {p.dev&&!developed.has(pid)&&(()=>{const pd=platformDev[pid];if(pd)return <div style={{flex:1,fontSize:'10px',color:'#3b82f6',fontWeight:700,padding:'5px',background:'#0d1117',border:'1px solid #1e3a8a',borderRadius:'4px'}}>🔬 Developing — {pd.mo}mo</div>;return <button onClick={()=>{if(!reqsMet){showToast('⚠ Research requirements not met');return;}if((sR.current?.treasury||0)<p.dev.cost){showToast(`⚠ Program needs $${p.dev.cost}M`);return;}setStats(pr=>({...pr,treasury:pr.treasury-p.dev.cost}));setPlatformDev(pr=>{const n2={...pr,[pid]:{mo:p.dev.mo}};pdevR.current=n2;return n2;});showToast(`🔬 ${p.n} program launched — ${p.dev.mo}mo to first article`);setLog(pr=>[{msg:`🔬 ${p.n} development started`,yr:dateR.current.yr,mo:dateR.current.mo},...pr.slice(0,19)]);}} style={{flex:1,background:reqsMet?'#1e3a8a':'rgba(0,0,0,.4)',border:`1px solid ${reqsMet?'#3b82f6':'#374151'}`,color:reqsMet?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>🔬 Develop ${p.dev.cost}M · {p.dev.mo}mo</button>;})()}
-                      {(!p.dev||developed.has(pid))&&<button onClick={()=>{if(!reqsMet){showToast('⚠ Research requirements not met');return;}if((sR.current?.treasury||0)<procCost){showToast('⚠ Insufficient treasury');return;}setStats(pr=>({...pr,treasury:pr.treasury-procCost}));setPlatforms(pr=>({...pr,[pid]:(pr[pid]||0)+1}));setLog(pr=>[{msg:`${p.i} ${p.n} deployed — $${procCost}M`,yr:dateR.current.yr,mo:dateR.current.mo},...pr.slice(0,19)]);showToast(`${p.i} ${p.n} deployed`);}} style={{flex:1,background:reqsMet?'#1d4ed8':'rgba(0,0,0,.4)',border:`1px solid ${reqsMet?'#3b82f6':'#374151'}`,color:reqsMet?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>Build ${procCost}M</button>}
-                      {!reqsMet&&!p.triad&&<button onClick={()=>{const impCost=Math.round(p.cost*1.8);if((sR.current?.treasury||0)<impCost){showToast('⚠ Insufficient treasury');return;}setStats(pr=>({...pr,treasury:pr.treasury-impCost}));setPlatformsImported(pr=>({...pr,[pid]:(pr[pid]||0)+1}));setLog(pr=>[{msg:`🌐 ${p.n} purchased abroad — $${impCost}M`,yr:dateR.current.yr,mo:dateR.current.mo},...pr.slice(0,19)]);showToast(`🌐 ${p.n} imported (90% effectiveness, +25% maintenance)`);}} style={{flex:1,background:'rgba(240,192,64,.08)',border:'1px solid #f0c040',color:'#f0c040',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>🌐 Purchase ${Math.round(p.cost*1.8)}M</button>}
-                      {ct>0&&<button onClick={()=>{setPlatforms(pr=>({...pr,[pid]:Math.max(0,(pr[pid]||0)-1)}));showToast(`${p.n} decommissioned`);}} style={{background:'rgba(239,68,68,.08)',border:'1px solid #ef4444',color:'#ef4444',padding:'5px 8px',borderRadius:'4px',fontSize:'10px'}}>−1</button>}
-                      {(platformsImported[pid]||0)>0&&<button onClick={()=>{setPlatformsImported(pr=>({...pr,[pid]:Math.max(0,(pr[pid]||0)-1)}));showToast(`Imported ${p.n} retired`);}} style={{background:'rgba(240,192,64,.06)',border:'1px solid #f0c040',color:'#f0c040',padding:'5px 8px',borderRadius:'4px',fontSize:'10px'}}>−1🌐</button>}
+                      {p.dev&&!developed.has(pid)&&(()=>{const pd=platformDev[pid];if(pd)return <div style={{flex:1,fontSize:'10px',color:'#3b82f6',fontWeight:700,padding:'5px',background:'#0d1117',border:'1px solid #1e3a8a',borderRadius:'4px'}}>🔬 Developing — {pd.mo}mo</div>;return <button onClick={()=>dispatch({type:'developPlatform',payload:{platform:pid}})} style={{flex:1,background:reqsMet?'#1e3a8a':'rgba(0,0,0,.4)',border:`1px solid ${reqsMet?'#3b82f6':'#374151'}`,color:reqsMet?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>🔬 Develop ${p.dev.cost}M · {p.dev.mo}mo</button>;})()}
+                      {(!p.dev||developed.has(pid))&&<button onClick={()=>dispatch({type:'buildPlatform',payload:{platform:pid}})} style={{flex:1,background:reqsMet?'#1d4ed8':'rgba(0,0,0,.4)',border:`1px solid ${reqsMet?'#3b82f6':'#374151'}`,color:reqsMet?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>Build ${procCost}M</button>}
+                      {!reqsMet&&!p.triad&&<button onClick={()=>dispatch({type:'importPlatform',payload:{platform:pid}})} style={{flex:1,background:'rgba(240,192,64,.08)',border:'1px solid #f0c040',color:'#f0c040',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>🌐 Purchase ${Math.round(p.cost*1.8)}M</button>}
+                      {ct>0&&<button onClick={()=>dispatch({type:'decommissionPlatform',payload:{platform:pid}})} style={{background:'rgba(239,68,68,.08)',border:'1px solid #ef4444',color:'#ef4444',padding:'5px 8px',borderRadius:'4px',fontSize:'10px'}}>−1</button>}
+                      {(platformsImported[pid]||0)>0&&<button onClick={()=>dispatch({type:'retireImported',payload:{platform:pid}})} style={{background:'rgba(240,192,64,.06)',border:'1px solid #f0c040',color:'#f0c040',padding:'5px 8px',borderRadius:'4px',fontSize:'10px'}}>−1🌐</button>}
                     </div>
                   </div>);
                 })}
@@ -1548,7 +1548,7 @@ function WorldLeadersInner({resumeSignal}){
 
                         {Object.keys(defExports).length>0&&<div>
               <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'7px'}}>Active Export Deals</div>
-              {Object.entries(defExports).map(([k,d])=>{const[bid,vert]=k.split('_');const buyer=BUYERS.find(b=>b.id===bid);return(<div key={k} style={{background:'#0d1117',border:'1px solid #14532d',borderRadius:'6px',padding:'9px',marginBottom:'6px',display:'flex',justifyContent:'space-between',alignItems:'center'}}><div><div style={{fontSize:'11px',fontWeight:700,color:'#f9fafb'}}>{buyer?.flag} {buyer?.n} — {DV[vert]?.n}</div><div style={{fontSize:'10px',color:'#4ade80'}}>${d.revenue}M/yr · Rel: {d.relationship}%</div></div><button onClick={()=>{const nd={...defExports};delete nd[k];setDefExports(nd);showToast('Deal terminated');}} style={{background:'rgba(239,68,68,.08)',border:'1px solid #ef4444',color:'#ef4444',padding:'3px 8px',borderRadius:'3px',fontSize:'10px'}}>Cut Off</button></div>);})}
+              {Object.entries(defExports).map(([k,d])=>{const[bid,vert]=k.split('_');const buyer=BUYERS.find(b=>b.id===bid);return(<div key={k} style={{background:'#0d1117',border:'1px solid #14532d',borderRadius:'6px',padding:'9px',marginBottom:'6px',display:'flex',justifyContent:'space-between',alignItems:'center'}}><div><div style={{fontSize:'11px',fontWeight:700,color:'#f9fafb'}}>{buyer?.flag} {buyer?.n} — {DV[vert]?.n}</div><div style={{fontSize:'10px',color:'#4ade80'}}>${d.revenue}M/yr · Rel: {d.relationship}%</div></div><button onClick={()=>dispatch({type:'cutExportDeal',payload:{deal:k}})} style={{background:'rgba(239,68,68,.08)',border:'1px solid #ef4444',color:'#ef4444',padding:'3px 8px',borderRadius:'3px',fontSize:'10px'}}>Cut Off</button></div>);})}
             </div>}
           </div>
         </div>}
@@ -1565,8 +1565,8 @@ function WorldLeadersInner({resumeSignal}){
             </div>
             <div style={{fontSize:'10px',color:'#6b7280',marginBottom:'8px'}}>Your research depth compounds into IP. Choose how to wield it: license it for royalties (but rivals catch up), protect it as a moat (harder to steal), or balance both. {lic>0&&<span style={{color:'#4ade80'}}>Royalties: +${lic}M/mo.</span>}</div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'5px'}}>
-              {[['protect','🛡️ Protect','Theft-resistant moat'],['balanced','⚖️ Balanced','Some royalties + defense'],['license','💰 License','Max royalties, opens you']].map(([k,lab,sub])=>(
-                <button key={k} onClick={()=>{setIpPolicy(k);ipPolR.current=k;showToast(`IP policy: ${lab.replace(/[^ -~]/g,'').trim()}`);}} style={{background:ipPolicy===k?'#4c1d95':'transparent',border:`1px solid ${ipPolicy===k?'#a78bfa':'#374151'}`,color:ipPolicy===k?'white':'#9ca3af',padding:'6px 4px',borderRadius:'5px',fontSize:'10px',fontWeight:700,textAlign:'center'}}>{lab}<div style={{fontSize:'8px',color:ipPolicy===k?'#c4b5fd':'#6b7280',marginTop:'2px',fontWeight:400}}>{sub}</div></button>))}
+              {[['protect',IP_POLICY_LABELS.protect,'Theft-resistant moat'],['balanced',IP_POLICY_LABELS.balanced,'Some royalties + defense'],['license',IP_POLICY_LABELS.license,'Max royalties, opens you']].map(([k,lab,sub])=>(
+                <button key={k} onClick={()=>dispatch({type:'setIpPolicy',payload:{policy:k}})} style={{background:ipPolicy===k?'#4c1d95':'transparent',border:`1px solid ${ipPolicy===k?'#a78bfa':'#374151'}`,color:ipPolicy===k?'white':'#9ca3af',padding:'6px 4px',borderRadius:'5px',fontSize:'10px',fontWeight:700,textAlign:'center'}}>{lab}<div style={{fontSize:'8px',color:ipPolicy===k?'#c4b5fd':'#6b7280',marginTop:'2px',fontWeight:400}}>{sub}</div></button>))}
             </div>
             <div style={{fontSize:'9px',color:'#6b7280',marginTop:'7px'}}>{ipPolicy==='protect'?'+12% espionage resistance — rivals struggle to steal your tech.':ipPolicy==='license'?'−8% espionage resistance, but maximum royalty income.':'Moderate royalties with baseline protection.'}</div>
           </div>);})()}

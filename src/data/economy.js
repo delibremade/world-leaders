@@ -121,3 +121,5 @@ export const SECTOR_DECAY={
 
 // Sector labels (budget panel, modernization log).
 export const SECTOR_LABELS={defense:'🛡️ Defense',energy:'⚡ Energy',healthcare:'🏥 Healthcare',education:'🎓 Education',technology:'💻 Technology'};
+// IP policy labels (Technology tab).
+export const IP_POLICY_LABELS={protect:'🛡️ Protect',balanced:'⚖️ Balanced',license:'💰 License'};

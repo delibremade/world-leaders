@@ -39,3 +39,12 @@ export function getDefLeverage(dl,gdb,cid){const excl=Object.entries(gdb).filter
 export const triadLegs=(platforms,black)=>((platforms.ssbn_fleet||0)>0?1:0)+((platforms.strategic_bombers||0)>0?1:0)+((platforms.icbm_force||0)>0?1:0)+((+black.b21||0)>0?1:0);
 // Kinetic strike damage to the top hostile's sphere in a region: ISR-scaled plus strike platforms stationed there.
 export const kineticDamage=(isr,dep)=>18+Math.round(isr/2)+(dep.fa_xx||0)*2+(dep.zumwalt||0)*3+(dep.mq25||0)*1;
+// Every R&D requirement of a platform / SAP / facility met.
+export const meetsReq=(req,dl)=>Object.entries(req).every(([v,rq])=>(dl[v]||0)>=rq);
+// Platform procurement price under the procurement mode.
+export const procurementCost=(p,mode)=>Math.round(p.cost*(mode==='efficiency'?0.85:mode==='surge'?1.25:1));
+// SAP production tranche price: cheaper per unit as the line matures.
+export const sapRate=(n)=>n<3?0.35:n<6?0.30:0.25;
+export const sapRunCost=(bp,n)=>Math.round(bp.cost*sapRate(n));
+// Force recapitalization price: 8% of treasury, clamped to $1.5B..$8B.
+export const recapCost=(treasury)=>Math.max(1500,Math.min(8000,Math.round((treasury||0)*0.08)));
