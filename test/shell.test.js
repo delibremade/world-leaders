@@ -74,7 +74,7 @@ test('outliner: rows from engine state, grouped, each with a jump target', () =>
 
 test('App: shell renders (HUD, speed, nav badges, doctrine card, sheet, outliner, why), plays 120 months, save/resume', async () => {
   const origErr = console.error; console.error = () => {};
-  const g = await mount(BUNDLES.app, { testHook: true });
+  const g = await mount(BUNDLES.app, { testHook: true, seed: 7 }); // seeded: the 120-month run must not depend on the wall clock or Math.random
   try {
     await g.pickCountry(0);
     const { doc, w } = g;
@@ -115,7 +115,11 @@ test('App: shell renders (HUD, speed, nav badges, doctrine card, sheet, outliner
     w.__wl.setTension('russia', 80); await flush();
     const months = await g.advance(120);
     assert.ok(!g.faulted(), 'ErrorGate fault'); assert.ok(months >= 120 || gameEnded(doc), `advanced ${months}`);
-    assert.ok(qa('[data-outliner-row]').length >= 1, 'outliner has live rows after 120 months');
+    // Live rows come from engine state: plant a world event through the test hook and expect its row (what else
+    // is live after 120 months depends on the seed, so it is not asserted).
+    w.__wl.event('pandemic', 6); await flush(); await flush();
+    assert.ok(q('[data-outliner-row=we]'), 'world event row in the outliner');
+    assert.match(q('[data-outliner-row=we]').textContent, /Pandemic/);
     for (const t of TABS) { g.tabBtn(t).click(); await flush(); assert.ok(g.text().length > 500, t); }
     const raw = (await w.storage.get('wl_save')).value; assert.ok(raw, 'autosave');
     const g2 = await mount(BUNDLES.app, { preload: { wl_save: raw } });
