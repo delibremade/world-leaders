@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.61.1 (2026-10-10) — fix: lane sanctions charge bloc/ally costs (#5); map +/- deploy writes live state (#6)
+- `imposeSanctions` now runs `toggleSanctions` when adding (bloc reset + 12mo freeze, -4 stability and warning for allies), ruling 7. `adjustDeployment` routes + to `deployUnit` and - to `recallUnit`; the map no longer treats unowned black programs as owned (free count cannot go negative). + now toasts "stationed", as the other deploy entry points do.
+- Tests: entry-point parity for france/japan/saudi, live-state reads after map +/-. Parity: map +/- clicks removed from `parity-clicks.js` month 9 (replaced by OOB station via the shared path); lane sanctions were never in the script. Every other parity case unchanged.
+
 ## 0.61.0 (2026-10-10) — P2b player verbs into src/sim/actions.js
 - Every v57 player verb is now `dispatch({type, payload})` -> `applyVerb(g, S, fx, action)` (`src/sim/actions.js`, 100 verbs): the 20 callbacks plus ~80 inline render handlers. Payloads are keyed by nation / region / id for the P3 bottom sheet. App keeps presentation state only (tabs, selection, panels, speed, pause) and session lifecycle (start, resume, New Nation).
 - Shared rules hoisted so render and verbs use one implementation: `triadLegs`, `strategicWeight`, `kineticDamage`, `meetsReq`, `procurementCost`, `sapRate/sapRunCost`, `recapCost` (formulas.js); bloc tier reqs, EU/CN T3 exclusivity, EU thresholds, statecraft groups (`src/sim/selectors.js`). Labels to `src/data`.

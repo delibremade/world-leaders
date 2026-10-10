@@ -410,14 +410,10 @@ function flashpointResponse(g,S,fx,selectedRegion,response){
   else if(response==='diplomatic'){const embHere=DIP_TARGETS.some(d=>d.region===selectedRegion&&embassies.has(d.id));
     if(!embHere){fx.toast('⚠ Requires an embassy in this region — establish one via Trade');return;}if((g.stats?.treasury||0)<200){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-200}));S.setSphere(p=>{const n2={...p};const sph=n2[selectedRegion];if(sph){const top=Object.entries(sph.competitors||{}).sort((a,b)=>b[1]-a[1])[0];n2[selectedRegion]={...sph,player:Math.min(100,(sph.player||0)+6),competitors:top?{...sph.competitors,[top[0]]:Math.max(0,top[1]-4)}:sph.competitors};}return n2;});g.flashpoint=null;S.setFlashpoint(null);fx.toast('🏛️ Diplomatic resolution — embassy back-channels defused the crisis');S.setLog(p=>[{msg:`🏛️ Diplomatic resolution: ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
 }
-// v57 quirk preserved (inventory §8.4): the map +/- commits forceDeployments without writing the live ref.
-const MAP_BLACK=['b21','sr72','ssnx'];
+// Map +/-: one deploy path (deployUnit / recallUnit), so the live state is written inside the updater (#6).
 function adjustDeployment(g,S,fx,selectedRegion,pid,delta){
-  const forceDeployments=g.forceDeployments;const hereObj=forceDeployments[selectedRegion]||{};
-  if(delta>0){const p=PLATFORMS[pid]||BLACK_PROGRAMS[pid];const own=MAP_BLACK.includes(pid)?(+g.blackPrograms[pid]||1):(g.platforms[pid]||0)+(g.platformsImported[pid]||0);
-    const avail=own-Object.values(forceDeployments).reduce((a,r)=>a+((r&&r[pid])||0),0);
-    if(avail<=0){fx.toast(`⚠ No free ${p.n} — build more or recall from other regions`);return;}S.setForceDeployments(pr=>({...pr,[selectedRegion]:{...(pr[selectedRegion]||{}),[pid]:((pr[selectedRegion]||{})[pid]||0)+1}}));}
-  else{const hereN=hereObj[pid]||0;if(hereN<=0)return;S.setForceDeployments(pr=>({...pr,[selectedRegion]:{...(pr[selectedRegion]||{}),[pid]:Math.max(0,((pr[selectedRegion]||{})[pid]||0)-1)}}));}
+  if(delta>0)deployUnit(g,S,fx,selectedRegion,pid);
+  else if((g.forceDeployments[selectedRegion]||{})[pid]>0)recallUnit(g,S,fx,selectedRegion,pid);
 }
 function setPosture(g,S,fx,selectedRegion,k,from){
   if(from==='sitroom'){S.setForcePosture(p=>{const n2={...p,[selectedRegion]:k};g.forcePosture=n2;return n2;});fx.toast(`🚢 Escort posture — ${REGIONS[selectedRegion]?.n}`);return;}
@@ -455,8 +451,8 @@ function embargoBackChannel(g,S,fx){if((g.stats?.treasury||0)<250){fx.toast('⚠
 function releaseReserve(g,S,fx,from){const spr=g.spr;if(spr<=0){fx.toast(from==='chokepoint'?'⚠ Reserve empty — fill it on the Energy tab':'⚠ Reserve empty');return;}g.sprRelease=true;S.setSprRelease(true);fx.toast('🛢️ Releasing reserve');}
 function establishRegionEmbassy(g,S,fx,rid){const embassies=g.embassies;const d=DIP_TARGETS.find(x=>x.region===rid&&!embassies.has(x.id));if(d)establishEmbassy(g,S,fx,d.id);else fx.toast('No embassy candidate in this region');}
 function stationHunterKiller(g,S,fx,rid){if(!deployUnit(g,S,fx,rid,'ssnx'))deployUnit(g,S,fx,rid,'sub_fleet');}
-// v57: the rival-hegemony lane only adds the sanction (no bloc suspension, no ally cost), unlike the Trade toggle.
-function imposeSanctions(g,S,fx,cid){const sanctions=g.sanctions;if(!sanctions.has(cid)){S.setSanctions(prev=>{const n2=new Set(prev);n2.add(cid);g.sanctions=n2;return n2;});fx.toast(`🚫 Sanctions imposed on ${cid}`);}}
+// Rival-hegemony lane: same bloc suspension, freeze and ally cost as the Trade toggle (ruling 7, #5). Add-only.
+function imposeSanctions(g,S,fx,cid){if(!g.sanctions.has(cid))toggleSanctions(g,S,fx,cid);}
 
 // Economy tab: monetary, fiscal and tax policy, sector budgets, expertise leasing, social programs, modernization.
 function setInterestRate(g,S,fx,rate){S.setInterestRate(rate);}
