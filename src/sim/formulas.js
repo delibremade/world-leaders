@@ -68,6 +68,17 @@ export const recapCost=(treasury)=>Math.max(1500,Math.min(8000,Math.round((treas
 // A rival's strategic weight (aircraft / missiles / naval at L5+), 0..3. Parity with your triad = MAD.
 export const strategicWeight=(gl)=>((gl.aircraft||0)>=5?1:0)+((gl.missiles||0)>=5?1:0)+((gl.naval||0)>=5?1:0);
 
+// Chance a foreign intelligence operation against you is intercepted (counter-intel strength). Was inline in tick.js; E7 (#19)
+// reads it as the program-access counter-intel floor.
+export const interceptChance=(g)=>{const ciActive=g.intelOps.some(o=>o.opId==='counter_int');const ipDef=g.ipPolicy==='protect'?0.12:g.ipPolicy==='license'?-0.08:0; // protecting IP hardens you; licensing opens you
+  return Math.min(0.95,0.25+(g.defLevels.cyber||0)*0.06+(g.intelBudget||1)*0.05+(ciActive?0.25:0)+(g.covertPrograms.has('counter_intel_grid')?0.25:0)+(g.intelInfra.listening_posts?0.12:0)+(g.intelInfra.crypt_center?0.10:0)+(g.intelInfra.paramilitary?0.05:0)+Math.min(0.10,(g.platforms.satellite_net||0)*0.02)+ipDef);};
+// China trade-corridor listeners: deep corridor tech with weak cyber leaks (foreign-op rate term in tick.js).
+export const cnExposure=(g)=>(g.blocTrade.cn>=2&&(g.defLevels.cyber||0)<4)?0.08:0;
+// Espionage exposure for E7 compliance: China corridor depth, IP licensing, and the corridor listeners above.
+export const espionageExposure=(g)=>((g.blocTrade?.cn||0)>=2?0.3:(g.blocTrade?.cn||0)>=1?0.1:0)+(g.ipPolicy==='license'?0.1:0)+cnExposure(g);
+// Defense spending, % GDP: the nation's 2024 level scaled by the defense budget slider (NATO 2% gate).
+export const defGdpPct=(nation,alloc)=>Math.round((nation?.defGdp||0)*((alloc??100)/100)*100)/100;
+
 // Panama transit-priority deal: reason it is unavailable, or null. Shared by the verb and the Panama drought card.
 export function panamaPriorityBlock(g){
   if((g.chokeDeals?.panama||{}).priority)return 'Transit priority already in force';
