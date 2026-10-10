@@ -49,7 +49,7 @@ test('390px: HUD speed control and all three figures are fully on screen; nav re
 });
 
 // E5c: Resources vertical (minerals). Six sub-tabs fit both widths with no sideways scroll, every row and button is
-// a 44px target, and every Part 3 lever (plants, recycling, reserve, offtake, pact, export controls) plus the merged
+// a 44px target, and every Part 3 lever (private plants and their levers, recycling, reserve, offtake, pact, export controls) plus the merged
 // rare-earth export extraction and the natural-resource cards are reachable.
 for (const [W, H] of [[390, 844], [1280, 800]]) {
   test(`${W}px: Resources minerals view, six sub-tabs inside the screen; every Part 3 lever reachable`, async () => {
@@ -61,7 +61,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       for (const x of segs) assert.ok(x.h >= 44 && x.w >= 44 && x.r <= W + 0.5, `segment ${JSON.stringify(x)}`);
       const want = {
         reserves: [/Ore reserves/, /to zero|unrefined|—/, /Rare earths · export extraction/, /Revenue/],
-        processing: [/Processing capacity/, /Build plant/, /Recycle/, /Gallium/],
+        processing: [/Processing capacity/, /Private plant|not profitable/, /DPA \$\d+M/, /Offtake \$\d+M/, /Recycle/, /Gallium/],
         stockpile: [/Stockpile and reserve/, /Buy reserve/, /Release reserve|Hold reserve/],
         deals: [/Offtake deals/, /Available partners/, /Offtake · /, /Processing pact/],
         controls: [/Your export controls/, /Controls against you/, /Rival impact/, /Export control/],
