@@ -67,6 +67,17 @@ SCENARIOS['e3-china-catalog-390'] = async (page) => {
   await press('j36', 'Fund prototype'); await settle(page, 200); await press('j50', 'Fund prototype'); await settle(page, 200);
   await settle(page, 4500); await catalogShot(page, 'j36');
 };
+// E7 (#19): Norway's F-47 partnership: gates before joining, then Buyer -> Partner after supplying rare earths.
+const norwayAccess = async (page, join) => {
+  await startNation(page, 'Norway'); await pause(page);
+  await page.evaluate(() => { const h = window.__wl; h.fund(30000); h.rel('usa', 78); }); await settle(page, 300);
+  await page.evaluate(() => document.querySelector('[data-tab=defense]').click()); await settle(page, 400);
+  const press = (re) => page.evaluate((r) => [...document.querySelectorAll('[data-access=f47] button')].find((b) => new RegExp(r).test(b.textContent))?.click(), re);
+  if (join) { await press('Join as Buyer'); await settle(page, 200); await page.evaluate(() => window.__wl.extract('rareEarth', 1)); await settle(page, 300); await press('Join as Partner'); await settle(page, 4500); }
+  await page.evaluate(() => document.querySelector('[data-partnerships]').scrollIntoView({ block: 'start' })); await settle(page, 400);
+};
+SCENARIOS['e7-norway-gates-390'] = (page) => norwayAccess(page, false);
+SCENARIOS['e7-norway-partner-390'] = (page) => norwayAccess(page, true);
 SCENARIOS['p3d-hud-doctrine-390'] = async (page) => { await startUSA(page); await settle(page, 700); };
 SCENARIOS['p3d-nav-econ-390'] = async (page) => { await inGame(page); await pause(page); await page.evaluate(() => document.querySelector('[data-tab=technology]').click()); await settle(page, 500); };
 

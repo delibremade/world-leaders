@@ -2,12 +2,14 @@ import { DIP_TARGETS, NATION_BLOC, COUNTRY_RES, GDB, START_DEF } from '../data/n
 import { REGIONS, SPHERE_INIT } from '../data/regions.js';
 import { RES_META } from '../data/energy.js';
 import { newEvState } from './events.js';
+import { ALLIED_PROGRAMS } from '../data/alliance.js';
 
 // Canonical game state. Plain JSON-serializable data only: no classes, no functions, no Dates.
 // Anything the UI needs to render must live here or be derivable from here by a pure selector.
 export const SAVE_VERSION = 58;
-// E3 (#15) program state: prototype lines {id:{prog,mo,slipped?}}. Old saves load without it.
-export const newArsenal=()=>({dev:{}});
+// Program state. E3 (#15): prototype lines dev {id:{prog,mo,slipped?}}. E7 (#19): access {program:{nation:{tier,status,susp,since,founder?}}},
+// allied orders [{id,mo}], defected {from:to}. A founding nation starts as co-developer of its program. Old saves load without it.
+export const newArsenal=(nid)=>({dev:{},access:Object.fromEntries(Object.entries(ALLIED_PROGRAMS).filter(([,A])=>nid&&(A.founders||[]).includes(nid)).map(([pid])=>[pid,{[nid]:{tier:'codev',status:'active',susp:0,since:2024*12,founder:true}}])),orders:[],defected:{}});
 
 export function newGame({ seed, player = 'usa' }) {
   if (!Number.isInteger(seed)) throw new Error('newGame: seed must be an integer');
@@ -100,7 +102,7 @@ export function newCampaign(c){
     currencyPosture:'neutral',embassyMissions:{},embassyLocks:{},ultimatum:null,pariah:0,confrontationCooldowns:{},forcePosture:{},nukeLog:[],
     embargoes:new Set(),embargoedBy:null,spr:0,sprRelease:false,concessions:new Set(),chokeStatus:{},stewardship:{},exportShare:{oil:0.6,gas:0.6},
     chokeDeals:{},platformDev:{},developed:new Set(),pathHold:{econ:0,tech:0,dip:0},usedTech:new Set(),rivalHolds:{},sectorMaturity:{defense:0,energy:0,healthcare:0,education:0,technology:0},sectorAge:{defense:0,energy:0},
-    prevSectorLevels:o.prevSectorLevels,decisionTimer:8,pressureTimer:3,evState:newEvState(),arsenal:newArsenal(),
+    prevSectorLevels:o.prevSectorLevels,decisionTimer:8,pressureTimer:3,evState:newEvState(),arsenal:newArsenal(c.id),
   };
   return Object.seal(g);
 }
