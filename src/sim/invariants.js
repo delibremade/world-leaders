@@ -59,6 +59,9 @@ export const V57_INVARIANTS = [
   ['a live world event has months left', (g) => !g.worldEvent || (Number.isInteger(g.worldEvent.mo) && g.worldEvent.mo > 0)],
   ['an answered world event has its in-effect row', (g) => !g.worldEvent?.ans || (g.evState?.fx || []).some((r) => r.ev === g.worldEvent.id && r.kind === 'world')],
   ['a live flashpoint has months left', (g) => !g.flashpoint || (Number.isInteger(g.flashpoint.t) && g.flashpoint.t > 0)],
+  ['latest world-event month is a finite number', (g) => !g.evState || g.evState.last === undefined || Number.isFinite(g.evState.last)],
+  ['an open decision opened at a month with a why-now line (saves from before F2 carry neither)', (g) => !g.activeDecision || g.activeDecision.at === undefined || (Number.isFinite(g.activeDecision.at) && typeof g.activeDecision.why === 'string' && g.activeDecision.why.length > 0)],
+  ['an open world event with a why-now line has a non-empty one', (g) => !g.worldEvent || g.worldEvent.why === undefined || (typeof g.worldEvent.why === 'string' && g.worldEvent.why.length > 0)],
   ['queued follow-ups name real events', (g) => (g.evState?.q || []).every((q) => typeof q.id === 'string' && Number.isFinite(q.at))],
   // Event content (E6, #18)
   ['queued follow-ups are registered world events', (g) => (g.evState?.q || []).every((q) => !!WORLD_EVENTS[q.id])],

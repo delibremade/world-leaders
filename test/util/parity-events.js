@@ -20,6 +20,8 @@ const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activ
 // capability multiplies deployed military power and crews gate stationing, so the cases it touches are re-baselined citing #20.
 // #18 (E6): the decision pool grows 8 -> 30 and the world-event pool 10 -> 20, all gated on state, so every run's draws change after the
 // first decision or world event. The v57 prefix check above is untouched; the five pinned cases are re-baselined citing #18.
+// #33 (F2): decisions open only at the quarterly briefing, one at a time, clear of world events, and every card carries a why-now, so the five
+// pinned cases are re-baselined citing #33 (each opens a decision inside the 120-month window; the month and the stored card moved).
 const NEW_KEYS = ['arsenal', 'minerals', 'forces'];
 const dropNew = (s) => { if (!NEW_KEYS.some((k) => s.includes(`"${k}"`))) return s; const o = JSON.parse(s); for (const k of NEW_KEYS) delete o[k]; return JSON.stringify(o); };
 const strip = (s) => { const o = JSON.parse(dropNew(s)); delete o.evState; return JSON.stringify(o); };

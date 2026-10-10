@@ -1,17 +1,39 @@
 // Event system (E2, #14): spawn rules, cooldowns, follow-up chains, "in effect" rows, response execution.
 // One implementation per rule (CLAUDE.md #8): the tick, the verbs and the UI selectors all go through here.
-// Shape of g.evState: { cd:{eventId:monthsLeft}, fx:[row], q:[{id,at}], log:[{id,m}] }
+// Shape of g.evState: { cd:{eventId:monthsLeft}, fx:[row], q:[{id,at}], log:[{id,m}], last:absMonth of the latest world-event start or end }
 //   row = { id, kind:'world'|'flashpoint', ev, rid, choice, mo, sync, mods:{stats,cash,sphere} }
 import { WORLD_EVENTS, DECISIONS } from '../data/world.js';
 import { REGIONS } from '../data/regions.js';
 import { WORLD_RULES, FP_RESPONSES, FP_LINGER, EVENT_COOLDOWN, CHAIN_PATIENCE } from '../data/events.js';
+import { whyFor } from '../data/event-why.js';
 import { rng } from './rng.js';
 
-export const newEvState = () => ({ cd: {}, fx: [], q: [], log: [] });
+export const newEvState = () => ({ cd: {}, fx: [], q: [], log: [], last: -999 });
 export const absMonth = (g) => g.date.yr * 12 + g.date.mo;
 const LOG_CAP = 200;
 const evOf = (g) => g.evState || newEvState();
 export const setEv = (g, S, n) => { g.evState = n; S.setEvState(n); };
+
+// Decision rhythm (F2, #33). Decisions arrive at the quarterly cabinet briefing (Jan, Apr, Jul, Oct), one open at a time, and
+// never within WORLD_GAP months of a world event (open, or started or ended that recently). A decision whose `urgent(ctx)`
+// holds may skip the briefing wait, and is flagged on its card; it still honors the other two rules.
+export const BRIEFING_EVERY = 3;
+export const WORLD_GAP = 3;
+export const isBriefingMonth = (g) => absMonth(g) % BRIEFING_EVERY === 0;
+// Months until the next briefing: 3 in the month one was just held, 1 the month before the next.
+export const monthsToBriefing = (g) => BRIEFING_EVERY - (absMonth(g) % BRIEFING_EVERY);
+export const worldEventNear = (g) => !!g.worldEvent || absMonth(g) - (evOf(g).last ?? -999) < WORLD_GAP;
+// Which of the eligible decisions may open this month (empty: wait). ctx is the gate context the eligibility used.
+export function decisionsDue(g, avail, ctx) {
+  if (g.activeDecision || worldEventNear(g)) return [];
+  const due = isBriefingMonth(g) ? avail : avail.filter((d) => d.urgent?.(ctx));
+  // Seat-bound decisions (one nation, one program window) go first: with one slot a quarter they would otherwise lose the draw to generic ones until the window closes.
+  const seated = due.filter((d) => d.seatBound);
+  return seated.length ? seated : due;
+}
+// Open a decision card: stamps when it opened, whether it jumped the briefing, and the 'Why now' line (kept as a string so a restored save keeps it).
+export const openDecision = (g, d, ctx) => ({ ...d, at: absMonth(g), urgentNow: !isBriefingMonth(g), why: whyFor('decision', d.id, ctx) });
+export const markWorldEvent = (g, S) => setEv(g, S, { ...evOf(g), last: absMonth(g) });
 
 // Eligible world events (off cooldown, conditions hold, weight > 0) -> weighted pick with roll in [0,1). null = quiet month.
 export function pickWorldEvent(g, roll) {
@@ -27,9 +49,9 @@ export function pickWorldEvent(g, roll) {
 }
 
 // Start a world event: stamps the 60-month cooldown and the log. Breakthrough is instant (no card).
-export function startWorldEvent(g, S, fx, id) {
+export function startWorldEvent(g, S, fx, id, viaChain = false) {
   const def = WORLD_EVENTS[id]; const ev = evOf(g);
-  setEv(g, S, { ...ev, cd: { ...ev.cd, [id]: EVENT_COOLDOWN }, log: [...ev.log, { id, m: absMonth(g) }].slice(-LOG_CAP) });
+  setEv(g, S, { ...ev, cd: { ...ev.cd, [id]: EVENT_COOLDOWN }, log: [...ev.log, { id, m: absMonth(g) }].slice(-LOG_CAP), last: absMonth(g) });
   if (id === 'breakthrough') {
     const c = g.country;
     const rv = ['russia', 'china', 'usa', 'germany'].filter((r) => r !== c.id); const tgt = rv[Math.floor(rng() * rv.length)];
@@ -38,12 +60,12 @@ export function startWorldEvent(g, S, fx, id) {
     S.setLog((l) => [{ msg: `💡 Breakthrough abroad: ${tgt}`, yr: g.date.yr, mo: g.date.mo }, ...l.slice(0, 19)]);
     return;
   }
-  const we = { id, mo: def.dur }; g.worldEvent = we; S.setWorldEvent(we);
+  const we = { id, mo: def.dur, why: viaChain ? 'Follow-up to your earlier response' : whyFor('world', id, { g }) }; g.worldEvent = we; S.setWorldEvent(we);
   fx.toast(`${def.i} WORLD EVENT: ${def.n}`);
   S.setLog((l) => [{ msg: `${def.i} ${def.n}`, yr: g.date.yr, mo: g.date.mo }, ...l.slice(0, 19)]);
 }
 // The nuclear-employment path stamps the same cooldown when it opens the taboo window.
-export const stampEvent = (g, S, id) => { const ev = evOf(g); setEv(g, S, { ...ev, cd: { ...ev.cd, [id]: EVENT_COOLDOWN }, log: [...ev.log, { id, m: absMonth(g) }].slice(-LOG_CAP) }); };
+export const stampEvent = (g, S, id) => { const ev = evOf(g); setEv(g, S, { ...ev, cd: { ...ev.cd, [id]: EVENT_COOLDOWN }, log: [...ev.log, { id, m: absMonth(g) }].slice(-LOG_CAP), last: absMonth(g) }); };
 
 // Month start: cooldowns count down. Runs every month (a system never skips its stamp), before spawn decisions.
 export function eventCooldowns(g, S) {
@@ -63,7 +85,7 @@ export function fireChain(g, S, fx) {
     if (now - q.at < CHAIN_PATIENCE && !(ev.cd[q.id] > 0)) keep.push(q); // slot busy: wait; cooldown: drop
   }
   setEv(g, S, { ...evOf(g), q: keep });
-  if (fired) { startWorldEvent(g, S, fx, fired.id); return true; }
+  if (fired) { startWorldEvent(g, S, fx, fired.id, true); return true; }
   return false;
 }
 

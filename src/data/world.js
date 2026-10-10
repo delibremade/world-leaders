@@ -105,7 +105,7 @@ export const DECISIONS=[
    options:[{id:'a',label:'Accept Terms',tags:['Workers satisfied','Wage costs rise'],effects:{stability:6,inflation:1.2,gdpGrowth:-0.4}},{id:'b',label:'Negotiate',tags:['Partial settlement'],effects:{stability:3,inflation:0.5}},{id:'c',label:'Reject',tags:['Short-term gain','Strike risk'],effects:{stability:-12,gdpGrowth:0.6,inequality:4}}]},
   {id:'fdi',title:'Foreign Investment Bid',when:ctx=>ctx.ns.gdpGrowth<2.5,icon:'🌐',desc:'Foreign consortium offers major capital for regulatory concessions.',
    options:[{id:'a',label:'Open Doors',tags:['Capital influx','Regulatory loss'],effects:{treasury:1200,gdpGrowth:0.8,inequality:5}},{id:'b',label:'Conditional Access',tags:['Negotiate safeguards'],effects:{treasury:600,gdpGrowth:0.4}},{id:'c',label:'Protect Domestic',tags:['Industry shielded','Slower growth'],effects:{gdpGrowth:-0.3,stability:4}}]},
-  {id:'protest',title:'Mass Protests',when:ctx=>ctx.ns.stability<58||ctx.ns.inequality>70,icon:'✊',desc:'Hundreds of thousands demanding economic reform.',
+  {id:'protest',title:'Mass Protests',urgent:ctx=>ctx.ns.stability<45,when:ctx=>ctx.ns.stability<58||ctx.ns.inequality>70,icon:'✊',desc:'Hundreds of thousands demanding economic reform.',
    options:[{id:'a',label:'Commit to Reform',tags:['Satisfied','Fiscal cost'],effects:{stability:12,inequality:-8,treasury:-600}},{id:'b',label:'Dialogue',tags:['Buys time','Risk'],effects:{stability:4,inequality:-2}},{id:'c',label:'Security Response',tags:['Order restored','Legitimacy damage'],effects:{stability:-20,gdpGrowth:0.2}}]},
   {id:'tech_wave',title:'Automation Wave',when:ctx=>Object.values(ctx.dl).reduce((a,b)=>a+(b||0),0)>=10,icon:'🤖',desc:'Industrial automation available. Productivity gains real — displacement too.',
    options:[{id:'a',label:'Rapid Adoption',tags:['Productivity leap','Job loss'],effects:{gdpGrowth:1.2,unemployment:3,inequality:6}},{id:'b',label:'Managed Transition',tags:['Balanced'],effects:{gdpGrowth:0.5,education:4}},{id:'c',label:'Protect Workforce',tags:['Jobs protected','Competitiveness loss'],effects:{stability:6,unemployment:-1}}]},
@@ -113,31 +113,31 @@ export const DECISIONS=[
   // ctx.g; `cost` is charged on top of `effects` and gates the option; `req` explains why an option is closed; `act` drives
   // an engine verb; `chain` queues a world event. Each card is written from the player's seat (desc takes ctx.country). ──
   // Nation programs
-  {id:'j36_setback',title:'J-36 Flight-Test Setback',icon:'🦅',when:({g})=>g.country?.id==='china'&&!!g.arsenal?.dev?.j36,
+  {id:'j36_setback',seatBound:true,title:'J-36 Flight-Test Setback',icon:'🦅',when:({g})=>g.country?.id==='china'&&!!g.arsenal?.dev?.j36,
    desc:'Chengdu’s test review flags a center-engine vibration fault on the tailless heavy. Shenyang’s competing airframe is unaffected, and the Air Force wants a date.',
    options:[
     {id:'a',label:'Fund a Redundant Test Rig',cost:800,tags:['J-36 schedule +3 months ahead'],effects:{},sfx:[{k:'devSlip',id:'j36',mo:-3}]},
     {id:'b',label:'Shift Weight to J-50',tags:['J-36 slips 6 months','J-50 3 months ahead'],effects:{},sfx:[{k:'devSlip',id:'j36',mo:6},{k:'devSlip',id:'j50',mo:-3}]},
     {id:'c',label:'Accept the Slip, Protect Face',tags:['J-36 slips 12 months','Stability +2'],effects:{stability:2},sfx:[{k:'devSlip',id:'j36',mo:12}]}]},
-  {id:'j50_setback',title:'J-50 Airframe Fatigue Finding',icon:'🦅',when:({g})=>g.country?.id==='china'&&!!g.arsenal?.dev?.j50,
+  {id:'j50_setback',seatBound:true,title:'J-50 Airframe Fatigue Finding',icon:'🦅',when:({g})=>g.country?.id==='china'&&!!g.arsenal?.dev?.j50,
    desc:'Shenyang’s fatigue article cracks early at the wing root. The design bureau blames the composite supplier; the Central Military Commission blames the schedule.',
    options:[
     {id:'a',label:'Rebuild the Test Article',cost:600,tags:['J-50 schedule +3 months ahead'],effects:{},sfx:[{k:'devSlip',id:'j50',mo:-3}]},
     {id:'b',label:'Borrow J-36 Structures',tags:['J-50 slips 3 months','J-36 3 months ahead'],effects:{},sfx:[{k:'devSlip',id:'j50',mo:3},{k:'devSlip',id:'j36',mo:-3}]},
     {id:'c',label:'Replace the Supplier',cost:300,tags:['J-50 slips 6 months','Education +1 (new lab)'],effects:{education:1},sfx:[{k:'devSlip',id:'j50',mo:6}]}]},
-  {id:'s70_engines',title:'Okhotnik Engine Shortfall',icon:'🛩️',when:({g})=>g.country?.id==='russia'&&!!g.arsenal?.dev?.s70,
+  {id:'s70_engines',seatBound:true,title:'Okhotnik Engine Shortfall',icon:'🛩️',when:({g})=>g.country?.id==='russia'&&!!g.arsenal?.dev?.s70,
    desc:'The flying-wing demonstrator waits on engines the sanctioned supply chain cannot deliver. Beijing has offered a workaround; the design bureau wants to build its own.',
    options:[
     {id:'a',label:'Domestic Engine Crash Program',cost:700,tags:['S-70 3 months ahead'],effects:{},sfx:[{k:'devSlip',id:'s70',mo:-3}]},
     {id:'b',label:'Buy Chinese Engines',cost:300,tags:['Relations +5 with China','Exposure to Beijing'],effects:{},sfx:[{k:'rel',id:'china',d:5}]},
     {id:'c',label:'Let the Program Slip',tags:['S-70 slips 9 months','Stability +1'],effects:{stability:1},sfx:[{k:'devSlip',id:'s70',mo:9}]}]},
-  {id:'gcap_workshare',title:'GCAP Workshare Dispute',icon:'🇯🇵',when:({g})=>g.country?.id==='japan'&&myAccess(g,'gcap')?.status==='active',
+  {id:'gcap_workshare',seatBound:true,title:'GCAP Workshare Dispute',icon:'🇯🇵',when:({g})=>g.country?.id==='japan'&&myAccess(g,'gcap')?.status==='active',
    desc:'London and Rome want the final assembly line and the engine work. Tokyo’s industry wants avionics and the radar. The three-way split decides who keeps the jobs.',
    options:[
     {id:'a',label:'Match the Cost Share Increase',cost:700,tags:['UK +6, Italy +4 relations'],effects:{},sfx:[{k:'rel',id:'uk',d:6},{k:'rel',id:'italy',d:4}]},
     {id:'b',label:'Trade Assembly for Avionics',tags:['Unemployment −1','UK −4 relations'],effects:{unemployment:-1},sfx:[{k:'rel',id:'uk',d:-4}]},
     {id:'c',label:'Threaten a Go-Alone Option',tags:['Stability +2','UK −8, Italy −6 relations'],effects:{stability:2},sfx:[{k:'rel',id:'uk',d:-8},{k:'rel',id:'italy',d:-6}]}]},
-  {id:'fcas_defection',title:'FCAS Falls Apart',icon:'🇩🇪',when:({g})=>g.country?.id==='germany'&&!!myAccess(g,'fcas')?.founder&&myAccess(g,'fcas').status==='active'&&!g.arsenal.defected?.fcas,
+  {id:'fcas_defection',seatBound:true,title:'FCAS Falls Apart',icon:'🇩🇪',when:({g})=>g.country?.id==='germany'&&!!myAccess(g,'fcas')?.founder&&myAccess(g,'fcas').status==='active'&&!g.arsenal.defected?.fcas,
    desc:'Paris wants to lead the fighter and keep the engine work. Berlin’s industry says the workshare is a fraud. London is quietly offering a seat at the table.',
    options:[
     {id:'a',label:'Stay and Pay for Workshare',cost:600,tags:['France +6, Spain +4 relations'],effects:{},sfx:[{k:'rel',id:'france',d:6},{k:'rel',id:'spain',d:4}]},
@@ -145,14 +145,14 @@ export const DECISIONS=[
      req:g=>{if(g.arsenal.defected?.fcas)return 'Already defected';const f=accessGates(g,'gcap','codev').find(x=>!x.met&&x.id!=='minerals');if(f)return f.label;return (g.stats?.treasury||0)<shareCost('gcap','codev')?`Need $${shareCost('gcap','codev')}M cost share`:null;},
      act:()=>[{verb:'defectProgram',payload:{from:'fcas',to:'gcap'}}]},
     {id:'c',label:'Stall at the Table',tags:['Stability +1','France −4 relations'],effects:{stability:1},sfx:[{k:'rel',id:'france',d:-4}]}]},
-  {id:'f47_buyer_offer',title:'F-47 Export Slot Offered',icon:'🇺🇸',when:({g,rel})=>['japan','germany','norway'].includes(g.country?.id)&&!myAccess(g,'f47')&&(rel.usa||0)>=45,
+  {id:'f47_buyer_offer',seatBound:true,title:'F-47 Export Slot Offered',icon:'🇺🇸',when:({g,rel})=>['japan','germany','norway'].includes(g.country?.id)&&!myAccess(g,'f47')&&(rel.usa||0)>=45,
    desc:'Washington will open the sixth-generation fighter to a handful of allies. Buyers get an export variant behind the owner’s sustainment; partners buy workshare and a better variant.',
    options:[
     {id:'a',label:'Sign as a Buyer',tags:['Buyer tier of the F-47','Export variant, owner sustains it'],effects:{},
      req:g=>{const f=accessGates(g,'f47','buyer').find(x=>!x.met);return f?f.label:null;},act:()=>[{verb:'joinProgram',payload:{program:'f47',tier:'buyer'}}]},
     {id:'b',label:'Lobby for Partner Terms',cost:300,tags:['US +6 relations'],effects:{},sfx:[{k:'rel',id:'usa',d:6}]},
     {id:'c',label:'Buy European',tags:['Stability +1','US −3 relations'],effects:{stability:1},sfx:[{k:'rel',id:'usa',d:-3}]}]},
-  {id:'usa_admission',title:'Allies Ask for F-47 Access',icon:'🛂',when:({g,rel})=>g.country?.id==='usa'&&!g.arsenal?.access?.f47?.japan&&!g.arsenal?.access?.f47?.norway&&((rel.japan||0)>=45||(rel.norway||0)>=45),
+  {id:'usa_admission',seatBound:true,title:'Allies Ask for F-47 Access',icon:'🛂',when:({g,rel})=>g.country?.id==='usa'&&!g.arsenal?.access?.f47?.japan&&!g.arsenal?.access?.f47?.norway&&((rel.japan||0)>=45||(rel.norway||0)>=45),
    desc:'Tokyo and Oslo both want in. Admission brings export income and bloc cohesion; every new partner is also a new leak surface.',
    options:[
     {id:'a',label:'Admit Japan as a Buyer',tags:['+export income','Leak risk','Relations +5 with Japan'],effects:{},
@@ -160,14 +160,14 @@ export const DECISIONS=[
     {id:'b',label:'Admit Norway as a Partner',tags:['+cost share income','Leak risk','Relations +5 with Norway'],effects:{},
      req:g=>{const f=memberGates(g,'f47','norway','partner').find(x=>!x.met);return f?`Norway fails the ${f.id} gate`:null;},act:()=>[{verb:'admitPartner',payload:{program:'f47',nation:'norway',tier:'partner'}}],chain:{id:'owner_leak_scare',after:12}},
     {id:'c',label:'Defer and Tighten the Gates',tags:['Japan −2, Norway −2 relations','Stability +1'],effects:{stability:1},sfx:[{k:'rel',id:'japan',d:-2},{k:'rel',id:'norway',d:-2}]}]},
-  {id:'flagged_trade_offer',title:'Cheap Components, Flagged Source',icon:'🧩',when:({g,ns})=>!!memberOf(g)&&!g.tradeAgreements?.has('china')&&(ns.gdpGrowth??3)<3,
+  {id:'flagged_trade_offer',seatBound:true,title:'Cheap Components, Flagged Source',icon:'🧩',when:({g,ns})=>!!memberOf(g)&&!g.tradeAgreements?.has('china')&&(ns.gdpGrowth??3)<3,
    desc:'Beijing offers a trade agreement with components at half the going price. Your program owner reads flagged deals as a security breach, and Turkey has shown what that costs.',
    options:[
     {id:'a',label:'Sign the Agreement',tags:['Growth +1','Flagged deal: membership suspended next month'],effects:{gdpGrowth:1},sfx:[{k:'tradeDeal',id:'china'}]},
     {id:'b',label:'Source Through a Neutral',cost:250,tags:['Inflation −1'],effects:{inflation:-1}},
     {id:'c',label:'Decline and Say So',tags:['Owner +4 relations','China −4 relations'],effects:{},sfx:[{k:'rel',id:'$owner',d:4},{k:'rel',id:'china',d:-4}]}]},
   // Minerals and export controls
-  {id:'ore_runout',title:'The Ore Is Running Out',icon:'⛏️',when:({g})=>{const t=tightest(g);return !!t&&t.months<24;},
+  {id:'ore_runout',title:'The Ore Is Running Out',icon:'⛏️',urgent:({g})=>{const t=tightest(g);return !!t&&t.months<12;},when:({g})=>{const t=tightest(g);return !!t&&t.months<24;},
    desc:ctx=>seat(ctx.country,{china:'Geologists at the ministry warn that a key mine is nearly exhausted. The refineries are the leverage; the ore beneath them is finite.',usa:'The Geological Survey reports that domestic ore for a defense-critical mineral will not last the decade.',russia:'Plants in the Urals report thin seams. Sanctions make buying elsewhere the harder route.',brazil:'Mining ministry maps show the richest seams nearly worked out. Exporting raw ore has run ahead of building refineries.',cuba:'Moa Bay yields are falling. The state mine has no capital to open the next seam.'},'Geologists warn that a mineral you refine is running out of ore. Output falls to a fraction when it does.'),
    options:[
     {id:'a',label:'Recycling Mandate',cost:300,tags:['Recycling on for the scarcest mineral'],effects:{},
@@ -196,7 +196,7 @@ export const DECISIONS=[
      req:g=>{const t=tightest(g);return offtakeCandidate(g,t.m)?null:`No willing partner refines ${mineralName(t.m)}`;},act:g=>{const t=tightest(g);return [{verb:'signOfftake',payload:{mineral:t.m,nation:offtakeCandidate(g,t.m)}}];}},
     {id:'c',label:'Go It Alone',tags:['Stability +1','Relations −2 inside your bloc'],effects:{stability:1},sfx:[{k:'relBloc',bloc:'$own',d:-2}]}]},
   // Forces, crews, readiness
-  {id:'pay_dispute',title:'Soldiers’ Pay Dispute',icon:'💵',when:({g})=>!!g.forces&&g.forces.retention<45&&(g.personnelPay??100)<110,
+  {id:'pay_dispute',title:'Soldiers’ Pay Dispute',icon:'💵',urgent:({g})=>!!g.forces&&g.forces.retention<35,when:({g})=>!!g.forces&&g.forces.retention<45&&(g.personnelPay??100)<110,
    desc:ctx=>seat(ctx.country,{china:'Technical NCOs are leaving for the private sector. The Central Military Commission is told the pay scale has not kept up with Shenzhen.',russia:'Contract soldiers complain of late and unequal pay. The regional commands are quietly short of men.',usa:'Sergeants are taking civilian offers that pay half again as much. Retention in the technical ratings is slipping.'},'Pay has not kept up with civilian wages and the best soldiers are leaving. The payroll fix is a standing cost; a bonus is a one-off.'),
    options:[
     {id:'a',label:'Raise Pay to 115%',tags:['Payroll up every month','Retention climbs'],effects:{},act:()=>[{verb:'setPersonnelPay',payload:{pay:115}}]},
@@ -254,7 +254,7 @@ export const DECISIONS=[
     {id:'a',label:'Run Him Against the Rival',cost:400,tags:['Their program set back','Tension +4'],effects:{},sfx:[{k:'gdbTop',id:'$hottest',d:-0.4},{k:'tension',id:'$hottest',d:4}]},
     {id:'b',label:'Share With Allies',tags:['Relations +4 inside your bloc','No tension'],effects:{},sfx:[{k:'relBloc',bloc:'$own',d:4}]},
     {id:'c',label:'Send Him Home',tags:['Tension −4','A signal of restraint'],effects:{},sfx:[{k:'tension',id:'$hottest',d:-4}]}]},
-  {id:'coastal_standoff',title:'Warships Off Your Coast',icon:'🚢',when:({g,ten})=>Math.max(0,...Object.values(ten))>=45&&!(g.nukeLog||[]).length,
+  {id:'coastal_standoff',title:'Warships Off Your Coast',icon:'🚢',urgent:({g,ten})=>Math.max(0,...Object.values(ten))>=65,when:({g,ten})=>Math.max(0,...Object.values(ten))>=45&&!(g.nukeLog||[]).length,
    desc:ctx=>seat(ctx.country,{china:'A rival task group loiters inside your first island chain. The fleet wants orders and the leadership wants no incident.',russia:'A foreign destroyer group shadows your fleet near the approaches. Commanders ask for rules of engagement.',usa:'A rival task group parks off a US seaboard. Congress wants a response and the Joint Staff wants a ladder.'},'A rival task group parks off your coast. Matching it risks an incident; ignoring it reads as weakness.'),
    options:[
     {id:'a',label:'Match With a Naval Deployment',cost:500,tags:['Stability +2','Tension +3','Sea readiness −3'],effects:{stability:2},sfx:[{k:'tension',id:'$hottest',d:3},{k:'readiness',b:'sea',d:-3}]},

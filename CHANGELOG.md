@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.73.0 (2026-10-10) — F2 (#33): decision cadence and 'Why now'
+- Intentional rule change. Decisions open only at the quarterly cabinet briefing (Jan, Apr, Jul, Oct). The 7-12 month spacing timer is unchanged; a due decision now waits for the next briefing. At most one is open at a time, and none opens while a world event is open or within 3 months of one starting or ending.
+- Urgent exception: protest (stability < 45), ore run-out (< 12 months), pay dispute (retention < 35), coastal standoff (tension >= 65) skip the briefing wait. Their card says Urgent decision.
+- Seat-bound decisions (one nation or program window: J-36, J-50, S-70, GCAP, FCAS, F-47 x2, flagged trade) are drawn before generic ones. With one slot a quarter they otherwise lost the draw until their window closed (5 of 8 never came up in 288 runs).
+- Every decision and world-event card shows `Why now: ...` naming the state and its number (`src/data/event-why.js`, one entry per id; a queued follow-up says so). Stored on the open card (`activeDecision.why`, `worldEvent.why`), so a save keeps it; older saves show a neutral line.
+- Outliner: a Cabinet briefing row counts down 3, 2, 1 months to the next one.
+- State: `evState.last` (month of the latest world-event start or end). Invariants: it is finite; an open card's why-now is non-empty.
+- Engine fix found by the sweep: a reserve call-up decision could push active strength past 100 (`manpower` sfx op now stops at the cap; regression in `test/forces.test.js`).
+- Tests: `test/briefing.test.js` (240-month runs x 24, each rule, outliner, UI card). The E6 reachability sweep runs 36 seeds, not 12 (decisions are rarer).
+- Parity: the v57 prefix check is untouched. All five pinned autosave cases are re-baselined citing #33 (each draws a decision inside the 120-month window, and its month moved).
+
 ## 0.72.3 (2026-10-10) — F3 (#35): opened sheets and popovers no longer clip on desktop
 - Sheet: >= 900px it is a 440px right-side panel (vaul direction right), not a full-width bottom sheet. Sheet and scrim now stack above the outliner (phone: the outliner handle no longer paints over the sheet bottom).
 - Popovers (why, help) cap their height to the space Radix reports, so a tall one scrolls instead of running off the viewport.
