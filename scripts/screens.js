@@ -78,6 +78,17 @@ const norwayAccess = async (page, join) => {
 };
 SCENARIOS['e7-norway-gates-390'] = (page) => norwayAccess(page, false);
 SCENARIOS['e7-norway-partner-390'] = (page) => norwayAccess(page, true);
+// E9 (#23): the issue loop on the Intel tab at 390px: the list, a ready brief (with its card), a running deployment.
+// One engine month per call with a render between (a tight loop would tick on stale refs).
+const adv = async (page, n) => { for (let i = 0; i < n; i++) { await page.evaluate(() => window.__wl.month()); await settle(page, 200); } };
+const toIntel = async (page) => { await page.evaluate(() => document.querySelector('[data-tab=intel]').click()); await settle(page, 400); };
+const tapIssue = async (page, i = 0) => { await page.evaluate((i) => { const b = document.querySelectorAll('[data-issue] > button')[i]; if (b.getAttribute('aria-expanded') !== 'true') b.click(); }, i); await settle(page, 300); }; // opens, never toggles shut
+const tapText = async (page, text) => { await page.evaluate((t) => [...document.querySelectorAll('button')].find((b) => b.textContent.includes(t))?.click(), text); await settle(page, 300); };
+SCENARIOS['e9-issues-390'] = async (page) => { await inGame(page); await pause(page); await adv(page, 3); await toIntel(page); await page.evaluate(() => document.querySelector('[data-issues-panel]').scrollIntoView({ block: 'start' })); await settle(page, 300); };
+SCENARIOS['e9-brief-390'] = async (page) => { await inGame(page); await pause(page); await adv(page, 2); await toIntel(page); await tapIssue(page, 0); await tapText(page, 'Examine'); await adv(page, 2); await page.evaluate(() => document.querySelector('[data-event-card=brief]')?.scrollIntoView({ block: 'start' })); await settle(page, 300); };
+SCENARIOS['e9-brief-options-390'] = async (page) => { await inGame(page); await pause(page); await adv(page, 2); await toIntel(page); await tapIssue(page, 0); await tapText(page, 'Examine'); await adv(page, 2); await tapIssue(page, 0); await page.evaluate(() => document.querySelector('[data-issues-panel]').scrollIntoView({ block: 'start' })); await settle(page, 300); };
+SCENARIOS['e9-deploy-390'] = async (page) => { await inGame(page); await pause(page); await adv(page, 2); await toIntel(page); await tapIssue(page, 0); await tapText(page, 'Examine'); await adv(page, 2); await tapIssue(page, 0); await tapText(page, 'Deploy ·'); await adv(page, 3); await tapIssue(page, 0); await page.evaluate(() => document.querySelector('[data-issues-panel]').scrollIntoView({ block: 'start' })); await settle(page, 300); };
+for (const t of ['economy', 'defense', 'overview']) SCENARIOS[`e9-pane-${t}-390`] = async (page) => { await inGame(page); await pause(page); await page.evaluate((t) => document.querySelector(`[data-tab=${t}]`).click(), t); await settle(page, 500); };
 SCENARIOS['p3d-hud-doctrine-390'] = async (page) => { await startUSA(page); await settle(page, 700); };
 SCENARIOS['p3d-nav-econ-390'] = async (page) => { await inGame(page); await pause(page); await page.evaluate(() => document.querySelector('[data-tab=technology]').click()); await settle(page, 500); };
 

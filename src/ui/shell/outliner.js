@@ -24,12 +24,18 @@ export function buildOutliner(v) {
 
   for (const o of v.intelOps || []) { const op = INTEL_OPS.find((x) => x.id === o.opId); push({ id: o.id, group: 'ops', icon: op?.i || '🕵️', title: `${op?.n || o.opId} → ${nat(o.targetId)}`, sub: `${Math.round((o.successRate || 0) * 100)}% success · ${Math.round((o.discoverRate || 0) * 100)}% exposure`, months: o.monthsLeft, pct: op?.mo ? 1 - o.monthsLeft / op.mo : null, jump: { tab: 'intel', nation: o.targetId } }); }
   for (const [ck, on] of Object.entries(v.continuousOps || {})) { if (!on) continue; const [opId, target] = ck.split('@'); const op = INTEL_OPS.find((x) => x.id === opId); push({ id: `co_${ck}`, group: 'ops', icon: '♻️', title: `${op?.n || opId} → ${nat(target)}`, sub: 'Standing program', jump: { tab: 'intel', nation: target } }); }
-  for (const [t, m] of Object.entries(v.investigations || {})) push({ id: `inv_${t}`, group: 'ops', icon: '🔍', title: `Brief: ${ISSUES[t]?.title || t}`, sub: 'Investigation', months: m, jump: { tab: 'economy' } });
+  // Issues (E9, #23): unexamined and briefed ones carry a lapse timer; deployed ones show under Builds as deployments.
+  for (const i of v.issues || []) {
+    const def = ISSUES[i.type]; if (!def) continue;
+    if (i.status === 'unexamined') push({ id: `iss_${i.type}`, group: 'ops', icon: def.icon, title: def.title, sub: 'Unexamined · commission a brief', months: i.ttl, sev: i.ttl <= 3 ? 'alert' : 'warn', jump: { tab: 'intel', issue: i.type } });
+    if (i.status === 'briefed') push({ id: `iss_${i.type}`, group: 'ops', icon: '📄', title: `Brief ready · ${def.title}`, sub: 'Deploy a policy before it lapses', months: i.ttl, sev: i.ttl <= 3 ? 'alert' : 'warn', jump: { tab: 'intel', issue: i.type } });
+  }
+  for (const [t, m] of Object.entries(v.investigations || {})) push({ id: `inv_${t}`, group: 'ops', icon: '🔍', title: `Brief: ${ISSUES[t]?.title || t}`, sub: 'Investigation', months: m, jump: { tab: 'intel', issue: t } });
 
   for (const [pid, d] of Object.entries(v.platformDev || {})) { const p = PLATFORMS[pid]; push({ id: `dev_${pid}`, group: 'builds', icon: p?.i || '🛠️', title: `Develop ${p?.n || pid}`, sub: 'Platform development', months: d?.mo, pct: p?.dev?.mo ? 1 - (d?.mo || 0) / p.dev.mo : null, jump: { tab: 'defense' } }); }
   if (v.blackResearch) { const bp = BLACK_PROGRAMS[v.blackResearch.id]; push({ id: 'sap', group: 'builds', icon: '🕶️', title: `SAP: ${bp?.n || v.blackResearch.id}`, sub: 'Special access program', pct: v.blackResearch.mo ? (v.blackResearch.prog || 0) / v.blackResearch.mo : null, months: v.blackResearch.mo ? Math.max(0, v.blackResearch.mo - (v.blackResearch.prog || 0)) : undefined, jump: { tab: 'defense' } }); }
   for (const [id, d] of Object.entries(v.arsenal?.dev || {})) { const bp = BLACK_PROGRAMS[id]; push({ id: `proto_${id}`, group: 'builds', icon: bp?.i || '🛩️', title: `Prototype: ${bp?.n || id}`, sub: d.slipped ? 'Slipped once' : 'Prototype line', pct: d.prog / d.mo, months: d.mo - d.prog, jump: { tab: 'defense' } }); }
-  for (const d of v.deployments || []) if (d.status === 'active') push({ id: d.id, group: 'builds', icon: '📋', title: d.policyName, sub: 'Policy deployment', months: Math.max(0, (d.timeMonths || 0) - (d.monthsElapsed || 0)), pct: d.timeMonths ? d.monthsElapsed / d.timeMonths : null, jump: { tab: 'economy' } });
+  for (const d of v.deployments || []) if (d.status === 'active') push({ id: d.id, group: 'builds', icon: '📋', title: d.policyName, sub: 'Policy deployment', months: Math.max(0, (d.timeMonths || 0) - (d.monthsElapsed || 0)), pct: d.timeMonths ? d.monthsElapsed / d.timeMonths : null, jump: { tab: 'intel', issue: d.issueType } });
 
   for (const [vert, ml] of Object.entries(v.defResearch || {})) if (ml > 0) push({ id: `rd_${vert}`, group: 'research', icon: DV[vert]?.i || '🔬', title: `${DV[vert]?.n || vert} L${(v.defLevels?.[vert] || 0) + 1}`, sub: 'R&D in progress', months: ml, jump: { tab: 'technology' } });
 
@@ -46,7 +52,7 @@ export function buildOutliner(v) {
 
   const cdLabel = { visit: 'State visit', aid: 'Aid package', bc: 'Back-channel', interv: 'Intervention', demo: 'Demonstration' };
   for (const [k, m] of Object.entries(v.actionCooldowns || {})) {
-    if (!(m > 0)) continue; const [kind, ...rest] = k.split('_'); const who = rest.join('_');
+    if (!(m > 0) || k.startsWith('issue_')) continue; const [kind, ...rest] = k.split('_'); const who = rest.join('_');
     push({ id: `cd_${k}`, group: 'cooldowns', icon: '🧊', title: `${cdLabel[kind] || cap(kind)}${who ? ` · ${nat(who)}` : ''}`, sub: 'Cooldown', months: m, jump: { tab: kind === 'interv' ? 'energy' : kind === 'bc' || kind === 'demo' ? 'intel' : 'trade', nation: NATIONS[who] ? who : undefined } });
   }
   return rows;

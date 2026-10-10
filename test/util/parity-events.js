@@ -11,7 +11,8 @@ import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
 const GOLDEN = new URL('../golden/parity-events.json', import.meta.url);
-const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activeDecision', 'decisionTimer', 'demand'];
+// #23 (E9): issues spawn on a cadence now, so the first spawn changes issues/log/actionCooldowns (issue_next) before any event.
+const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activeDecision', 'decisionTimer', 'demand', 'issues', 'briefs', 'investigations', 'actionCooldowns'];
 // #15 (E3): `arsenal` is a new save key with no v57 counterpart; it is dropped before comparing and hashing, so a run that
 // never touches a nation catalog keeps its v57 prefix and its pinned hashes. Catalog behavior is guarded by test/catalogs.test.js.
 const NEW_KEYS = ['arsenal'];

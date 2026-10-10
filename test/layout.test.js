@@ -102,3 +102,24 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
     } finally { await ctx.close(); }
   });
 }
+
+// #23 follow-up: on a phone no tab pane is crushed by Nation Vitals. Every pane keeps its whole content on screen
+// (no inner clipping) and its content is at least 60% of the viewport wide.
+test('390px: every tab pane grows to its content; pane and content are >= 60% of the viewport wide', async () => {
+  const W = 390;
+  const { ctx, page } = await openGame(browser, { width: W, height: 844 });
+  try {
+    for (const t of TABS) {
+      await go(page, t);
+      const m = await page.evaluate(() => {
+        const pane = [...document.querySelector('.wl-body').children].find((c) => !c.classList.contains('wl-vitals'));
+        const r = pane.getBoundingClientRect();
+        const kids = [...pane.children].map((k) => k.getBoundingClientRect().width);
+        return { w: r.width, content: Math.max(0, ...kids), h: r.height, sh: pane.scrollHeight };
+      });
+      assert.ok(m.w >= 0.6 * W, `${t}: pane ${m.w}px`);
+      assert.ok(m.content >= 0.6 * W, `${t}: content ${m.content}px`);
+      assert.ok(m.h >= m.sh - 1, `${t}: pane clipped (${m.h}px of ${m.sh}px)`);
+    }
+  } finally { await ctx.close(); }
+});
