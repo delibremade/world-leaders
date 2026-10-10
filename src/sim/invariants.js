@@ -2,6 +2,7 @@ import { MONTHLY_SYSTEMS } from './systems.js';
 import { BLACK_PROGRAMS } from '../data/platforms.js';
 import { NATIONS } from '../data/nations.js';
 import { ALLIED_PROGRAMS, TIERS, ACCESS_RULES } from '../data/alliance.js';
+import { MINERALS, MINERAL_IDS, MINERAL_RULES as MR } from '../data/minerals.js';
 
 const in01 = (v) => Number.isFinite(v) && v >= 0 && v <= 100;
 
@@ -65,6 +66,12 @@ export const V57_INVARIANTS = [
   ['the player is never a member of its own program', (g) => !pid(g) || Object.entries(g.arsenal?.access || {}).every(([p, row]) => ALLIED_PROGRAMS[p].owner !== pid(g) || !(pid(g) in row))],
   ['allied orders are for programs the player is a member of, with integer months > 0', (g) => (g.arsenal?.orders || []).every((o) => g.arsenal?.access?.[o.id]?.[pid(g)] && Number.isInteger(o.mo) && o.mo > 0)],
   ['a program is never both in prototype and owned', (g) => Object.keys(g.arsenal?.dev || {}).every((id) => !((+g.blackPrograms?.[id] || 0) > 0))],
+  // Minerals and processing (E4, #16)
+  ['mineral stocks non-negative and finite; capacity <= capMax, stockpile <= stockMax, reserve <= reserveMax', (g) => !g.minerals || MINERAL_IDS.every((m) => { const o = g.minerals.own?.[m]; return o && ['ore', 'cap', 'stock', 'reserve'].every((k) => finite(o[k]) && o[k] >= 0) && o.cap <= MR.capMax && o.stock <= MR.stockMax + 1e-9 && o.reserve <= MR.reserveMax; })],
+  ['mineral plants and offtake deals name real minerals and partners with integer months > 0', (g) => !g.minerals || (g.minerals.plants.every((p) => MINERALS[p.m] && Number.isInteger(p.mo) && p.mo > 0) && g.minerals.deals.every((d) => MINERALS[d.m] && NATIONS[d.n] && d.n !== pid(g) && Number.isInteger(d.mo) && d.mo > 0 && d.units > 0 && d.price >= 0))],
+  ['export controls only on minerals the player processes', (g) => !g.minerals || g.minerals.controls.every((m) => (g.minerals.own[m]?.cap || 0) > 0)],
+  ['AI export controls never keyed by the player', (g) => !g.minerals || !(pid(g) in (g.minerals.against || {}))],
+  ['queued tranches are known programs with 0 < left <= need', (g) => !g.minerals || g.minerals.queue.every((q) => BLACK_PROGRAMS[q.id] && Object.keys(q.left).length > 0 && Object.entries(q.left).every(([m, u]) => finite(u) && u > 0 && u <= (q.need?.[m] || 0) + 1e-9))],
   // Issues (E9, #23)
   ['issues are live, unique by type, with a positive ttl once ticked', (g) => { const l = g.issues || []; return new Set(l.map((i) => i.type)).size === l.length && l.every((i) => ['unexamined', 'investigating', 'briefed', 'deployed'].includes(i.status) && ((i.status !== 'unexamined' && i.status !== 'briefed') || i.ttl == null || (Number.isInteger(i.ttl) && i.ttl > 0))); }],
 ];

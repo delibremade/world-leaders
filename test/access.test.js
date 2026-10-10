@@ -10,6 +10,7 @@ import { COUNTRIES, NATIONS } from '../src/data/nations.js';
 import { ALLIED_PROGRAMS, TIERS, ACCESS_RULES } from '../src/data/alliance.js';
 import { BLACK_PROGRAMS } from '../src/data/platforms.js';
 import { setRngSource, mulberry32 } from '../src/sim/rng.js';
+import { bindingMineral } from '../src/sim/minerals.js';
 import { mount, BUNDLES } from './util/harness.js';
 
 // E7 (#19): allied access to programs. Tiers Buyer -> Partner -> Co-developer; gates; security compliance with suspension
@@ -28,10 +29,11 @@ function headless(nid = 'norway', seed = 1) {
   return { g, toasts, month: () => runMonth(g, S, fx), run: (type, payload) => applyVerb(g, S, fx, { type, payload }) };
 }
 const mine = (g, pid) => g.arsenal.access?.[pid]?.[g.country.id];
-// Everything a Norway partner needs: relations 70 with the USA, NATO (counts as the pact), 2% GDP, rare-earth supply, cash.
+// Everything a Norway partner needs: relations 70 with the USA, NATO (counts as the pact), 2% GDP, cash, and (E4, #16) secure
+// supply of each program's binding mineral: a recycling line gives 1/mo, the agreed contribution rate.
 const ready = (g, owner = 'usa') => {
   g.nationRelations = { ...g.nationRelations, [owner]: 75 }; g.stats = { ...g.stats, treasury: 50000 };
-  g.resExtraction = { ...g.resExtraction, rareEarth: 1 };
+  g.minerals = { ...g.minerals, recycle: [...new Set(Object.keys(ALLIED_PROGRAMS).map(bindingMineral))] };
 };
 const gate = (g, pid, tier, label) => accessGates(g, pid, tier).find((x) => x.id === label);
 
@@ -67,7 +69,7 @@ test('each gate blocks on its own', () => {
     ['nato2', (g) => { g.budgetAlloc = { ...g.budgetAlloc, defense: 80 }; }, 'buyer'],
     ['compliance', (g) => { g.ipPolicy = 'license'; }, 'buyer'],
     ['share', (g) => { g.stats = { ...g.stats, treasury: 100 }; }, 'partner'],
-    ['minerals', (g) => { g.resExtraction = { ...g.resExtraction, rareEarth: 0 }; }, 'partner'],
+    ['minerals', (g) => { g.minerals = { ...g.minerals, recycle: [] }; }, 'partner'],
   ];
   for (const [id, breakIt, tier] of cases) {
     const h = headless('norway'); ready(h.g);
@@ -234,7 +236,7 @@ test('App: Norway joins F-47 as Buyer then Partner from the Defense tab; the USA
   const origErr = console.error; console.error = () => {};
   const g = await mount(BUNDLES.app, { seed: 7, testHook: true });
   try {
-    await g.pickCountry(idx('norway')); g.w.__wl.fund(50000); g.w.__wl.rel('usa', 80); g.w.__wl.extract('rareEarth', 1); await settle();
+    await g.pickCountry(idx('norway')); g.w.__wl.fund(50000); g.w.__wl.rel('usa', 80); g.w.__wl.minerals({ recycle: ['rareEarth'] }); await settle();
     g.tabBtn('defense').click(); await settle();
     const card = () => g.doc.querySelector('[data-access=f47]');
     assert.ok(card(), 'partnerships card');

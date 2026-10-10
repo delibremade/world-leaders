@@ -17,6 +17,7 @@ import { naturalDrift } from './economy.js';
 import { rng } from './rng.js';
 import { stepIssues, ISSUE_TTL } from './issues.js';
 import { pickWorldEvent, startWorldEvent, eventCooldowns, fireChain, eventEffects } from './events.js';
+import { stepMinerals, rivalSupplyFactor } from './minerals.js';
 
 // ── v57 monthly tick, extracted (P2). Zero rule changes: test/parity-app.test.js proves the App's autosaves are
 // byte-identical to v57 under a seeded stream. Phases run in v57 execution order; see reports/inventory-v57.md §5.
@@ -445,7 +446,7 @@ function research(g,S,fx,m){
   S.setDefResearch(ndr);if(newSpill.size>g.spillApplied.size)S.setSpillApplied(newSpill);
 
   // Global defense advances (competitors only — player excluded)
-  S.setGlobalDef(prev=>{const ng={};Object.entries(prev).forEach(([n,lvls])=>{const rate=(g.moles?.[n]||0)>0?0:(g.sanctions.has(n)?0.006:0.015);ng[n]={};Object.entries(lvls).forEach(([v,l])=>{ng[n][v]=Math.min(5,l+rate);});});return ng;});
+  S.setGlobalDef(prev=>{const ng={};Object.entries(prev).forEach(([n,lvls])=>{const rate=((g.moles?.[n]||0)>0?0:(g.sanctions.has(n)?0.006:0.015))*rivalSupplyFactor(g,n); /* E4: our export controls slow rivals */ng[n]={};Object.entries(lvls).forEach(([v,l])=>{ng[n][v]=Math.min(5,l+rate);});});return ng;});
 
   // Competitor sphere pressure
     // ── ESCALATION LADDER: tension bookkeeping (decay, sanctions, blockades) ──
@@ -1056,9 +1057,13 @@ function world(g,S,fx,m){
   }
 }
 
+// resources (E4, #16): processing plants, inflows, AI export controls on us, queued tranches waiting for minerals.
+function minerals(g,S,fx,m){stepMinerals(g,S,fx,m.cash,m.ns);}
+
 export const MONTH_PHASES=[
   {id:'economy',system:'economy',run:economy},
   {id:'research',system:'military',run:research},
+  {id:'minerals',system:'resources',run:minerals},
   {id:'pressure',system:'military',run:pressure},
   {id:'intelOps',system:'intel',run:intelOps},
   {id:'alliances',system:'diplomacy',run:alliances},

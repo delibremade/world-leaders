@@ -15,7 +15,8 @@ const GOLDEN = new URL('../golden/parity-events.json', import.meta.url);
 const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activeDecision', 'decisionTimer', 'demand', 'issues', 'briefs', 'investigations', 'actionCooldowns'];
 // #15 (E3): `arsenal` is a new save key with no v57 counterpart; it is dropped before comparing and hashing, so a run that
 // never touches a nation catalog keeps its v57 prefix and its pinned hashes. Catalog behavior is guarded by test/catalogs.test.js.
-const NEW_KEYS = ['arsenal'];
+// #16 (E4): `minerals` likewise; a run whose tranches never wait on minerals keeps its pinned hashes (test/minerals.test.js guards the chain).
+const NEW_KEYS = ['arsenal', 'minerals'];
 const dropNew = (s) => { if (!NEW_KEYS.some((k) => s.includes(`"${k}"`))) return s; const o = JSON.parse(s); for (const k of NEW_KEYS) delete o[k]; return JSON.stringify(o); };
 const strip = (s) => { const o = JSON.parse(dropNew(s)); delete o.evState; return JSON.stringify(o); };
 const hash = (s) => createHash('sha256').update(dropNew(s)).digest('hex').slice(0, 16);

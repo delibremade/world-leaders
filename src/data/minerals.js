@@ -29,16 +29,17 @@ export const MINERALS = {
 export const MINERAL_IDS = Object.keys(MINERALS);
 
 // Start data per nation, per mineral: [ore reserves, processing capacity (units/month), refined stockpile].
+// Every playable nation starts with one tranche of each in-service line in stock (test/minerals.test.js).
 // Nations not listed hold nothing. Keys must exist in NATIONS (one registry); `row` is the market bucket above.
 const z = [0, 0, 0];
 export const MINERAL_START = {
   usa: { rareEarth: [180, 2, 20], gallium: [0, 0, 8], germanium: [40, 3, 10], graphite: [60, 0, 10], lithium: [120, 2, 10], cobalt: [40, 0, 10], nickel: [30, 0, 12], tungsten: [20, 0, 10], titanium: [30, 1, 15], enrichment: [60, 7, 12] },
   china: { rareEarth: [440, 90, 30], gallium: [200, 98, 30], germanium: [120, 68, 30], graphite: [300, 93, 30], lithium: [150, 65, 30], cobalt: [10, 75, 30], nickel: [20, 35, 30], tungsten: [240, 80, 30], titanium: [100, 55, 30], enrichment: [40, 25, 30] },
   russia: { rareEarth: [100, 2, 10], gallium: [30, 1, 4], germanium: [20, 5, 8], graphite: [40, 1, 6], lithium: [30, 1, 4], cobalt: [30, 3, 8], nickel: [200, 8, 15], tungsten: [40, 3, 8], titanium: [80, 13, 20], enrichment: [80, 44, 30] },
-  japan: { rareEarth: z, gallium: [0, 2, 10], germanium: [0, 1, 6], graphite: [0, 2, 8], lithium: [0, 0, 6], cobalt: [0, 4, 10], nickel: [0, 5, 12], tungsten: [0, 1, 6], titanium: [0, 15, 20], enrichment: [0, 1, 6] },
+  japan: { rareEarth: [0, 0, 6], gallium: [0, 2, 10], germanium: [0, 1, 6], graphite: [0, 2, 8], lithium: [0, 0, 6], cobalt: [0, 4, 10], nickel: [0, 5, 12], tungsten: [0, 1, 6], titanium: [0, 15, 20], enrichment: [0, 1, 6] },
   germany: { rareEarth: [0, 0, 6], gallium: [0, 1, 4], germanium: [0, 2, 6], graphite: [0, 0, 4], lithium: [20, 1, 4], cobalt: [0, 0, 4], nickel: [0, 0, 6], tungsten: [0, 2, 6], titanium: [0, 0, 6], enrichment: [0, 3, 6] },
-  norway: { rareEarth: [50, 0, 2], gallium: z, germanium: z, graphite: [20, 0, 2], lithium: z, cobalt: [0, 2, 4], nickel: [0, 3, 6], tungsten: z, titanium: [60, 0, 2], enrichment: z },
-  brazil: { rareEarth: [210, 1, 4], gallium: z, germanium: z, graphite: [70, 1, 4], lithium: [20, 1, 2], cobalt: z, nickel: [60, 1, 4], tungsten: [10, 0, 2], titanium: [20, 0, 2], enrichment: [40, 1, 2] },
+  norway: { rareEarth: [50, 0, 4], gallium: [0, 0, 2], germanium: [0, 0, 1], graphite: [20, 0, 2], lithium: z, cobalt: [0, 2, 4], nickel: [0, 3, 6], tungsten: z, titanium: [60, 0, 5], enrichment: z },
+  brazil: { rareEarth: [210, 1, 4], gallium: [0, 0, 2], germanium: [0, 0, 1], graphite: [70, 1, 4], lithium: [20, 1, 2], cobalt: [0, 0, 2], nickel: [60, 1, 4], tungsten: [10, 0, 2], titanium: [20, 0, 5], enrichment: [40, 1, 2] },
   cuba: { rareEarth: z, gallium: z, germanium: z, graphite: z, lithium: z, cobalt: [20, 0, 1], nickel: [60, 1, 2], tungsten: z, titanium: z, enrichment: z },
   australia: { rareEarth: [57, 3, 0], lithium: [60, 3, 0], nickel: [80, 3, 0], cobalt: [20, 1, 0], titanium: [40, 1, 0] },
   finland: { cobalt: [5, 10, 0], nickel: [10, 2, 0] },

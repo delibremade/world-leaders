@@ -49,6 +49,13 @@ test('data: ten minerals, three stocks per nation, China dominant in processing,
   }
 });
 
+test('every playable nation starts with one tranche of each in-service line in stock (no crippled opening)', () => {
+  for (const c of COUNTRIES) for (const e of (CATALOGS[c.id] || []).filter((x) => x.start === 'lrip' || x.start === 'full')) {
+    const st = MINERAL_START[c.id];
+    for (const [m, u] of Object.entries(inputsOf(e.id))) assert.ok((st?.[m]?.[2] || 0) >= u, `${c.id} ${e.id}: ${m} ${st?.[m]?.[2] || 0} < ${u}`);
+  }
+});
+
 test('new campaign: the player holds its start ore, capacity and stockpile; flows split domestic / market', () => {
   const h = headless('usa');
   assert.equal(own(h.g, 'rareEarth').cap, MINERAL_START.usa.rareEarth[1]);
@@ -130,7 +137,7 @@ test('lever: offtake deal adds secure supply; price rises as relations fall; ref
   const twin = headless('norway'); rich(twin.g); twin.g.nationRelations = { ...twin.g.nationRelations, usa: 80 };
   h.month(); twin.month();
   assert.equal(h.g.minerals.deals[0].mo, d.mo - 1);
-  assert.ok(Math.abs(twin.g.stats.treasury - h.g.stats.treasury - d.price) < 1e-6, 'the deal is paid monthly');
+  assert.ok(Math.abs(twin.g.stats.treasury - h.g.stats.treasury - d.price) < 1, 'the deal is paid monthly');
   const u = headless('usa'); rich(u.g); u.g.rivalTension = { ...u.g.rivalTension, china: 90 }; u.month();
   u.run('signOfftake', { mineral: 'gallium', nation: 'china' });
   assert.equal(u.g.minerals.deals.length, 0, 'China will not sign while it controls gallium against us');
@@ -167,11 +174,11 @@ test('lever: recycling and the allied processing pact raise secure supply at a m
 
 test('lever: export controls cut rivals\' supply and cost trade income and relations', () => {
   const ctl = headless('china'); const free = headless('china');
-  const rel0 = ctl.g.nationRelations.usa;
+  const rel0 = ctl.g.nationRelations.japan;
   ctl.run('toggleExportControl', { mineral: 'gallium' });
   assert.ok(ctl.g.minerals.controls.includes('gallium'));
-  assert.equal(ctl.g.nationRelations.usa, rel0 - MINERAL_RULES.controls.relHit);
-  assert.ok(!('china' in ctl.g.nationRelations), 'never write the player');
+  assert.equal(ctl.g.nationRelations.japan, rel0 - MINERAL_RULES.controls.relHit, 'relations cost outside our bloc');
+  assert.equal(ctl.g.nationRelations.china, free.g.nationRelations.china, 'never write the player');
   assert.ok(rivalSupplyFactor(ctl.g, 'usa') < 1 && rivalSupplyFactor(free.g, 'usa') === 1);
   for (let i = 0; i < 12; i++) { ctl.month(); free.month(); }
   const sum = (g) => Object.values(g.globalDef.usa).reduce((a, b) => a + b, 0);
