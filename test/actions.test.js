@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import { VERBS, applyVerb } from '../src/sim/actions.js';
 import { newCampaign, STATE_FIELDS } from '../src/sim/state.js';
 import { COUNTRIES } from '../src/data/nations.js';
+import { REGIONS } from '../src/data/regions.js';
+import { navalWeight } from '../src/sim/formulas.js';
 
 // Headless verb harness: setters commit straight into g (functional updaters applied immediately); setters for
 // presentation state (log, gameOver, ...) land in `ui`. Enough to unit-test a single verb outside React.
@@ -77,4 +79,52 @@ test('payloads are nation-keyed: statecraft and sanctions act on the named natio
   assert.equal(h.g.actionCooldowns.visit_india, 6);
   h.run('toggleSanctions', { nation: 'india' });
   assert.ok(h.g.sanctions.has('india')); assert.equal(h.g.sanctions.size, 1);
+});
+
+// #5 (ruling 7): the Situation Room lane and the Trade tab must charge the same bloc and ally costs.
+for (const target of ['france', 'japan', 'saudi']) { // ally + EU member, ally only, OPEC member only
+  test(`#5 sanctions on ${target}: imposeSanctions and toggleSanctions leave identical state`, () => {
+    const setup = () => { const h = headless(); h.g.blocTrade = { ...h.g.blocTrade, eu: 2, opec: 2 }; h.g.stats = { ...h.g.stats, stability: 60 }; return h; };
+    const a = setup(), b = setup();
+    a.run('imposeSanctions', { nation: target }); b.run('toggleSanctions', { nation: target });
+    assert.deepEqual(a.g.sanctions, b.g.sanctions); assert.deepEqual(a.g.blocTrade, b.g.blocTrade);
+    assert.deepEqual(a.g.blocLock, b.g.blocLock); assert.deepEqual(a.g.stats, b.g.stats);
+    assert.deepEqual(a.toasts, b.toasts);
+  });
+}
+
+test('#5 sanctioning an ally member costs -4 stability, resets the bloc and locks it 12 months', () => {
+  const h = headless(); h.g.blocTrade = { ...h.g.blocTrade, eu: 2 }; h.g.stats = { ...h.g.stats, stability: 60 };
+  h.run('imposeSanctions', { nation: 'france' });
+  assert.equal(h.g.stats.stability, 56); assert.equal(h.g.blocTrade.eu, 0); assert.equal(h.g.blocLock.eu, 12);
+  h.run('imposeSanctions', { nation: 'france' }); // already on: no second charge
+  assert.equal(h.g.stats.stability, 56);
+});
+
+// #6: map +/- deploy writes the live state like deployUnit/recallUnit.
+// React-like setters: the committed value lands in `committed`, never in g, so only the verb's own live write counts.
+function reactLike() {
+  const g = newCampaign(COUNTRIES[0]); const committed = {}; const toasts = [];
+  const S = new Proxy({}, { get: (_, name) => (v) => { const k = name[3].toLowerCase() + name.slice(4); committed[k] = typeof v === 'function' ? v(k in committed ? committed[k] : g[k]) : v; } });
+  const fx = { toast: (m) => toasts.push(m), now: () => 0, defer: (fn) => fn() };
+  return { g, committed, toasts, run: (type, payload) => applyVerb(g, S, fx, { type, payload }) };
+}
+const RID = Object.keys(REGIONS)[0];
+
+test('#6 map + deploy updates live forceDeployments in the same month and cannot over-assign', () => {
+  const h = reactLike(); h.g.platforms = { ...h.g.platforms, sub_fleet: 1 };
+  h.run('adjustDeployment', { region: RID, unit: 'sub_fleet', delta: 1 });
+  assert.equal(h.g.forceDeployments[RID]?.sub_fleet, 1, 'live g sees the unit before any render');
+  h.run('adjustDeployment', { region: RID, unit: 'sub_fleet', delta: 1 }); // second quick press
+  assert.equal(h.g.forceDeployments[RID].sub_fleet, 1, 'no over-assign');
+  assert.equal(h.committed.forceDeployments[RID].sub_fleet, 1);
+  assert.match(h.toasts.at(-1), /No free/);
+});
+
+test('#6 map - recall and the blockade naval-weight read see the live deployment', () => {
+  const h = reactLike(); h.g.platforms = { ...h.g.platforms, carrier_group: 2, sub_fleet: 2 };
+  for (const u of ['carrier_group', 'carrier_group', 'sub_fleet', 'sub_fleet']) h.run('adjustDeployment', { region: RID, unit: u, delta: 1 });
+  assert.equal(navalWeight(h.g.forceDeployments[RID]), 4);
+  h.run('adjustDeployment', { region: RID, unit: 'sub_fleet', delta: -1 });
+  assert.equal(navalWeight(h.g.forceDeployments[RID]), 3);
 });

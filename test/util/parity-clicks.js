@@ -116,9 +116,12 @@ export const verbScript = (g, shocks) => {
       await click(/^Sign \$80M\/mo$/); await click(/Non-Aligned/);
     },
     9: async () => { // overview: issue brief, map region actions (posture, deploy +/-, blockade, strike, intel, alliance)
+      // Map +/- deploy intentionally diverges from v57 (#6); station via OOB (shared deployUnit path) instead.
+      await tab('defense');
+      { const sel = g.doc.querySelector('select[id^=oob_]'); if (sel) { sel.value = 'ME'; await click(/^\+ Station$/); } }
       await tab('overview');
       await region('Middle East');
-      await click(/^\+$/, { nth: 2 }); await click(/^−$/, { nth: 2 }); await click(/^\+$/, { nth: 1 }); await click(/Escort \/ FON/);
+      await click(/Escort \/ FON/);
       await click(/Declare Blockade/); await tryClick(/Kinetic Strike/); await click(/Deploy Intel/); await click(/Activate Alliance/);
       await closeRegion();
     },
