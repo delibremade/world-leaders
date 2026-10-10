@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.60.1 (2026-10-10) — fix: embargoed player with import contracts no longer faults every month
+- `isDiversified(g)` in `src/sim/formulas.js` replaces the v57 TDZ read (inventory bug 1); the two read sites in `tick.js` share it. No other rule changed.
+- `window.__wl.embargoBy/imports` test hooks; `test/embargo-imports.test.js` (engine + App smoke). Parity unchanged (no scenario hits the bug).
+- Pages now deploys the App build (`dist/world-leaders.html` copied to `index.html`); `build:legacy` kept.
+
 ## 0.60.0 (2026-10-09) — P2a thin seam: state + tick out of the component
 - `src/ui/App.jsx` (v57 UI) runs its month on `src/sim/tick.js` `runMonth(g, S, fx)`: 9 phases in v57 order, 3-month pressure gate inside its phase.
 - `src/sim/state.js`: `STATE_FIELDS` (107), `stateView`, `openingPosition`, `newCampaign`. `src/sim/formulas.js`: ISR (8 sites) and naval weight (7 sites) hoisted. `rng()` is the only Math.random in src/sim.

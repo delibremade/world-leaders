@@ -10,7 +10,7 @@ import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, CRISIS_FRIENDLY, CRISIS_HOSTIL
 import { BLOC_TRADE } from '../data/trade.js';
 import { CHOKEPOINTS, IMPORT_ROUTES } from '../data/chokepoints.js';
 import { RES_META, CONCESSIONS } from '../data/energy.js';
-import { sumDep, isAllyOf, topHostile, wSum, navalWeight, calcSCost, getEnergyTier, getRefineMult } from './formulas.js';
+import { sumDep, isAllyOf, topHostile, wSum, navalWeight, calcSCost, getEnergyTier, isDiversified, getRefineMult } from './formulas.js';
 import { naturalDrift } from './economy.js';
 import { rng } from './rng.js';
 
@@ -21,9 +21,6 @@ import { rng } from './rng.js';
 //   fx : { toast(msg), now() }. Presentation and clock stay outside src/sim.
 // Reads of g see this month's in-flight values; S updates land after the month, exactly as React applied them in v57.
 const STOP=Symbol('stop-month');
-// v57 read `diversified` (research phase) inside the economy phase before its const declaration: a TDZ throw whenever
-// the player is embargoed with import contracts. Preserved on purpose (zero rule changes); see inventory §8.
-const tdz=(m,k)=>{if(!(k in m))throw new ReferenceError(`Cannot access '${k}' before initialization`);return m[k];};
 
 // economy: Equilibrium drift, talent, chokepoints and energy, IP, military target, sector budgets, tax, effects, dividends, force upkeep, exports, extraction; commits stats.
 function economy(g,S,fx,m){
@@ -306,7 +303,7 @@ function economy(g,S,fx,m){
   if(g.importContracts.size>0){
     const blocCut=(g.blocTrade.eu>=1?0.9:1)*(g.blocTrade.cn>=1?0.85:1);
     const secured=myRoutes.length&&myRoutes.every(k=>cs[k]==='secured'||cs[k]==='escorted');
-    let impCost=g.importContracts.size*80*(g.dominanceLeverage.importCut||1)*blocCut*(routeHit&&!sprShield?1.5:1)*(secured?0.9:1)*(g.embargoedBy&&!tdz(m,'diversified')&&!sprShield?1.3:1);
+    let impCost=g.importContracts.size*80*(g.dominanceLeverage.importCut||1)*blocCut*(routeHit&&!sprShield?1.5:1)*(secured?0.9:1)*(g.embargoedBy&&!isDiversified(g)&&!sprShield?1.3:1);
     if(Object.keys(g.stewardship).length&&g.importContracts.has('oil'))impCost-=40; // you market their crude
     if((g.chokeDeals.panama||{}).priority&&myRoutes.includes('panama'))impCost*=0.85;
     if(g.blocTrade.opec>=1){let foss=0;['oil','gas','coal'].forEach(k=>{if(g.importContracts.has(k))foss++;});impCost-=foss*16;}
@@ -431,7 +428,7 @@ function research(g,S,fx,m){
   // Rival embargo on you: a hostile producer (Russia) at tension ≥60 vs an energy-dependent player
   {const eb=g.embargoedBy;if(eb){const e2={...eb,mo:eb.mo-1};if(e2.mo<=0){g.embargoedBy=null;S.setEmbargoedBy(null);fx.toast(`⛽ ${eb.by} embargo ends — supply normalizes`);}else{g.embargoedBy=e2;S.setEmbargoedBy(e2);}}
     else if((trait.energyDep||0)>0&&c.id!=='russia'&&(g.rivalTension.russia||0)>=60&&rng()<0.05){g.embargoedBy={by:'russia',mo:12};S.setEmbargoedBy({by:'russia',mo:12});fx.toast('⛽ RUSSIA cuts your energy supply — 12 months of squeeze unless you diversify');S.setLog(l=>[{msg:'⛽ Russian energy embargo imposed',yr:g.date.yr,mo:g.date.mo},...l.slice(0,19)]);}}
-  const diversified=['oil','gas','coal'].filter(k=>g.importContracts.has(k)).length>=2||['nuclear','high'].includes(getEnergyTier(g.resources,g.resExtraction,g.importContracts));
+  const diversified=isDiversified(g);
   if(g.embargoedBy&&!diversified&&!sprShield){ns.inflation+=0.08;ns.gdpGrowth-=0.03;}
   // ── OIL STEWARDSHIP: you run their ministry — barrels sell through you, proceeds compound as production recovers
   Object.entries(g.stewardship).forEach(([ck,st])=>{const cp=CONCESSIONS[ck];if(!cp)return;
