@@ -17,13 +17,13 @@ export const ACTION_TYPES = new Set([
 
 export function applyAction(state, action, rng) {
   if (!action || !ACTION_TYPES.has(action.type)) {
-  throw new Error(`Unknown action type: ${action && action.type}`);
+    throw new Error(`Unknown action type: ${action && action.type}`);
   }
   switch (action.type) {
-  case 'noop':
-    return state;
-  default:
-    return state;
+    case 'noop':
+      return state;
+    default:
+      return state;
   }
 }
 

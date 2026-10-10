@@ -12,9 +12,8 @@ import { CHOKEPOINTS, IMPORT_ROUTES } from '../data/chokepoints.js';
 import { RES_META, CONCESSIONS } from '../data/energy.js';
 import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRate, sapRunCost, recapCost, calcSCost, getEnergyTier, getQualMult, getRefineMult, getDefLeverage } from '../sim/formulas.js';
 import { naturalDrift } from '../sim/economy.js';
-import { rng } from '../sim/rng.js';
 import { runMonth } from '../sim/tick.js';
-import { applyVerb, pushTension as pushTensionV, recordNuke as recordNukeV } from '../sim/actions.js';
+import { applyVerb } from '../sim/actions.js';
 import { stateView, openingPosition } from '../sim/state.js';
 import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups } from '../sim/selectors.js';
 const TABS=['overview','sitroom','economy','energy','resources','defense','intel','technology','trade'];
@@ -416,9 +415,6 @@ function WorldLeadersInner({resumeSignal}){
   const sink={setCountry,setStats,setIssues,setInvestigations,setBriefs,setDeployments,setActiveEffects,setResources,setResExtraction,setDefLevels,setDefResearch,setSpillApplied,setGlobalDef,setDefExports,setSphere,setIntelOps,setIntelBudget,setBudgetAlloc,setEquilibriumStats,setGracePeriod,setDoctrine,setPlatforms,setSocialPrograms,setVictory,setHegHold,setPersonnelPay,setProcureMode,setForceDeployments,setFlashpoint,setSphereTrend,setPlatformsImported,setCovertPrograms,setIntelInfra,setMoles,setSanctions,setImportContracts,setRivalHolds,setNationRelations,setEmbassies,setInfluenceAlloc,setInfluenceBudget,setProxyAlloc,setProxyBudget,setSapOffice,setBlackPrograms,setBlackResearch,setDefensePacts,setTradeAgreements,setContinuousOps,setTalentRetention,setExpertiseLease,setRivalTension,setIntelPosture,setBlockades,setConfrontation,setBlocTrade,setBlocLock,setOpecSwing,setLedger,setUsedTech,setWorldEvent,setDemand,setCurrencyPosture,setEmbassyMissions,setUltimatum,setPariah,setForcePosture,setNukeLog,setEmbargoes,setEmbargoedBy,setSpr,setSprRelease,setConcessions,setChokeStatus,setStewardship,setExportShare,setChokeDeals,setPlatformDev,setDeveloped,setVictoryType,setPathHold,setIpPortfolio,setIpPolicy,setSectorMaturity,setSectorAge,setIntelCrisis,setGrrbState,setActivePolicies,setActionCooldowns,setDarpaDisc,setActiveDecision,setUsedDecisions,setInterestRate,setTaxPolicy,setSpendingMode,setDate,setLog,setStatsTrend,setGameOver};
   const engineFx={toast:showToast,now:()=>Date.now(),defer:(fn,ms)=>setTimeout(fn,ms)};
   const dispatch=useCallback(a=>applyVerb(liveState(),sink,engineFx,a),[showToast]);
-  // Interim (P2b): helpers still called by handlers that have not moved yet.
-  const pushTension=(cid,d,why)=>pushTensionV(liveState(),sink,engineFx,cid,d,why);
-  const recordNuke=(e)=>recordNukeV(liveState(),sink,engineFx,e);
 
   // Monthly tick: the engine lives in src/sim/tick.js (runMonth). The component supplies a live view of its refs,
   // its setters, and presentation effects. Built per call from stable refs/setters, so nothing goes stale.
