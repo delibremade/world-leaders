@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.72.2 (2026-10-10) — F4 (#36): pause is a toggle that remembers speed
+- The pause button toggles; resume restores the last speed (default 1x) with no speed click. While paused it reads `▶ 2×` and the chip says what resumes. Space toggles on desktop (>= 900px, ignored in fields and buttons).
+- Engine pause: the crisis briefing shows its reason and the same toggle closes it and resumes. Hard gates (ultimatum, confrontation, intel crisis, end screens) still need their own choice: the toggle is inert there and the chip names the gate.
+- Tests: `test/pause.test.js` (1x/2x/4x, Space, engine pause). UI only; parity untouched.
+
 ## 0.72.1 (2026-10-10) — F1 (#34): Resources is a top-level tab again
 - Nav is 9 verticals (Resources after Energy). The six sub-tabs (Reserves/Processing/Stockpile/Deals/Controls/Natural) live under it; Economy is Ledger only (its Ledger|Resources switch is gone).
 - Nav buttons are 43.3px wide at 390px: the 44px rule is relaxed to 43px width for the nav only (docs/PLAYABLE-PLAN.md). Height stays 56px.
