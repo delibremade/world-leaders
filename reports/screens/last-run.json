@@ -1,82 +1,17 @@
 [
   {
-    "name": "p3d-overview-390",
-    "file": "reports/screens/p3d-overview-390.png",
+    "name": "e2-world-card-390",
+    "file": "reports/screens/e2-world-card-390.png",
     "errors": []
   },
   {
-    "name": "p3d-overview-1280",
-    "file": "reports/screens/p3d-overview-1280.png",
+    "name": "e2-flashpoint-card-390",
+    "file": "reports/screens/e2-flashpoint-card-390.png",
     "errors": []
   },
   {
-    "name": "p3d-hud-doctrine-390",
-    "file": "reports/screens/p3d-hud-doctrine-390.png",
-    "errors": []
-  },
-  {
-    "name": "p3d-nav-econ-390",
-    "file": "reports/screens/p3d-nav-econ-390.png",
-    "errors": []
-  },
-  {
-    "name": "p3d-map-sphere-390",
-    "file": "reports/screens/p3d-map-sphere-390.png",
-    "errors": []
-  },
-  {
-    "name": "p3d-map-tension-390",
-    "file": "reports/screens/p3d-map-tension-390.png",
-    "errors": []
-  },
-  {
-    "name": "p3d-map-trade-390",
-    "file": "reports/screens/p3d-map-trade-390.png",
-    "errors": []
-  },
-  {
-    "name": "p3d-map-energy-390",
-    "file": "reports/screens/p3d-map-energy-390.png",
-    "errors": []
-  },
-  {
-    "name": "p3d-map-military-390",
-    "file": "reports/screens/p3d-map-military-390.png",
-    "errors": []
-  },
-  {
-    "name": "p3d-map-intel-390",
-    "file": "reports/screens/p3d-map-intel-390.png",
-    "errors": []
-  },
-  {
-    "name": "p3d-map-sphere-1280",
-    "file": "reports/screens/p3d-map-sphere-1280.png",
-    "errors": []
-  },
-  {
-    "name": "p3d-map-tension-1280",
-    "file": "reports/screens/p3d-map-tension-1280.png",
-    "errors": []
-  },
-  {
-    "name": "p3d-map-trade-1280",
-    "file": "reports/screens/p3d-map-trade-1280.png",
-    "errors": []
-  },
-  {
-    "name": "p3d-map-energy-1280",
-    "file": "reports/screens/p3d-map-energy-1280.png",
-    "errors": []
-  },
-  {
-    "name": "p3d-map-military-1280",
-    "file": "reports/screens/p3d-map-military-1280.png",
-    "errors": []
-  },
-  {
-    "name": "p3d-map-intel-1280",
-    "file": "reports/screens/p3d-map-intel-1280.png",
+    "name": "e2-outliner-390",
+    "file": "reports/screens/e2-outliner-390.png",
     "errors": []
   }
 ]

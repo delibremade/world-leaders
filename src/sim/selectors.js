@@ -2,7 +2,9 @@ import { DIP_TARGETS } from '../data/nations.js';
 import { BLOC_GROUPS } from '../data/trade.js';
 import { WORLD_EVENTS } from '../data/world.js';
 import { INTEL_OPS } from '../data/intel.js';
-import { isrScore } from './formulas.js';
+import { isrScore, panamaPriorityBlock } from './formulas.js';
+import { WORLD_RULES } from '../data/events.js';
+import { worldOptions, flashpointOptions } from './events.js';
 
 // Derived views shared by the UI (display) and the verbs (gates), so a rule has one implementation.
 
@@ -91,3 +93,13 @@ export function influenceGain(g,stability,t,infPool,totW){
   ];
   return {w,share,embMult,stabConf,regControl,docInfM,gain,terms};
 }
+
+// ── Event cards (E2, #14). One predicate for what is open, shared by the UI and the fuzz: an answered or expired
+// event/flashpoint is never a card.
+export const openEventCards=(g)=>({
+  world:g.worldEvent&&!g.worldEvent.ans&&g.worldEvent.mo>0&&WORLD_RULES[g.worldEvent.id]&&!WORLD_RULES[g.worldEvent.id].instant?g.worldEvent:null,
+  flashpoint:g.flashpoint&&g.flashpoint.t>0?g.flashpoint:null,
+  decision:g.activeDecision||null,
+});
+export const eventOptions=(g,kind)=>kind==='flashpoint'?flashpointOptions(g):worldOptions(g);
+export { panamaPriorityBlock };

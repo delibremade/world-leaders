@@ -9,7 +9,20 @@ import { DOCTRINES, WORLD_EVENTS } from '../../data/world.js';
 import { REGIONS, FLASHPOINTS } from '../../data/regions.js';
 import { COLOR } from '../tokens.js';
 
-export function EventCards({ doctrine, activeDecision, decisionDesc, worldEvent, flashpoint, dispatch, onOpenRegion, fxBadge }) {
+// Inline responses (E2, #14): each is a button wired to the `eventResponse` verb; an unavailable one stays visible and says why.
+function Responses({ kind, opts, dispatch }) {
+  return (
+    <div className="wl-opts" style={{ display: 'grid' }} data-event-responses={kind}>
+      {opts.map((o) => (
+        <button key={o.id} type="button" className="wl-opt" data-response={o.id} aria-disabled={!o.ok}
+          onClick={() => { if (o.ok) dispatch({ type: 'eventResponse', payload: { kind, response: o.id } }); }}>
+          <b>{o.label}{o.cost ? ` · $${o.cost}M` : ''}</b>
+          {o.ok ? o.tags.map((t, i) => <small key={i}>· {t}</small>) : <small className="wl-reason">{o.reason}</small>}
+        </button>))}
+    </div>);
+}
+
+export function EventCards({ doctrine, activeDecision, decisionDesc, worldEvent, flashpoint, worldOpts = [], fpOpts = [], dispatch, onOpenRegion, fxBadge }) {
   const cards = [];
   if (!doctrine) cards.push(
     <div key="doctrine" className="wl-card-ev" data-event-card="doctrine" data-modal="1900" style={{ '--ev': COLOR.accent.command }}>
@@ -42,13 +55,15 @@ export function EventCards({ doctrine, activeDecision, decisionDesc, worldEvent,
       <div className="wl-label">{fp?.i} Flashpoint · {flashpoint.t}mo to act</div>
       <h4>{fp?.n} · {REGIONS[flashpoint.rid]?.n}</h4>
       <p>{fp?.d} Ignoring cedes ground to rivals (−5 you, +12 them).</p>
-      <button type="button" className="wl-btn wl-btn-alert" onClick={() => onOpenRegion(flashpoint.rid)}>Open {REGIONS[flashpoint.rid]?.n}</button>
+      <Responses kind="flashpoint" opts={fpOpts} dispatch={dispatch} />
+      <button type="button" className="wl-btn" style={{ marginTop: 8 }} onClick={() => onOpenRegion(flashpoint.rid)}>Open {REGIONS[flashpoint.rid]?.n}</button>
     </div>); }
   if (worldEvent) { const we = WORLD_EVENTS[worldEvent.id]; cards.push(
     <div key="we" className="wl-card-ev" data-event-card="world" style={{ '--ev': COLOR.accent.energy }}>
       <div className="wl-label">{we?.i} World event · {worldEvent.mo}mo left</div>
       <h4>{we?.n || worldEvent.id}</h4>
       <p>{we?.d}</p>
+      <Responses kind="world" opts={worldOpts} dispatch={dispatch} />
     </div>); }
   return <div className="wl-cards" data-event-cards>{cards}</div>;
 }

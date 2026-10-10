@@ -1,5 +1,6 @@
 // One implementation per formula (CLAUDE.md rule 8). Pure: plain data in, number/bool out.
-import { NATION_BLOC } from '../data/nations.js';
+import { NATION_BLOC, DIP_TARGETS } from '../data/nations.js';
+import { REGIONS } from '../data/regions.js';
 import { DEP_W, DV } from '../data/platforms.js';
 import { BASE_SECTOR } from '../data/economy.js';
 
@@ -52,3 +53,13 @@ export const sapRunCost=(bp,n)=>Math.round(bp.cost*sapRate(n));
 export const recapCost=(treasury)=>Math.max(1500,Math.min(8000,Math.round((treasury||0)*0.08)));
 // A rival's strategic weight (aircraft / missiles / naval at L5+), 0..3. Parity with your triad = MAD.
 export const strategicWeight=(gl)=>((gl.aircraft||0)>=5?1:0)+((gl.missiles||0)>=5?1:0)+((gl.naval||0)>=5?1:0);
+
+// Panama transit-priority deal: reason it is unavailable, or null. Shared by the verb and the Panama drought card.
+export function panamaPriorityBlock(g){
+  if((g.chokeDeals?.panama||{}).priority)return 'Transit priority already in force';
+  const homeRid=Object.entries(REGIONS).find(([,r])=>r.homeFor?.includes(g.country?.id))?.[0];const naHome=homeRid==='NA'||homeRid==='SA';
+  const sa=DIP_TARGETS.filter(d=>d.region==='SA');const saRel=sa.reduce((s,d)=>s+(g.nationRelations[d.id]||0),0)/Math.max(1,sa.length);
+  if(!(naHome||saRel>=30))return 'Needs a hemispheric home or South American relations ≥30';
+  if((g.stats?.treasury||0)<800)return '$800M';
+  return null;
+}

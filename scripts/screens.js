@@ -9,7 +9,7 @@ import { shell } from './shell.js';
 
 const require = createRequire(import.meta.url);
 let chromium;
-try { ({ chromium } = require('playwright')); } catch { console.error('playwright not resolvable; run with NODE_PATH=$(npm root -g)'); process.exit(2); }
+try { ({ chromium } = require('playwright')); } catch { try { ({ chromium } = require('playwright-core')); } catch { console.error('playwright not resolvable; run with NODE_PATH=$(npm root -g)'); process.exit(2); } }
 
 const OUT = 'reports/screens';
 const VIEWPORT = { width: 390, height: 844 };
@@ -40,6 +40,10 @@ export const SCENARIOS = {
   'p3c-nation-sheet': async (page) => { await inGame(page); await pause(page); await showMap(page); await page.evaluate(() => window.__wlMap.tapRegion('ME')); await settle(page, 900); await page.evaluate(() => document.querySelector('[data-nation-row]')?.click()); await settle(page, 900); },
   'p3c-outliner': async (page) => { await inGame(page); await page.evaluate(() => { const h = window.__wl; h.setTension('russia', 82); h.deploy('ME', 'carrier', 2); h.event('red_sea_attacks', 6); }); await settle(page, 4500); await pause(page); await page.evaluate(() => document.querySelector('[data-outliner-handle]').click()); await settle(page, 700); },
   'p3c-event-cards': async (page) => { await startUSA(page); await page.evaluate(() => { const h = window.__wl; h.setTension('russia', 82); h.event('pandemic', 6); }); await settle(page, 4500); await pause(page); },
+  // E2 (#14): event cards with inline responses, and the outliner after both are answered.
+  'e2-world-card-390': async (page) => { await inGame(page); await page.evaluate(() => { const h = window.__wl; h.fund(20000); h.deploy('ME', 'carrier_group', 2); h.platforms({ carrier_group: 2 }); h.event('hormuz_closure', 6); }); await settle(page, 900); await pause(page); await page.evaluate(() => document.querySelector('[data-event-card=world]').scrollIntoView({ inline: 'start', block: 'nearest' })); await settle(page, 400); },
+  'e2-flashpoint-card-390': async (page) => { await inGame(page); await page.evaluate(() => { const h = window.__wl; h.fund(20000); h.flashpoint('ME', 'coup', 5); }); await settle(page, 900); await pause(page); await page.evaluate(() => document.querySelector('[data-event-card=flashpoint]').scrollIntoView({ inline: 'start', block: 'nearest' })); await settle(page, 400); },
+  'e2-outliner-390': async (page) => { await inGame(page); await page.evaluate(() => { const h = window.__wl; h.fund(20000); h.deploy('ME', 'carrier_group', 2); h.platforms({ carrier_group: 2 }); h.event('hormuz_closure', 6); h.flashpoint('ME', 'coup', 5); }); await settle(page, 900); await pause(page); await page.evaluate(() => { document.querySelector('[data-event-card=world] [data-response=escort]').click(); }); await settle(page, 300); await page.evaluate(() => { document.querySelector('[data-event-card=flashpoint] [data-response=mediate]').click(); }); await settle(page, 300); await page.evaluate(() => document.querySelector('[data-outliner-handle]').click()); await settle(page, 500); },
   'p3c-desktop': async (page) => { await page.setViewportSize({ width: 1280, height: 800 }); await inGame(page); await pause(page); await settle(page, 600); },
 };
 
