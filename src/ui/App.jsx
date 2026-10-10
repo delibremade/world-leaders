@@ -683,7 +683,7 @@ function WorldLeadersInner({resumeSignal}){
         @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
         /* P3b phone fallback until P3c's shell: stack the v57 columns under 900px so the map gets the full width */
         .wl-map-card{order:-1}.wl-right-idle{display:none!important}
-        @media (max-width:899px){.wl-body{flex-direction:column!important;overflow:auto!important}.wl-pane-grow{flex:0 0 auto!important;overflow:visible!important}.wl-vitals{width:100%!important;order:2;border-right:none!important;border-top:1px solid #1f2937;overflow:visible!important}.wl-overview{flex-direction:column!important;overflow:visible!important;flex:none!important}.wl-overview>div{overflow:visible!important;flex:none!important}.wl-right{width:100%!important;border-left:none!important;border-top:1px solid #1f2937}}
+        @media (max-width:899px){.wl-body{flex-direction:column!important;overflow:auto!important}.wl-body>:not(.wl-vitals){flex:0 0 auto!important;overflow:visible!important;flex-direction:column!important}.wl-body>:not(.wl-vitals)>.wl-side,.wl-body>:not(.wl-vitals)>div[style*="overflow"]{width:100%!important;flex:none!important;overflow:visible!important;border-right:none!important}.wl-vitals{width:100%!important;order:2;border-right:none!important;border-top:1px solid #1f2937;overflow:visible!important}.wl-overview{flex-direction:column!important;overflow:visible!important;flex:none!important}.wl-overview>div{overflow:visible!important;flex:none!important}.wl-right{width:100%!important;border-left:none!important;border-top:1px solid #1f2937}}
       `}</style>
 
       {toasts.length>0&&<div style={{position:'fixed',bottom:'20px',left:'50%',transform:'translateX(-50%)',zIndex:999,display:'flex',flexDirection:'column',gap:'6px',alignItems:'center',pointerEvents:'none',maxWidth:'86%'}}>
@@ -1542,7 +1542,7 @@ function WorldLeadersInner({resumeSignal}){
         </div>}
 
         {/* INTEL TAB */}
-        {activeTab==='intel'&&<div className="wl-pane-grow" style={{flex:1,overflowY:'auto',padding:'12px',display:'flex',flexDirection:'column',gap:'12px'}}>
+        {activeTab==='intel'&&<div style={{flex:1,overflowY:'auto',padding:'12px',display:'flex',flexDirection:'column',gap:'12px'}}>
           {vitalsDrill&&<VitalsDrillPanel/>}
           <div style={{fontSize:'11px',color:'#6b7280',padding:'8px 10px',background:'#0d1117',borderRadius:'6px',border:'1px solid #1f2937'}}>
             🕵️ {INTEL_AGENCIES[country?.id||'']||'Intelligence Services'} Command — fund standing programs, set the budget, and run operations. Foreign services are running ops against you; interception depends on Cyber R&D, budget, Counter-Intel ops, and the Counter-Intelligence Grid.
