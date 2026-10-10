@@ -33,8 +33,13 @@ const rich = (g) => { // everything a response could need
   g.forceDeployments = { ME: { carrier_group: 2, sub_fleet: 1 }, AF: { carrier_group: 2, sub_fleet: 1 }, NA: { carrier_group: 1 } };
   g.rivalTension = { china: 60, russia: 40 }; g.chokeDeals = {};
   g.nationRelations = { ...g.nationRelations, brazil: 50, colombia: 50 };
+  // E6 (#18): what the new responses need. A processor withholds rare earth, the player holds a reserve and controls gallium,
+  // is a Buyer of GCAP (a program it does not own), and has admitted Japan to the F-47 it owns.
+  g.minerals = { ...g.minerals, against: { china: ['rareEarth'] }, controls: ['gallium'], own: { ...g.minerals.own, rareEarth: { ...g.minerals.own.rareEarth, reserve: 20 }, gallium: { ...g.minerals.own.gallium, cap: 3 } } };
+  g.arsenal = { ...g.arsenal, access: { gcap: { usa: { tier: 'buyer', status: 'active', susp: 0, since: 0 } }, f47: { usa: { tier: 'codev', status: 'active', susp: 0, since: 0, founder: true }, japan: { tier: 'buyer', status: 'active', susp: 0, since: 0 } } } };
+  g.sanctions = new Set(['russia']);
 };
-const snap = (g) => JSON.stringify({ s: g.stats, sp: g.sphere, t: g.rivalTension, r: g.nationRelations, p: g.forcePosture, rel: g.sprRelease, mo: g.worldEvent?.mo, q: g.evState.q, cd: g.chokeDeals });
+const snap = (g) => JSON.stringify({ s: g.stats, sp: g.sphere, t: g.rivalTension, r: g.nationRelations, p: g.forcePosture, rel: g.sprRelease, mo: g.worldEvent?.mo, q: g.evState.q, cd: g.chokeDeals, f: g.forces, mi: g.minerals, ar: g.arsenal, gd: g.globalDef });
 const ANSWERABLE = Object.keys(WORLD_EVENTS).filter((id) => !WORLD_RULES[id]?.instant);
 
 test('every world event has rules; each card has 2-3 responses (nuclear taboo: 2), breakthrough has none', () => {
@@ -157,7 +162,7 @@ const fuzz = (seed, months = 600) => {
     const id = g.worldEvent?.id || null;
     if (id && id !== prev) { seen.push({ id, m: abs }); assert.ok(g.evState.log.some((e) => e.id === id && e.m === abs), `month ${m}: ${id} appeared without a log entry`); }
     prev = id;
-    if (g.activeDecision && bot() < 0.6) { decisions.push(g.activeDecision.id); h.run('makeDecision', { option: g.activeDecision.options[Math.floor(bot() * 3)].id }); }
+    if (g.activeDecision && bot() < 0.6) { const ops = eventOptions(g, 'decision').filter((o) => o.ok); if (ops.length) { decisions.push(g.activeDecision.id); h.run('makeDecision', { option: ops[Math.floor(bot() * ops.length)].id }); } } // E6 (#18): an option can be closed, so pick among the open ones
     const cards = openEventCards(g);
     if (cards.world && bot() < 0.6) { const ops = eventOptions(g, 'world').filter((o) => o.ok); if (ops.length) { h.run('eventResponse', { kind: 'world', response: ops[Math.floor(bot() * ops.length)].id }); answered++; assert.equal(openEventCards(g).world, null, `month ${m}: world card outlived its answer`); } }
     if (cards.flashpoint && bot() < 0.6) { const ops = eventOptions(g, 'flashpoint').filter((o) => o.ok); if (ops.length) { h.run('eventResponse', { kind: 'flashpoint', response: ops[Math.floor(bot() * ops.length)].id }); fpAnswered++; assert.equal(g.flashpoint, null, `month ${m}: flashpoint outlived its answer`); } }

@@ -1,17 +1,17 @@
 [
   {
-    "name": "e4-minerals-390",
-    "file": "reports/screens/e4-minerals-390.png",
+    "name": "e6-decision-sof-390",
+    "file": "reports/screens/e6-decision-sof-390.png",
     "errors": []
   },
   {
-    "name": "e4-slowdown-390",
-    "file": "reports/screens/e4-slowdown-390.png",
+    "name": "e6-decision-j36-china-390",
+    "file": "reports/screens/e6-decision-j36-china-390.png",
     "errors": []
   },
   {
-    "name": "e7-norway-partner-390",
-    "file": "reports/screens/e7-norway-partner-390.png",
+    "name": "e6-world-minerals-390",
+    "file": "reports/screens/e6-world-minerals-390.png",
     "errors": []
   }
 ]

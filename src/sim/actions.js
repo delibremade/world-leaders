@@ -1,9 +1,9 @@
 import { NATIONS, BUYERS, DIP_TARGETS, NATION_BLOC, RD_MODS } from '../data/nations.js';
 import { REGIONS, POSTURE_LABELS } from '../data/regions.js';
-import { DOCTRINES, WORLD_EVENTS } from '../data/world.js';
+import { DOCTRINES, WORLD_EVENTS, DECISIONS } from '../data/world.js';
 import { PLATFORMS, BLACK_PROGRAMS, DV, DEPLOYABLE } from '../data/platforms.js';
 import { WORLD_RULES, FP_RESPONSES } from '../data/events.js';
-import { worldOptions, fpReason, FP_COST, pushFx, flashpointRow, setEv, stampEvent, absMonth } from './events.js';
+import { worldOptions, decisionReason, fpReason, FP_COST, pushFx, flashpointRow, setEv, stampEvent, absMonth } from './events.js';
 import { PA, ISSUES, SOCIAL_PROGRAMS, SECTOR_LABELS, IP_POLICY_LABELS } from '../data/economy.js';
 import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, INTEL_POSTURE_LABELS } from '../data/intel.js';
 import { BLOC_TRADE, CURRENCY_LABELS } from '../data/trade.js';
@@ -12,6 +12,7 @@ import { panamaPriorityBlock, sumDep, isAllyOf, topHostile, wSum, isrScore, nava
 import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups, opOddsTerms, programStage, programBlock, playerEntry, myAccess, accessGates, memberGates, shareCost, orderPrice, productionOpen } from './selectors.js';
 import { ALLIED_PROGRAMS, TIERS, TIER_ORDER, ACCESS_RULES } from '../data/alliance.js';
 import { rng } from './rng.js';
+import { memberOf } from '../data/event-ctx.js';
 import { startTranche, MINERAL_VERBS } from './minerals.js';
 import { crewBlock, FORCE_VERBS } from './forces.js';
 import { FORCE_RULES } from '../data/forces.js';
@@ -142,12 +143,21 @@ function applySfx(g,S,fx,ops){
   (ops||[]).forEach(op=>{
     const hot=()=>Object.entries(g.rivalTension).sort((a,b)=>b[1]-a[1])[0]?.[0];
     if(op.k==='tension'){const id=op.id==='$hottest'?hot():op.id;if(id&&id!==g.country?.id)S.setRivalTension(p=>({...p,[id]:Math.max(0,Math.min(100,(p[id]||0)+op.d))}));}
-    else if(op.k==='relBloc'){S.setNationRelations(p=>{const n2={...p};DIP_TARGETS.forEach(t=>{if(NATION_BLOC[t.id]===op.bloc)n2[t.id]=Math.max(-100,Math.min(100,(n2[t.id]||0)+op.d));});return n2;});}
-    else if(op.k==='rel'){S.setNationRelations(p=>({...p,[op.id]:Math.max(-100,Math.min(100,(p[op.id]||0)+op.d))}));}
+    else if(op.k==='relBloc'){const bloc=op.bloc==='$own'?NATION_BLOC[g.country?.id]:op.bloc;S.setNationRelations(p=>{const n2={...p};DIP_TARGETS.forEach(t=>{if(NATION_BLOC[t.id]===bloc)n2[t.id]=Math.max(-100,Math.min(100,(n2[t.id]||0)+op.d));});return n2;});}
+    else if(op.k==='rel'){const id=op.id==='$owner'?memberOf(g)?.owner:op.id;if(id&&id!==g.country?.id)S.setNationRelations(p=>({...p,[id]:Math.max(-100,Math.min(100,(p[id]||0)+op.d))}));}
     else if(op.k==='relBuyers'){S.setNationRelations(p=>{const n2={...p};Object.keys(g.defExports).forEach(k2=>{const bid=k2.split('_')[0];n2[bid]=Math.max(-100,Math.min(100,(n2[bid]||0)+op.d));});return n2;});}
     else if(op.k==='gdbTop'){const id=op.id==='$hottest'?hot():op.id;if(id)S.setGlobalDef(p=>{const ng={...p};const lv=ng[id];if(!lv)return p;const top=Object.entries(lv).sort((a,b)=>b[1]-a[1])[0];if(top)ng[id]={...lv,[top[0]]:Math.max(0,top[1]+op.d)};return ng;});}
     else if(op.k==='relAnchor'||op.k==='relRivalAnchor'){const mine=g.blocTrade.cn>=2?'cn':'eu';const key=op.k==='relAnchor'?mine:(mine==='cn'?'eu':'cn');const aid=BLOC_TRADE[key].anchor;S.setNationRelations(p=>({...p,[aid]:Math.max(-100,Math.min(100,(p[aid]||0)+op.d))}));}
     else if(op.k==='blocStep'){const mine=g.blocTrade.cn>=2?'cn':'eu';S.setBlocTrade(p=>{const nb={...p,[mine]:Math.max(0,(p[mine]||0)+op.d)};g.blocTrade=nb;return nb;});}
+    // E6 (#18): effects on the E4/E7/E8 systems. Each writes one field through the same setter the month uses.
+    else if(op.k==='readiness'&&g.forces){const rd={...g.forces.readiness};(op.b==='all'?Object.keys(rd):[op.b]).forEach(b=>{if(b in rd)rd[b]=Math.max(0,Math.min(100,rd[b]+op.d));});g.forces={...g.forces,readiness:rd};S.setForces(g.forces);}
+    else if(op.k==='retention'&&g.forces){g.forces={...g.forces,retention:Math.max(0,Math.min(100,g.forces.retention+op.d))};S.setForces(g.forces);}
+    else if(op.k==='sof'&&g.forces){const key=op.t===1?'t1':'t2';g.forces={...g.forces,sof:{...g.forces.sof,[key]:Math.max(0,g.forces.sof[key]+op.d)}};S.setForces(g.forces);}
+    else if(op.k==='mineral'&&g.minerals?.own?.[op.id]){const o=g.minerals.own[op.id];g.minerals={...g.minerals,own:{...g.minerals.own,[op.id]:{...o,stock:Math.max(0,o.stock+op.d)}}};S.setMinerals(g.minerals);}
+    else if(op.k==='devSlip'&&g.arsenal?.dev?.[op.id]){const d=g.arsenal.dev[op.id];g.arsenal={...g.arsenal,dev:{...g.arsenal.dev,[op.id]:{...d,prog:Math.max(0,Math.min(d.mo-1,d.prog-op.mo))}}};S.setArsenal(g.arsenal);}
+    else if(op.k==='suspend'){const pid=op.pid==='$member'?memberOf(g)?.pid:op.pid;const a=pid&&myAccess(g,pid);if(a?.status==='active'){setAccess(g,S,pid,g.country.id,{...a,status:'suspended',susp:ACCESS_RULES.suspendMo});bumpRel(g,S,{[ALLIED_PROGRAMS[pid].owner]:-ACCESS_RULES.breachRel});}}
+    else if(op.k==='manpower'&&g.forces){const f=g.forces;const d=Math.max(-f.active,Math.min(f.reserve,op.d));g.forces={...f,active:f.active+d,reserve:f.reserve-d};S.setForces(g.forces);} // reserve call-up (+) or stand-down (-)
+    else if(op.k==='tradeDeal'){S.setTradeAgreements(p=>{const n2=new Set(p);n2.add(op.id);g.tradeAgreements=n2;return n2;});}
   });
 }
 function executeAction(g,S,fx,action){
@@ -362,9 +372,13 @@ function applyRegionAction(g,S,fx,regionId,actionType){
 
 function makeDecision(g,S,fx,optId){
   const d=g.activeDecision;if(!d)return;
-  const opt=d.options.find(o=>o.id===optId);if(!opt)return;
-  S.setStats(p=>{const ns={...p};Object.entries(opt.effects||{}).forEach(([k,v])=>{if(k in ns)ns[k]+=v;});return ns;});
+  const def=DECISIONS.find(x=>x.id===d.id)||d; // a restored save drops the functions: options resolve through the registry
+  const opt=def.options.find(o=>o.id===optId);if(!opt)return;
+  const reason=decisionReason(g,opt);if(reason){fx.toast('⚠ '+reason);return;}
+  for(const a of opt.act?.(g)||[]){VERBS[a.verb](g,S,fx,a.payload);} // E6 (#18): options may drive engine verbs, as world responses do
+  S.setStats(p=>{const ns={...p};if(opt.cost)ns.treasury-=opt.cost;Object.entries(opt.effects||{}).forEach(([k,v])=>{if(k in ns)ns[k]+=v;});return ns;});
   applySfx(g,S,fx,opt.sfx);
+  if(opt.chain){const ev=g.evState;setEv(g,S,{...ev,q:[...ev.q,{id:opt.chain.id,at:absMonth(g)+opt.chain.after}]});}
   S.setLog(p=>[{msg:`🎯 ${d.title}: ${opt.label}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
   fx.toast(`🎯 ${opt.label}`);
   S.setActiveDecision(null);g.activeDecision=null;

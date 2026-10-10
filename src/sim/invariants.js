@@ -3,6 +3,7 @@ import { BLACK_PROGRAMS, PLATFORMS } from '../data/platforms.js';
 import { BRANCH_IDS, TRAINING, SOF_RULES, FORCE_RULES } from '../data/forces.js';
 import { NATIONS } from '../data/nations.js';
 import { ALLIED_PROGRAMS, TIERS, ACCESS_RULES } from '../data/alliance.js';
+import { WORLD_EVENTS, DECISIONS } from '../data/world.js';
 import { MINERALS, MINERAL_IDS, MINERAL_RULES as MR } from '../data/minerals.js';
 
 const in01 = (v) => Number.isFinite(v) && v >= 0 && v <= 100;
@@ -59,6 +60,9 @@ export const V57_INVARIANTS = [
   ['an answered world event has its in-effect row', (g) => !g.worldEvent?.ans || (g.evState?.fx || []).some((r) => r.ev === g.worldEvent.id && r.kind === 'world')],
   ['a live flashpoint has months left', (g) => !g.flashpoint || (Number.isInteger(g.flashpoint.t) && g.flashpoint.t > 0)],
   ['queued follow-ups name real events', (g) => (g.evState?.q || []).every((q) => typeof q.id === 'string' && Number.isFinite(q.at))],
+  // Event content (E6, #18)
+  ['queued follow-ups are registered world events', (g) => (g.evState?.q || []).every((q) => !!WORLD_EVENTS[q.id])],
+  ['used decisions are registered decisions', (g) => [...(g.usedDecisions || [])].every((id) => DECISIONS.some((d) => d.id === id))],
   // Nation catalogs (E3, #15)
   ['prototype lines are known programs with integer 0 <= prog < mo', (g) => Object.entries(g.arsenal?.dev || {}).every(([id, d]) => BLACK_PROGRAMS[id] && Number.isInteger(d.prog) && Number.isInteger(d.mo) && d.prog >= 0 && d.prog < d.mo)],
   ['owned programs are known ids with non-negative integer counts', (g) => Object.entries(g.blackPrograms || {}).every(([id, n]) => BLACK_PROGRAMS[id] && Number.isInteger(+n) && +n >= 0)],
