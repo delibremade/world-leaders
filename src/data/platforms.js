@@ -77,13 +77,13 @@ export const SLOTS=[['bomber','Stealth bomber'],['gen6','Gen 6 fighter'],['cca',
 // Program stages. `start` in a catalog is the real 2024 stage; lrip/full = production open at start, no SAP office needed.
 export const STAGES=[['rd','R&D'],['proto','Prototype'],['lrip','LRIP'],['full','Full rate']];
 // status_source: where the 2024 stage comes from. "general knowledge" entries are for the owner to correct (spec Part 2).
-// USA: the five v57 programs keep v57 behavior (start R&D) by owner rule "US unchanged except E1"; their real 2024 stage is in status_source.
+// Owner ruling on #15: real 2024 stages apply to every nation, the USA included (B-21 LRIP, CCA prototype).
 const GK='general knowledge, owner to verify';
 export const CATALOGS={
   usa:[
-    {id:'b21',start:'rd',status_source:`${GK}: real 2024 stage LRIP; kept at R&D (v57 behavior, US unchanged)`},
+    {id:'b21',start:'lrip',status_source:`${GK}: LRIP contract exercised Jan 2024 (owner ruling on #15)`},
     {id:'f47',start:'rd',status_source:`${GK}: NGAD in development 2024 (F-47 award 2025)`},
-    {id:'cca',start:'rd',status_source:`${GK}: Increment 1 prototypes 2024; kept at R&D (v57 behavior)`},
+    {id:'cca',start:'proto',status_source:`${GK}: Increment 1 prototypes in build 2024 (owner ruling on #15)`},
     {id:'sr72',start:'rd',status_source:`${GK}: R&D, unacknowledged`},
     {id:'ssnx',start:'rd',status_source:`${GK}: design phase 2024`},
     {id:'f35',start:'full',status_source:`${GK}: full-rate production declared March 2024`},

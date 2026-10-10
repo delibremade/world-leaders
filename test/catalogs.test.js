@@ -49,7 +49,8 @@ test('every catalog entry is a known program with a valid 2024 start stage and a
 test('catalogs follow the spec table; the USA keeps the v57 programs in v57 order', () => {
   const ids = (nid) => nationCatalog(nid).map((e) => e.id);
   assert.deepEqual(ids('usa').slice(0, 5), ['b21', 'f47', 'cca', 'sr72', 'ssnx']);
-  for (const id of ['b21', 'f47', 'cca', 'sr72', 'ssnx']) assert.equal(nationCatalog('usa').find((e) => e.id === id).start, 'rd', `${id} v57 start`);
+  // Owner ruling on #15: real 2024 stages for the US too (B-21 LRIP, CCA prototype); F-47, SR-72, SSN(X) stay R&D.
+  for (const [id, st] of [['b21', 'lrip'], ['f47', 'rd'], ['cca', 'proto'], ['sr72', 'rd'], ['ssnx', 'rd']]) assert.equal(nationCatalog('usa').find((e) => e.id === id).start, st, `${id} 2024 start`);
   for (const id of ['j20', 'j35', 'j36', 'j50', 'h20', 'gj11', 'wz8', 't095', 'fujian']) assert.ok(ids('china').includes(id), `china ${id}`);
   for (const id of ['su57', 'pakda', 's70', 'husky']) assert.ok(ids('russia').includes(id), `russia ${id}`);
   assert.ok(ids('japan').includes('gcap') && ids('japan').includes('f35'));
@@ -140,11 +141,14 @@ test('catalog gates: no foreign programs, no production before LRIP, US programs
   cn.run('sapTranche', { program: 'f35' }); assert.ok(!cn.g.blackPrograms.f35, 'china cannot buy F-35');
   const us = headless('usa'); cash(us.g, 1e6);
   us.run('sapTranche', { program: 'j20' }); assert.ok(!us.g.blackPrograms.j20);
-  us.run('sapTranche', { program: 'b21' }); assert.ok(!us.g.blackPrograms.b21, 'B-21 needs its R&D first (v57)');
+  const tb = us.g.stats.treasury; us.run('sapTranche', { program: 'b21' });
+  assert.equal(us.g.blackPrograms.b21, 1, 'B-21 in LRIP at the 2024 start (ruling)'); assert.equal(tb - us.g.stats.treasury, Math.round(8000 * 0.35));
   us.run('establishSapOffice'); us.g.defLevels = { ...cn.g.defLevels };
-  const t0 = us.g.stats.treasury; us.run('sapInitiate', { program: 'b21' });
-  assert.deepEqual(us.g.blackResearch, { id: 'b21', prog: 0, mo: 30 }); assert.equal(t0 - us.g.stats.treasury, 8000, 'v57 full price, single slot');
-  us.run('sapInitiate', { program: 'f47' }); assert.equal(us.g.blackResearch.id, 'b21', 'v57: SAP office busy');
+  us.run('sapInitiate', { program: 'b21' }); assert.equal(us.g.blackResearch, null, 'B-21 is in production, no R&D');
+  us.run('sapInitiate', { program: 'cca' }); assert.deepEqual(us.g.arsenal.dev.cca, { prog: 0, mo: 12 }, 'CCA prototype line, half the months');
+  const t0 = us.g.stats.treasury; us.run('sapInitiate', { program: 'f47' });
+  assert.deepEqual(us.g.blackResearch, { id: 'f47', prog: 0, mo: 36 }); assert.equal(t0 - us.g.stats.treasury, 11000, 'v57 full price, single slot');
+  us.run('sapInitiate', { program: 'sr72' }); assert.equal(us.g.blackResearch.id, 'f47', 'v57: SAP office busy');
   for (const n of [1, 2, 3, 5, 6, 9]) assert.equal(sapRunCost(BLACK_PROGRAMS.b21, n, programStage({ ...us.g, blackPrograms: { b21: n } }, 'b21')), sapRunCost(BLACK_PROGRAMS.b21, n), `v57 tranche price n=${n}`);
   us.run('sapTranche', { program: 'f35' }); assert.equal(us.g.blackPrograms.f35, 1, 'US F-35 line is open (spec table)');
 });
