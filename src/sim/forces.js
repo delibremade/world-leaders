@@ -44,7 +44,17 @@ export function crewBlock(g, pid) {
 
 export const payrollOf = (f) => (f ? f.active * R.payroll.active + f.reserve * R.payroll.reserve + f.sof.t2 * R.payroll.t2 + f.sof.t1 * R.payroll.t1 : 0);
 export const trainingCost = (f) => TRAINING[f.train].cost + f.sof.pipes.reduce((a, p) => a + (p.t === 2 ? SOF_RULES.t2Cost : SOF_RULES.t1Cost), 0);
-export const retentionTarget = (pay, ns) => cl(40 + (pay - 100) * R.payW + ((ns.stability || 0) - 50) * R.stabW - Math.max(0, (ns.gdpGrowth || 0) - 2) * R.civW + ((ns.unemployment || 0) - 5) * R.unempW);
+// Retention target as signed terms (the UI's why-breakdown); the target is their sum, clamped. Same operations in the same order as before.
+export const retentionTerms = (pay, ns) => [
+  { key: 'base', label: 'Baseline', value: 40 },
+  { key: 'pay', label: `Pay ${Math.round(pay)}% vs civilian wages`, value: (pay - 100) * R.payW },
+  { key: 'stab', label: 'Stability', value: ((ns.stability || 0) - 50) * R.stabW },
+  { key: 'civ', label: 'Civilian pull (growth above 2%)', value: -(Math.max(0, (ns.gdpGrowth || 0) - 2) * R.civW) },
+  { key: 'jobs', label: 'Slack labor market', value: ((ns.unemployment || 0) - 5) * R.unempW },
+];
+export const retentionTarget = (pay, ns) => cl(retentionTerms(pay, ns).reduce((a, t) => a + t.value, 0));
+// Labor-market factor on recruitment (unemployment); recruits/mo = recruit x laborFactor x pay/100.
+export const recruitLabor = (ns) => cl(0.5 + (ns.unemployment || 0) / 10, 0.5, 2);
 const exerciseBranches = (g) => {
   const out = new Set();
   for (const [rid, dep] of Object.entries(g.forceDeployments || {})) if (g.forcePosture?.[rid] === 'exercise') for (const [k, n] of Object.entries(dep || {})) if (n > 0) out.add(crewOf(k).b);
@@ -58,7 +68,7 @@ export function stepForces(g, S, fx, cash, ns) {
   if (!g.country) return;
   const f0 = F(g); const pay = Math.max(0, g.personnelPay ?? 100);
   // Manpower: recruitment (population slack, pay), retention (pay vs civilian wages, stability), attrition into the reserve.
-  const recruits = R.recruit * cl(0.5 + (ns.unemployment || 0) / 10, 0.5, 2) * pay / 100;
+  const recruits = R.recruit * recruitLabor(ns) * pay / 100;
   const retention = cl(f0.retention + (retentionTarget(pay, ns) - f0.retention) * R.retLag);
   const attrition = f0.active * R.attrition * (2 - retention / 50);
   const active = cl(f0.active + recruits - attrition);
@@ -134,6 +144,6 @@ export function forceView(g) {
   const drivers = [['education', 'Education', 0.30], ['healthcare', 'Healthcare', 0.20], ['foodSecurity', 'Food security', 0.15], ['stability', 'Stability', 0.20], ['inequality', 'Equality (100 − inequality)', 0.15]]
     .map(([k, label, w]) => ({ k, label, w, v: k === 'inequality' ? 100 - (s[k] ?? 100) : s[k] || 0 }));
   return { ...f, pay, retTarget: retentionTarget(pay, s), qTarget: forceQuality(s), qMult: qualityF(f.quality), drivers, levels: TRAINING, branches,
-    payroll: payrollOf(f) * pay / 100, training: trainingCost(f), units: SOF_UNITS[g.country?.id] || {}, tier1: tier1Power(f),
+    retTerms: retentionTerms(pay, s), labor: recruitLabor(s), payroll: payrollOf(f) * pay / 100, training: trainingCost(f), units: SOF_UNITS[g.country?.id] || {}, tier1: tier1Power(f),
     selectionMo: selectionMo(f.quality), sofRules: SOF_RULES };
 }
