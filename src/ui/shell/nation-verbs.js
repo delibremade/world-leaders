@@ -5,7 +5,9 @@ import { NATIONS, DIP_TARGETS, BUYERS, INTEL_TARGETS } from '../../data/nations.
 import { INTEL_OPS } from '../../data/intel.js';
 import { DV } from '../../data/platforms.js';
 import { COMP_COLORS } from '../../data/regions.js';
-import { opOddsTerms } from '../../sim/selectors.js';
+import { opOddsTerms, memberGates } from '../../sim/selectors.js';
+import { ALLIED_PROGRAMS, TIERS, TIER_ORDER } from '../../data/alliance.js';
+import { BLACK_PROGRAMS } from '../../data/platforms.js';
 
 const dip = (v, n) => DIP_TARGETS.some((d) => d.id === n);
 const intel = (v, n) => INTEL_TARGETS.some((d) => d.id === n);
@@ -19,6 +21,9 @@ const money = (v) => v.stats?.treasury || 0;
 export const NATION_VERB_ALIASES = { imposeSanctions: 'toggleSanctions', sellDefTech: 'offerArms' };
 
 export const NATION_VERBS = [
+  // E7 (#19): the owner (USA player) admits and expels program partners. Gates: relations 70, pact or NATO (CCA: NATO only), NATO 2%.
+  { type: 'admitPartner', icon: '🤝', label: 'Admit to a program', cost: 'they pay the cost share', fx: 'Export income each month and +5 relations · leak risk, higher for flagged nations', when: (v, n) => admitOpts(v, n).length > 0, options: (v, n) => admitOpts(v, n), payload: (n, o) => ({ nation: n, program: o.split(':')[0], tier: o.split(':')[1] }) },
+  { type: 'expelPartner', icon: '✖', label: 'Expel from a program', cost: '', fx: 'Stops their export income · relations −15', kind: 'warn', when: (v, n) => expelOpts(v, n).length > 0, options: (v, n) => expelOpts(v, n), payload: (n, o) => ({ nation: n, program: o }) },
   { type: 'stateVisit', icon: '🤝', label: 'State visit', cost: '$150M', fx: 'Relations +8 · 6-month cooldown', when: dip, note: (v, n) => cd(v, `visit_${n}`) ? `On cooldown ${cd(v, `visit_${n}`)}mo` : money(v) < 150 ? 'Need $150M' : '' },
   { type: 'foreignAid', icon: '💵', label: 'Foreign aid package', cost: '$600M', fx: 'Relations +15 · your sphere +5 in their region · 12-month cooldown', when: dip, note: (v, n) => cd(v, `aid_${n}`) ? `On cooldown ${cd(v, `aid_${n}`)}mo` : money(v) < 600 ? 'Need $600M' : '' },
   { type: 'tradeAgreement', icon: '📜', label: (v, n) => v.tradeAgreements?.has(n) ? 'Dissolve trade agreement' : 'Trade agreement', cost: 'free', fx: 'Monthly trade income stream · counts toward bloc tiers', when: dip, kind: (v, n) => v.tradeAgreements?.has(n) ? 'warn' : 'command' },
@@ -50,3 +55,7 @@ export const verbsFor = (v, n) => NATION_VERBS.filter((r) => r.when(v, n)).map((
   cur: r.current ? r.current(v, n) : undefined,
   payload: r.payload || ((nation) => ({ nation })),
 }));
+
+const ownedPrograms = (v) => Object.keys(ALLIED_PROGRAMS).filter((p) => ALLIED_PROGRAMS[p].owner === v.country?.id);
+function admitOpts(v, n) { return ownedPrograms(v).filter((p) => !v.arsenal?.access?.[p]?.[n]).flatMap((p) => TIER_ORDER.filter((t) => memberGates(v, p, n, t).every((x) => x.met)).map((t) => [`${p}:${t}`, `${BLACK_PROGRAMS[p].n} · ${TIERS[t].n}`])); }
+function expelOpts(v, n) { return ownedPrograms(v).filter((p) => v.arsenal?.access?.[p]?.[n]).map((p) => [p, BLACK_PROGRAMS[p].n]); }
