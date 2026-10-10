@@ -2,7 +2,7 @@ import { NATIONS, BUYERS, DIP_TARGETS, NATION_BLOC, RD_MODS } from '../data/nati
 import { REGIONS, POSTURE_LABELS } from '../data/regions.js';
 import { DOCTRINES } from '../data/world.js';
 import { PLATFORMS, BLACK_PROGRAMS, DV } from '../data/platforms.js';
-import { PA, ISSUES } from '../data/economy.js';
+import { PA, ISSUES, SOCIAL_PROGRAMS, SECTOR_LABELS } from '../data/economy.js';
 import { INTEL_OPS } from '../data/intel.js';
 import { BLOC_TRADE } from '../data/trade.js';
 import { CONCESSIONS } from '../data/energy.js';
@@ -418,12 +418,12 @@ function adjustDeployment(g,S,fx,selectedRegion,pid,delta){
     if(avail<=0){fx.toast(`⚠ No free ${p.n} — build more or recall from other regions`);return;}S.setForceDeployments(pr=>({...pr,[selectedRegion]:{...(pr[selectedRegion]||{}),[pid]:((pr[selectedRegion]||{})[pid]||0)+1}}));}
   else{const hereN=hereObj[pid]||0;if(hereN<=0)return;S.setForceDeployments(pr=>({...pr,[selectedRegion]:{...(pr[selectedRegion]||{}),[pid]:Math.max(0,((pr[selectedRegion]||{})[pid]||0)-1)}}));}
 }
-function setPosture(g,S,fx,selectedRegion,k,lane){
-  if(lane){S.setForcePosture(p=>{const n2={...p,[selectedRegion]:k};g.forcePosture=n2;return n2;});fx.toast(`🚢 Escort posture — ${REGIONS[selectedRegion]?.n}`);return;}
+function setPosture(g,S,fx,selectedRegion,k,from){
+  if(from==='sitroom'){S.setForcePosture(p=>{const n2={...p,[selectedRegion]:k};g.forcePosture=n2;return n2;});fx.toast(`🚢 Escort posture — ${REGIONS[selectedRegion]?.n}`);return;}
   const l=POSTURE_LABELS[k];S.setForcePosture(p=>{const n2={...p,[selectedRegion]:k};g.forcePosture=n2;return n2;});fx.toast(`${l} posture set — ${REGIONS[selectedRegion]?.n}`);
 }
-function liftBlockade(g,S,fx,selectedRegion,quiet){
-  S.setBlockades(p=>{const n2={...p};delete n2[selectedRegion];g.blockades=n2;return n2;});fx.toast(`⚓ ${REGIONS[selectedRegion]?.n} blockade lifted`);if(quiet)return;S.setLog(p=>[{msg:`⚓ Blockade lifted — ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+function liftBlockade(g,S,fx,selectedRegion,from){
+  S.setBlockades(p=>{const n2={...p};delete n2[selectedRegion];g.blockades=n2;return n2;});fx.toast(`⚓ ${REGIONS[selectedRegion]?.n} blockade lifted`);if(from==='sitroom')return;S.setLog(p=>[{msg:`⚓ Blockade lifted — ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
 }
 function declareBlockade(g,S,fx,selectedRegion){
   const hereObj=g.forceDeployments[selectedRegion]||{};const navalW=navalWeight(hereObj);const topR2=topHostile(g.sphere[selectedRegion]?.competitors,g.country?.id);const blocTrade=g.blocTrade;
@@ -442,6 +442,74 @@ function kineticStrike(g,S,fx,selectedRegion){
   if(sumDep(hereObj)<3||!topR||topR[1]<10)return;
   const kDmg=kineticDamage(isrScore(g.platforms,g.defLevels,g.intelInfra,g.blackPrograms),hereObj);
   if(kcd>0){fx.toast(`⚠ Forces regrouping — ${kcd} months`);return;}if((g.stats?.treasury||0)<400){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-400,stability:p.stability-3}));S.setSphere(p=>{const n2={...p};const sph=n2[selectedRegion];if(sph){n2[selectedRegion]={...sph,player:Math.min(100,(sph.player||0)+6),competitors:{...sph.competitors,[topR[0]]:Math.max(0,(sph.competitors?.[topR[0]]||0)-kDmg)}};}return n2;});g.actionCooldowns={...g.actionCooldowns,[`kin_${selectedRegion}`]:8};S.setActionCooldowns(p=>({...p,[`kin_${selectedRegion}`]:8}));pushTension(g,S,fx,topR[0],15,'kinetic strike');fx.toast(`🎯 Kinetic strike: ${topR[0]} assets degraded in ${REGIONS[selectedRegion]?.n} (−${kDmg} their sphere)`);S.setLog(p=>[{msg:`🎯 Kinetic strike vs ${topR[0]} — ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+}
+
+// Situation Room lanes and the intel dossier. `from` selects the v57 wording of the same act (text only).
+function backChannel(g,S,fx,nation,from){
+  const label=from==='dossier'?cap(nation):nation;
+  const cd=g.actionCooldowns[`bc_${nation}`]||0;if(cd>0){fx.toast(`Back-channel exhausted — ${cd}mo`);return;}if((g.stats?.treasury||0)<250){fx.toast('⚠ Need $250M');return;}S.setStats(p=>({...p,treasury:p.treasury-250}));S.setRivalTension(p=>({...p,[nation]:Math.max(0,(p[nation]||0)-8)}));g.actionCooldowns={...g.actionCooldowns,[`bc_${nation}`]:12};S.setActionCooldowns(p=>({...p,[`bc_${nation}`]:12}));fx.toast(`🕊 Back-channel with ${label} — tension −8`);
+}
+// v57: the embargo lane's Russia back-channel has no cooldown.
+function embargoBackChannel(g,S,fx){if((g.stats?.treasury||0)<250){fx.toast('⚠ Need $250M');return;}S.setStats(p=>({...p,treasury:p.treasury-250}));S.setRivalTension(p=>({...p,russia:Math.max(0,(p.russia||0)-8)}));fx.toast('🕊 Back-channel with Russia — tension −8');}
+function releaseReserve(g,S,fx,from){const spr=g.spr;if(spr<=0){fx.toast(from==='chokepoint'?'⚠ Reserve empty — fill it on the Energy tab':'⚠ Reserve empty');return;}g.sprRelease=true;S.setSprRelease(true);fx.toast('🛢️ Releasing reserve');}
+function establishRegionEmbassy(g,S,fx,rid){const embassies=g.embassies;const d=DIP_TARGETS.find(x=>x.region===rid&&!embassies.has(x.id));if(d)establishEmbassy(g,S,fx,d.id);else fx.toast('No embassy candidate in this region');}
+function stationHunterKiller(g,S,fx,rid){if(!deployUnit(g,S,fx,rid,'ssnx'))deployUnit(g,S,fx,rid,'sub_fleet');}
+// v57: the rival-hegemony lane only adds the sanction (no bloc suspension, no ally cost), unlike the Trade toggle.
+function imposeSanctions(g,S,fx,cid){const sanctions=g.sanctions;if(!sanctions.has(cid)){S.setSanctions(prev=>{const n2=new Set(prev);n2.add(cid);g.sanctions=n2;return n2;});fx.toast(`🚫 Sanctions imposed on ${cid}`);}}
+
+// Economy tab: monetary, fiscal and tax policy, sector budgets, expertise leasing, social programs, modernization.
+function setInterestRate(g,S,fx,rate){S.setInterestRate(rate);}
+function setFiscalStance(g,S,fx,mode){S.setSpendingMode(mode);}
+function setTaxRate(g,S,fx,rate){S.setTaxPolicy(rate);}
+function setSectorBudget(g,S,fx,sector,value){S.setBudgetAlloc(p=>({...p,[sector]:value}));}
+function setExpertiseLease(g,S,fx,v){S.setExpertiseLease(v);g.expertiseLease=v;fx.toast(v===0?'Expertise missions recalled':`Leasing ${v} specialist corps — +$${v*45}M/mo`);}
+function toggleSocialProgram(g,S,fx,spId){const sp=SOCIAL_PROGRAMS[spId];S.setSocialPrograms(prev=>{const ns2=new Set(prev);if(ns2.has(spId)){ns2.delete(spId);fx.toast(`${sp.i} ${sp.n} discontinued`);}else{ns2.add(spId);fx.toast(`${sp.i} ${sp.n} enacted — $${sp.cost}M/mo`);}g.socialPrograms=ns2;return ns2;});}
+function modernizeSector(g,S,fx,sector){const label=SECTOR_LABELS[sector];
+  const mCost=Math.round((g.stats?.treasury||0)*0.3);
+  if((g.stats?.treasury||0)<mCost){fx.toast('⚠ Insufficient treasury');return;}
+  S.setStats(p=>({...p,treasury:p.treasury-mCost}));
+  S.setSectorAge(p=>({...p,[sector]:0}));g.sectorAge={...g.sectorAge,[sector]:0};
+  S.setSectorMaturity(p=>({...p,[sector]:0}));g.sectorMaturity={...g.sectorMaturity,[sector]:0};
+  S.setLog(p=>[{msg:`🔄 ${label} Modernization: −$${mCost.toLocaleString()}M`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+  fx.toast(`🔄 ${label} Modernized — 40-year clock reset`);
+}
+
+// Energy tab: strategic reserve, export shares, energy embargo, Panama deals, concessions and stewardship.
+function fillReserve(g,S,fx){const spr=g.spr;if(spr>=6){fx.toast('Reserve full');return;}if((g.stats?.treasury||0)<200){fx.toast('⚠ $200M per tranche');return;}S.setStats(p=>({...p,treasury:p.treasury-200}));g.spr=spr+1;S.setSpr(spr+1);fx.toast('🛢️ Reserve tranche filled');}
+function toggleReserveRelease(g,S,fx){const spr=g.spr,sprRelease=g.sprRelease;if(spr<=0){fx.toast('⚠ Reserve empty');return;}g.sprRelease=!sprRelease;S.setSprRelease(!sprRelease);fx.toast(sprRelease?'Release halted':'🛢️ Releasing reserve — 1 tranche/mo shields you from lane disruption');}
+function setExportShare(g,S,fx,k,v){S.setExportShare(p=>{const n2={...p,[k]:v};g.exportShare=n2;return n2;});}
+function toggleEmbargo(g,S,fx,tg){
+  const resExtraction=g.resExtraction;const prod=(resExtraction.oil||0)>=2||(resExtraction.gas||0)>=2;const on=g.embargoes.has(tg);const country=g.country;const blocTrade=g.blocTrade;
+  if(!prod){fx.toast('⚠ Extraction too low to embargo');return;}if(on){S.setEmbargoes(prev=>{const n2=new Set(prev);n2.delete(tg);g.embargoes=n2;return n2;});fx.toast(`⛽ Embargo on ${tg} lifted`);}else{S.setEmbargoes(prev=>{const n2=new Set(prev);n2.add(tg);g.embargoes=n2;return n2;});if(['usa','russia','china','germany'].includes(tg))pushTension(g,S,fx,tg,10,'energy embargo');else S.setNationRelations(p=>({...p,[tg]:Math.max(-100,(p[tg]||0)-25)}));if(isAllyOf(country?.id,tg)){S.setStats(p=>({...p,stability:Math.max(0,p.stability-3)}));Object.entries(BLOC_TRADE).forEach(([bk,bm])=>{if(bm.members.includes(tg)&&blocTrade[bk]>0){S.setBlocTrade(p=>{const nb={...p,[bk]:0};g.blocTrade=nb;return nb;});S.setBlocLock(p=>{const nl={...p,[bk]:12};g.blocLock=nl;return nl;});fx.toast(`💥 ${bm.n} suspended — you cut energy to a member`);}});}fx.toast(`⛽ ENERGY EMBARGO on ${NATIONS[tg]?.n||tg} — the taps close`);S.setLog(p=>[{msg:`⛽ Embargo: ${tg}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
+}
+function panamaDeal(g,S,fx,deal){
+  const cd=g.chokeDeals.panama||{};
+  if(deal==='priority'){const homeRid=Object.entries(REGIONS).find(([,r])=>r.homeFor?.includes(g.country?.id))?.[0];const naHome=homeRid==='NA'||homeRid==='SA';const nationRelations=g.nationRelations;const saRel=DIP_TARGETS.filter(d=>d.region==='SA').reduce((s,d)=>s+(nationRelations[d.id]||0),0)/Math.max(1,DIP_TARGETS.filter(d=>d.region==='SA').length);
+    if(cd.priority){fx.toast('Transit priority already in force');return;}if(!(naHome||saRel>=30)){fx.toast('⚠ Needs a hemispheric home or South American relations ≥30');return;}if((g.stats?.treasury||0)<800){fx.toast('⚠ $800M');return;}S.setStats(p=>({...p,treasury:p.treasury-800}));S.setChokeDeals(p=>{const n2={...p,panama:{...(p.panama||{}),priority:true}};g.chokeDeals=n2;return n2;});fx.toast('🇵🇦 Transit Priority Agreement — your hulls jump the queue; drought rationing no longer applies to you');}
+  else if(deal==='locks'){if(cd.locks!==undefined){fx.toast(cd.locks>0?`Lock expansion — ${cd.locks}mo remaining`:'Third lane complete');return;}if((g.stats?.treasury||0)<2000){fx.toast('⚠ $2,000M');return;}S.setStats(p=>({...p,treasury:p.treasury-2000}));S.setChokeDeals(p=>{const n2={...p,panama:{...(p.panama||{}),locks:24}};g.chokeDeals=n2;return n2;});fx.toast('🏗️ Lock expansion financed — 24 months to a third lane. Capacity beats drought, and fees follow.');}
+}
+function signConcession(g,S,fx,ck){
+  const cp=CONCESSIONS[ck];const nat=NATIONS[cp.nation];const rel=Math.round(g.nationRelations[cp.nation]||0);const ok=(g.defLevels.materials||0)>=cp.req.materials&&rel>=cp.req.rel&&g.embassies.has(cp.nation);
+  if(!ok){fx.toast('⚠ Requirements not met — see checklist');return;}if((g.stats?.treasury||0)<cp.cost){fx.toast(`⚠ Need $${cp.cost}M`);return;}S.setStats(p=>({...p,treasury:p.treasury-cp.cost}));S.setConcessions(prev=>{const n2=new Set(prev);n2.add(ck);g.concessions=n2;return n2;});S.setNationRelations(p=>({...p,[cp.nation]:Math.min(100,(p[cp.nation]||0)+10)}));fx.toast(`${cp.i} ${cp.n} signed — your engineers arrive in ${nat?.n}`);S.setLog(p=>[{msg:`${cp.i} Concession: ${cp.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+}
+function rehabilitateFields(g,S,fx,ck){
+  const st=g.stewardship[ck];const tierCost=1000;const canTier=(st.tiers||0)<3&&(g.defLevels.materials||0)>=4+(st.tiers||0);
+  if(!canTier){fx.toast((st.tiers||0)>=3?'Fields fully rehabilitated':`⚠ Tier ${(st.tiers||0)+1} needs Materials L${4+(st.tiers||0)}`);return;}if((g.stats?.treasury||0)<tierCost){fx.toast('⚠ $1,000M per rehabilitation tier');return;}S.setStats(p=>({...p,treasury:p.treasury-tierCost}));S.setStewardship(p=>{const n2={...p,[ck]:{...p[ck],tiers:(p[ck]?.tiers||0)+1}};g.stewardship=n2;return n2;});fx.toast(`🏗️ Field rehabilitation tier ${(st.tiers||0)+1} — output +25%`);
+}
+function handOverStewardship(g,S,fx,ck){
+  const cp=CONCESSIONS[ck];const nat=NATIONS[cp.nation];
+  S.setStewardship(p=>{const n2={...p};delete n2[ck];g.stewardship=n2;return n2;});S.setConcessions(prev=>{const n2=new Set(prev);n2.add(ck);g.concessions=n2;return n2;});S.setNationRelations(p=>{const n2={...p};DIP_TARGETS.forEach(t=>{if(t.region===cp.region)n2[t.id]=Math.min(100,(n2[t.id]||0)+20);});return n2;});S.setRivalTension(p=>({...p,china:Math.max(0,(p.china||0)-6),russia:Math.max(0,(p.russia||0)-6)}));fx.toast(`🤝 Handed the ministry back — ${nat?.n} keeps you as concession partner; the region exhales`);
+}
+
+// Resources tab: extraction rates, Greater Green River Basin survey and Phase II, renewables.
+function setExtraction(g,S,fx,k,v){S.setResExtraction(p=>({...p,[k]:v}));}
+function ggrbPhase2(g,S,fx){
+  const ready=(g.defLevels.propulsion||0)>=6&&(g.defLevels.materials||0)>=5;
+  if(!ready){fx.toast('⚠ Requires Propulsion L6 + Materials L5');return;}if((g.stats?.treasury||0)<2500){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-2500}));S.setGrrbState(p=>({...p,phase2:true}));g.grrbState={...g.grrbState,phase2:true};S.setResources(p=>({...p,shaleOil:{...p.shaleOil,r:(p.shaleOil?.r||0)+2000}}));fx.toast('☢ In-Situ Nuclear Retorting online — deep tranche unlocked, output ×2.5');S.setLog(p=>[{msg:'☢ GGRB Phase II: nuclear retorting operational — +2,000 units',yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+}
+function ggrbSurvey(g,S,fx){if((g.stats?.treasury||0)<800){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-800}));S.setGrrbState({surveying:true,surveyMo:6,unlocked:false});g.grrbState={surveying:true,surveyMo:6,unlocked:false};fx.toast('🏔️ GGRB Geological Survey started — 6 months');}
+function buildRenewable(g,S,fx,k){const lvl=g.resources?.renewable?.[k]||0;
+  if(!g.stats||g.stats.treasury<400){fx.toast('⚠ Insufficient');return;}if(lvl>=5){fx.toast('Max level');return;}S.setStats(p=>({...p,treasury:p.treasury-400}));S.setResources(p=>({...p,renewable:{...p.renewable,[k]:(p.renewable?.[k]||0)+1}}));S.setActiveEffects(p=>[...p,{id:`ren_${k}_${fx.now()}`,source:`renewable_${k}`,stat:'inflation',d:-0.04,monthsLeft:999,totalMonths:999}]);
 }
 
 // type -> (g, S, fx, payload). Return values are UI hints only (true = the verb went through).
@@ -480,10 +548,39 @@ export const VERBS={
   // map region panel
   flashpointResponse:(g,S,fx,{region,response})=>flashpointResponse(g,S,fx,region,response),
   adjustDeployment:(g,S,fx,{region,unit,delta})=>adjustDeployment(g,S,fx,region,unit,delta),
-  setPosture:(g,S,fx,{region,posture,lane})=>setPosture(g,S,fx,region,posture,lane),
-  liftBlockade:(g,S,fx,{region,quiet})=>liftBlockade(g,S,fx,region,quiet),
+  setPosture:(g,S,fx,{region,posture,from})=>setPosture(g,S,fx,region,posture,from),
+  liftBlockade:(g,S,fx,{region,from})=>liftBlockade(g,S,fx,region,from),
   declareBlockade:(g,S,fx,{region})=>declareBlockade(g,S,fx,region),
   kineticStrike:(g,S,fx,{region})=>kineticStrike(g,S,fx,region),
+  // situation room lanes
+  backChannel:(g,S,fx,{nation,from})=>backChannel(g,S,fx,nation,from),
+  embargoBackChannel:(g,S,fx)=>embargoBackChannel(g,S,fx),
+  releaseReserve:(g,S,fx,{from})=>releaseReserve(g,S,fx,from),
+  establishRegionEmbassy:(g,S,fx,{region})=>establishRegionEmbassy(g,S,fx,region),
+  stationHunterKiller:(g,S,fx,{region})=>stationHunterKiller(g,S,fx,region),
+  imposeSanctions:(g,S,fx,{nation})=>imposeSanctions(g,S,fx,nation),
+  // economy
+  setInterestRate:(g,S,fx,{rate})=>setInterestRate(g,S,fx,rate),
+  setFiscalStance:(g,S,fx,{mode})=>setFiscalStance(g,S,fx,mode),
+  setTaxRate:(g,S,fx,{rate})=>setTaxRate(g,S,fx,rate),
+  setSectorBudget:(g,S,fx,{sector,value})=>setSectorBudget(g,S,fx,sector,value),
+  setExpertiseLease:(g,S,fx,{level})=>setExpertiseLease(g,S,fx,level),
+  toggleSocialProgram:(g,S,fx,{program})=>toggleSocialProgram(g,S,fx,program),
+  modernizeSector:(g,S,fx,{sector})=>modernizeSector(g,S,fx,sector),
+  // energy
+  fillReserve:(g,S,fx)=>fillReserve(g,S,fx),
+  toggleReserveRelease:(g,S,fx)=>toggleReserveRelease(g,S,fx),
+  setExportShare:(g,S,fx,{resource,share})=>setExportShare(g,S,fx,resource,share),
+  toggleEmbargo:(g,S,fx,{nation})=>toggleEmbargo(g,S,fx,nation),
+  panamaDeal:(g,S,fx,{deal})=>panamaDeal(g,S,fx,deal),
+  signConcession:(g,S,fx,{concession})=>signConcession(g,S,fx,concession),
+  rehabilitateFields:(g,S,fx,{concession})=>rehabilitateFields(g,S,fx,concession),
+  handOverStewardship:(g,S,fx,{concession})=>handOverStewardship(g,S,fx,concession),
+  // resources
+  setExtraction:(g,S,fx,{resource,level})=>setExtraction(g,S,fx,resource,level),
+  ggrbPhase2:(g,S,fx)=>ggrbPhase2(g,S,fx),
+  ggrbSurvey:(g,S,fx)=>ggrbSurvey(g,S,fx),
+  buildRenewable:(g,S,fx,{kind})=>buildRenewable(g,S,fx,kind),
 };
 
 export function applyVerb(g,S,fx,action){
