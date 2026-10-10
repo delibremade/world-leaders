@@ -35,10 +35,14 @@ import { openEventCards, eventOptions, programView, accessView, compliance } fro
 import { TIERS, ACCESS_RULES } from '../data/alliance.js';
 import { EventCards } from './shell/EventCards.jsx';
 import { SHELL_CSS } from './shell/styles.js';
-const TABS=['overview','sitroom','economy','energy','resources','defense','intel','technology','trade'];
+import { Seg } from './shell/Seg.jsx';
+import { ForcesTab } from './forces/ForcesTab.jsx';
+// Nav verticals (8). Situation and Resources are panes folded under Overview and Economy behind a segmented control; activeTab keeps their ids.
+const TABS=['overview','economy','energy','defense','forces','intel','technology','trade'];
+const PARENT={sitroom:'overview',resources:'economy'};
 const HELP_TIPS=[['🔍','Investigate issues ($300M, 2 months) for intelligence briefs'],['📋','Deploy briefs — effects apply over time, tracked live'],['🌍','Click map regions to deploy influence actions'],['⚔️','Defense advantage multiplies trade deal outcomes'],['💡','Click any Vital stat to see drivers and interventions'],['🕵️','Defense tab → Intelligence to run covert operations']];
-const TAB_SHORT={overview:'Overview',sitroom:'Sit Room',economy:'Economy',energy:'Energy',resources:'Resources',defense:'Defense',intel:'Intel',technology:'Tech',trade:'Trade'};
-const TABM={overview:{i:'🌍',l:'Overview'},economy:{i:'💰',l:'Economy'},energy:{i:'⚡',l:'Energy'},resources:{i:'⛏️',l:'Resources'},sitroom:{i:'🎖️',l:'Situation Room'},defense:{i:'🛡️',l:'Defense'},intel:{i:'🕵️',l:'Intel'},technology:{i:'💻',l:'Technology'},trade:{i:'🤝',l:'Trade'}};
+const TAB_SHORT={overview:'Overview',economy:'Economy',energy:'Energy',defense:'Defense',forces:'Forces',intel:'Intel',technology:'Tech',trade:'Trade'};
+const TABM={overview:{i:'🌍',l:'Overview'},economy:{i:'💰',l:'Economy'},energy:{i:'⚡',l:'Energy'},resources:{i:'⛏️',l:'Resources'},sitroom:{i:'🎖️',l:'Situation Room'},defense:{i:'🛡️',l:'Defense'},intel:{i:'🕵️',l:'Intel'},technology:{i:'💻',l:'Technology'},trade:{i:'🤝',l:'Trade'},forces:{i:'🪖',l:'Forces'}};
 function genModelData(sk,cv,opt,drift){return Array.from({length:21},(_,m)=>{const np=cv+drift*m;const pct=Math.min(m/Math.max(opt.tm,1),1);const eff=(opt.fx||[]).find(e=>e.s===sk)?.d||0;const wp=cv+drift*Math.min(m,opt.tm*.5)+eff*pct*(opt.conf/100);return{m,'No Policy':+np.toFixed(2),'With Policy':+wp.toFixed(2)};});}
 
 function WorldLeadersInner({resumeSignal}){
@@ -52,6 +56,7 @@ function WorldLeadersInner({resumeSignal}){
   const [activeEffects,setActiveEffects]=useState([]);
   const [resources,setResources]=useState(null);
   const [resExtraction,setResExtraction]=useState({});
+  const [forcesSub,setForcesSub]=useState('manpower');
   const [defLevels,setDefLevels]=useState({});
   const [defResearch,setDefResearch]=useState({});
   const [spillApplied,setSpillApplied]=useState(new Set());
@@ -484,6 +489,11 @@ function WorldLeadersInner({resumeSignal}){
       <div style={{height:'3px',background:'#1f2937',borderRadius:'2px'}}><div style={{height:'100%',width:`${fill}%`,background:col,borderRadius:'2px',transition:'width .5s'}}/></div>
     </div>;
   };
+  // Situation Room badge (threat count) lives on the Situation segment and rolls up onto the Overview nav icon.
+  const sitBadge=()=>{const live=(flashpoint?1:0)+Object.values(rivalHolds||{}).filter(m=>m>0).length+Object.keys(blockades).length+Object.values(chokeStatus).filter(st=>st==='disrupted').length+Object.entries(rivalTension).filter(([cid,t])=>t>=70&&cid!==country?.id&&!isAllyOf(country?.id,cid)).length;return live+(ultimatum?1:0)+(confrontation?1:0);};
+  const goPane=(t)=>{setActiveTab(t);setVitalsDrill(null);};
+  const segOverview=<Seg id="overview" label="Overview views" active={activeTab} onSelect={goPane} items={[{id:'overview',label:'Map'},{id:'sitroom',label:'Situation',badge:sitBadge(),sev:'alert'}]}/>;
+  const segEconomy=<Seg id="economy" label="Economy views" active={activeTab} onSelect={goPane} items={[{id:'economy',label:'Ledger'},{id:'resources',label:'Resources'}]}/>;
   // Plain render helper (not a component: an inner component would remount every render)
   const panelBox=(id,title,accent,content)=>{const open=!collapsed.has(id);
     const toggle=()=>setCollapsed(p=>{const n2=new Set(p);if(n2.has(id))n2.delete(id);else n2.add(id);return n2;});
@@ -760,7 +770,7 @@ function WorldLeadersInner({resumeSignal}){
         </div>
 
         {/* OVERVIEW / MAP TAB */}
-        {activeTab==='overview'&&<div className="wl-overview" style={{flex:1,display:'flex',overflow:'hidden'}}>
+        {activeTab==='overview'&&<div className="wl-pane-wrap" data-sentinel="overview">{segOverview}<div className="wl-overview" style={{flex:1,display:'flex',overflow:'hidden'}}>
           <div style={{flex:1,overflowY:'auto',padding:'12px',display:'flex',flexDirection:'column',gap:'12px'}}>
             {/* Vitals drill-down */}
             {vitalsDrill&&<VitalsDrillPanel/>}
@@ -871,10 +881,10 @@ function WorldLeadersInner({resumeSignal}){
               </div>;
             })()}
           </div>
-        </div>}
+        </div></div>}
 
         {/* ECONOMY TAB */}
-        {activeTab==='sitroom'&&<div style={{flex:1,overflowY:'auto',padding:'12px',display:'flex',flexDirection:'column',gap:'10px'}}>
+        {activeTab==='sitroom'&&<div className="wl-pane-wrap" data-sentinel="sitroom">{segOverview}<div style={{flex:1,overflowY:'auto',padding:'12px',display:'flex',flexDirection:'column',gap:'10px'}}>
             {panelBox('paths','🏁 Paths to Victory · each held 24 months','#1e3a5f',(()=>{const totRDv=Object.values(defLevels).reduce((a,b)=>a+(b||0),0);const ledNet=Object.values(ledger).reduce((a,b)=>a+b,0);const sv=Object.values(sphere).map(s=>s?.player||0);const avgS=sv.length?sv.reduce((a,b)=>a+b,0)/sv.length:0;const hegemonyScore=((Math.min(100,(Math.max(0,stats?.treasury||0)/20000)*50+Math.max(0,stats?.gdpGrowth||0)*6))+(stats?.military||0)+avgS+Math.min(100,(stats?.education||0)*0.4+(totRDv/70)*100*0.6))/4;
                 const rows=[
                   ['👑 Hegemony',`Composite ≥85 (now ${Math.round(hegemonyScore||0)})`,hegHold,'#a78bfa'],
@@ -973,8 +983,8 @@ function WorldLeadersInner({resumeSignal}){
             {panelBox('nukes','☢ Nuclear Register · who fired, at whom, when','#831843',(()=>{if(!nukeLog.length)return <div style={{fontSize:'10px',color:'#6b7280'}}>No nuclear-tier events. The register records demonstrations, employments, ultimatums, and exchanges — yours and theirs.</div>;
               const L={demonstration:'☢ Demonstration strike',employment:'☢️ Tactical employment',ultimatum:'⚠ Nuclear ultimatum',exchange:'💀 Exchange'};
               return <div style={{display:'grid',gap:'3px'}}>{nukeLog.map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:'10px',padding:'4px 6px',background:'#111827',borderRadius:'4px',borderLeft:`3px solid ${e.actor===country?.id?'#f0c040':'#ef4444'}`}}><span style={{color:'#e5e7eb'}}><b style={{color:e.actor===country?.id?'#f0c040':'#ef4444'}}>{(NATIONS[e.actor]?.n||e.actor)}</b> → {NATIONS[e.target]?.n||e.target}{e.region?` · ${REGIONS[e.region]?.n}`:''} — {L[e.type]||e.type}</span><span style={{color:'#6b7280'}}>{MONTHS[e.mo]} {e.yr}</span></div>)}</div>;})())}
-        </div>}
-        {activeTab==='economy'&&<div style={{flex:1,display:'flex',overflow:'hidden'}}>
+        </div></div>}
+        {activeTab==='economy'&&<div className="wl-pane-wrap" data-sentinel="economy">{segEconomy}<div style={{flex:1,display:'flex',overflow:'hidden'}}>
           <div style={{width:'230px',background:'#0a0e14',borderRight:'1px solid #1f2937',overflowY:'auto',padding:'13px',flexShrink:0}}>
             <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'12px'}}>Monetary Policy</div>
             <div style={{marginBottom:'16px'}}>
@@ -1120,7 +1130,7 @@ function WorldLeadersInner({resumeSignal}){
             <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'10px'}}>Fiscal & Debt Actions</div>
             <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'9px'}}>{PA.filter(a=>a.t==='economy').map(a=><ActionCard key={a.id} action={a}/>)}</div>
           </div>
-        </div>}
+        </div></div>}
 
         {/* ENERGY TAB */}
         {activeTab==='energy'&&<div style={{flex:1,overflowY:'auto',padding:'12px'}}>{vitalsDrill&&<VitalsDrillPanel/>}
@@ -1198,7 +1208,7 @@ function WorldLeadersInner({resumeSignal}){
           <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'10px'}}>Energy Policy Actions</div><div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'9px'}}>{PA.filter(a=>a.t==='energy').map(a=><ActionCard key={a.id} action={a}/>)}</div></div>}
 
         {/* RESOURCES TAB */}
-        {activeTab==='resources'&&<div style={{flex:1,overflowY:'auto',padding:'12px'}}>
+        {activeTab==='resources'&&<div className="wl-pane-wrap" data-sentinel="resources">{segEconomy}<div style={{flex:1,overflowY:'auto',padding:'12px'}}>
           <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'12px'}}>Natural Resource Management</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(1,1fr)',gap:'10px',maxWidth:'650px'}}>
             {resources&&Object.entries(RES_META).map(([k,meta])=>{
@@ -1295,7 +1305,7 @@ function WorldLeadersInner({resumeSignal}){
                   </div>}
                 </div>;})}</div>
             </div>;})()}
-        </div>}
+        </div></div>}
 
         {/* DEFENSE TAB */}
         {activeTab==='defense'&&<div className="wl-def" style={{flex:1,display:'flex',overflow:'hidden'}}>
@@ -1373,48 +1383,6 @@ function WorldLeadersInner({resumeSignal}){
                   <button onClick={()=>dispatch({type:'recapitalizeForces'})} style={{background:'rgba(74,222,128,.1)',border:'1px solid #4ade80',color:'#4ade80',padding:'8px 14px',borderRadius:'6px',fontSize:'11px',fontWeight:700,flexShrink:0}}>🔄 Recapitalize Forces — ${cost.toLocaleString()}M</button>
                 </div>
               </div>);})()}
-            {panelBox('oob','🗺️ Order of Battle · every theater asset, where it is, what it is doing','#1e3a5f',(()=>{
-              const T=DEPLOYABLE;const rows=T.map(pid=>{const meta=PLATFORMS[pid]||BLACK_PROGRAMS[pid];const own=BLACK_PROGRAMS[pid]?(+blackPrograms[pid]||0):((platforms[pid]||0)+(platformsImported[pid]||0));if(!own)return null;const where=Object.entries(forceDeployments).filter(([,o])=>(o?.[pid]||0)>0).map(([rid,o])=>[rid,o[pid]]);const st=where.reduce((a,[,n])=>a+n,0);return {pid,meta,own,where,st,res:own-st};}).filter(Boolean);
-              if(!rows.length)return <div style={{fontSize:'10px',color:'#6b7280'}}>No theater assets yet — build carriers, wings, hulls or field a SAP below.</div>;
-              return <div style={{display:'grid',gap:'6px'}}>{rows.map(r=><div key={r.pid} style={{padding:'7px',background:'#111827',border:'1px solid #1f2937',borderRadius:'6px'}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'3px'}}><span style={{fontSize:'11px',fontWeight:700,color:'#e5e7eb'}}>{r.meta.i} {r.meta.n}</span><span style={{fontSize:'10px',color:'#9ca3af'}}>{r.st}/{r.own} stationed · <b style={{color:r.res>0?'#4ade80':'#6b7280'}}>{r.res} in reserve</b></span></div>
-                <div style={{display:'flex',flexWrap:'wrap',gap:'4px',alignItems:'center'}}>
-                  {r.where.map(([rid,n])=><span key={rid} style={{fontSize:'9px',padding:'2px 6px',background:'#0d1117',border:'1px solid #374151',borderRadius:'4px',color:'#d1d5db'}}>{REGIONS[rid]?.n} ×{n} <span style={{color:'#60a5fa'}}>{({deter:'🛡️',escort:'🚢',isr:'👁️',exercise:'🤝',humanitarian:'🆘'})[forcePosture[rid]||'deter']}</span> <button onClick={()=>dispatch({type:'recallUnit',payload:{region:rid,unit:r.pid}})} style={{marginLeft:'3px',background:'transparent',border:'none',color:'#ef4444',fontSize:'10px',cursor:'pointer'}}>recall</button></span>)}
-                  {r.res>0&&<span style={{display:'inline-flex',gap:'3px',alignItems:'center'}}><select id={`oob_${r.pid}`} defaultValue="" style={{background:'#0d1117',color:'#d1d5db',border:'1px solid #374151',borderRadius:'4px',fontSize:'9px',padding:'2px'}}><option value="" disabled>station in…</option>{Object.entries(REGIONS).map(([rid,rg])=><option key={rid} value={rid}>{rg.n}</option>)}</select><button onClick={()=>{const sel=document.getElementById(`oob_${r.pid}`);const rid=sel?.value;if(!rid){showToast('Pick a region');return;}dispatch({type:'deployUnit',payload:{region:rid,unit:r.pid}});}} style={{background:'#1d4ed8',border:'none',color:'white',padding:'2px 8px',borderRadius:'4px',fontSize:'9px',fontWeight:700}}>+ Station</button></span>}
-                </div></div>)}</div>;})())}
-
-            {/* E8 (#20): troops, training, force quality, SOF. Minimal UI; E5 (Part 8 Forces vertical) redesigns it. Every number from forceView (same rules as the month). */}
-            {panelBox('forces','🪖 Forces · manpower, quality, training, crews, SOF','#14532d',(()=>{const fv=forceView({forces,country,stats,personnelPay,platforms,platformsImported,blackPrograms,forceDeployments,forcePosture});
-              const card={background:'#111827',border:'1px solid #1f2937',borderRadius:'6px',padding:'8px',minWidth:0};const lab={fontSize:'9px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'4px'};const row={display:'flex',justifyContent:'space-between',gap:'6px',fontSize:'10px',color:'#d1d5db',flexWrap:'wrap'};
-              const tb=(on)=>({flex:'1 1 70px',minHeight:'40px',background:on?'#14532d':'rgba(0,0,0,.35)',border:`1px solid ${on?'#4ade80':'#374151'}`,color:on?'#bbf7d0':'#9ca3af',borderRadius:'5px',fontSize:'10px',fontWeight:700,padding:'4px'});
-              const qc=fv.quality>=65?'#4ade80':fv.quality>=45?'#f0c040':'#ef4444';const busy=fv.sof.pipes.length>=fv.sofRules.maxPipes;
-              return <div data-forces style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,260px),1fr))',gap:'8px'}}>
-                <div style={card} data-forces-manpower><div style={lab}>Manpower</div>
-                  <div style={row}><span>Active <b>{fv.active.toFixed(1)}</b> · Reserve <b>{fv.reserve.toFixed(1)}</b></span><span>/100</span></div>
-                  <div style={row}><span>Recruits +{fv.recruits.toFixed(2)}/mo</span><span style={{color:'#f87171'}}>Attrition −{fv.attrition.toFixed(2)}/mo</span></div>
-                  <div style={row}><span>Retention <b style={{color:fv.retention<35?'#ef4444':'#d1d5db'}}>{Math.round(fv.retention)}%</b> → {Math.round(fv.retTarget)}%</span><span>Pay {fv.pay}% (slider under Force Structure)</span></div>
-                  <div style={{fontSize:'9px',color:'#6b7280',marginTop:'3px'}}>Retention: pay vs civilian wages (growth), stability, jobs. Payroll ${Math.round(fv.payroll)}M/mo.</div></div>
-                <div style={card} data-forces-quality><div style={lab}>Force quality</div>
-                  <div style={row}><span>Index <b style={{color:qc}}>{Math.round(fv.quality)}</b> → {Math.round(fv.qTarget)}</span><span>×{fv.qMult.toFixed(2)} capability</span></div>
-                  {fv.drivers.map(d=><div key={d.k} style={{...row,color:'#9ca3af'}}><span>{d.label} {Math.round(d.v)}</span><span>×{d.w} = {(d.v*d.w).toFixed(1)}</span></div>)}
-                  <div style={{fontSize:'9px',color:'#6b7280',marginTop:'3px'}}>Cohorts take years: the index closes 1/36 of the gap per month. Raise the vitals on the Economy tab.</div></div>
-                <div style={card} data-forces-training><div style={lab}>Training · ${fv.training}M/mo</div>
-                  <div style={{display:'flex',gap:'4px',flexWrap:'wrap',marginBottom:'6px'}}>{fv.levels.map((l,i)=><button key={l.id} onClick={()=>dispatch({type:'setTraining',payload:{level:i}})} style={tb(fv.train===i)}>{l.n}<div style={{fontSize:'8px',fontWeight:400}}>${l.cost}M · →{l.target}</div></button>)}</div>
-                  {fv.branches.map(b=><div key={b.id} style={{...row,marginBottom:'2px'}}><span>{b.n} <b>{Math.round(b.readiness)}</b> → {b.target}{b.exercise?' 🤝':''}</span><span style={{color:b.decayMo!=null?'#f87171':'#6b7280'}}>{b.decayMo!=null?(b.decayMo>0?`below 50 in ${b.decayMo}mo`:'below 50'):`×${b.mult.toFixed(2)}`}</span></div>)}
-                  <div style={{fontSize:'9px',color:'#6b7280',marginTop:'3px'}}>Readiness decays 1/mo above its funded level. Joint Exercises posture (map region) +10 for the exercising branch.</div></div>
-                <div style={card} data-forces-crews><div style={lab}>Crews vs units</div>
-                  {fv.branches.map(b=><div key={b.id} style={{...row,marginBottom:'2px'}}><span>{b.n} {b.crews} crews / {b.need} needed · {b.deployed} stationed</span><span style={{color:b.gap>0?'#ef4444':'#4ade80'}}>{b.gap>0?`gap ${b.gap}`:'covered'}{b.pipe?` · ${b.pipe} training`:''}</span></div>)}
-                  <div style={{fontSize:'9px',color:'#6b7280',marginTop:'3px'}}>Units without free crews cannot be stationed. Pipelines: land 6mo, air 12mo, sea 15mo; pool = active × branch share.</div></div>
-                <div style={card} data-forces-sof><div style={lab}>Special operations</div>
-                  <div style={row}><span>Tier 2 · {fv.units.t2}</span><b>{fv.sof.t2}</b></div>
-                  <div style={row}><span>Tier 1 · {fv.units.t1}</span><b>{fv.sof.t1}</b></div>
-                  {fv.sof.pipes.map((p,i)=><div key={i} style={{...row,color:'#93c5fd'}}><span>{p.t===2?'Tier 2 pipeline':'Tier 1 selection'}</span><span>{p.mo}mo</span></div>)}
-                  <div style={{display:'flex',gap:'4px',flexWrap:'wrap',marginTop:'5px'}}>
-                    <button onClick={()=>dispatch({type:'trainSof',payload:{}})} style={tb(false)} disabled={busy}>Train Tier 2<div style={{fontSize:'8px',fontWeight:400}}>{fv.sofRules.t2Mo}mo · ${fv.sofRules.t2Cost}M/mo</div></button>
-                    <button onClick={()=>dispatch({type:'selectTier1',payload:{}})} style={tb(false)} disabled={busy||fv.sof.t2<1}>Tier 1 selection<div style={{fontSize:'8px',fontWeight:400}}>{fv.selectionMo}mo · ${fv.sofRules.t1Cost}M/mo · −1 T2</div></button>
-                  </div>
-                  <div style={{fontSize:'9px',color:'#6b7280',marginTop:'3px'}}>Tier 1 strength {fv.tier1.toFixed(1)} adds +{Math.round(fv.tier1*fv.sofRules.t1Points)} overmatch to Tier-1 ops (Intel tab). Names: {fv.units.status_source}.</div></div>
-              </div>;})())}
             {Object.keys(blackPrograms).length>0&&(
               <div style={{padding:'8px 11px',background:'rgba(167,139,250,.06)',border:'1px solid #4c1d95',borderRadius:'8px',display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
                 <span style={{fontSize:'10px',color:'#a78bfa',fontWeight:700,letterSpacing:'1px'}}>◆ OPERATIONAL</span>
@@ -1515,14 +1483,6 @@ function WorldLeadersInner({resumeSignal}){
               </div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'8px'}}>
                 <div style={{background:'#0d1117',border:'1px solid #1f2937',borderRadius:'7px',padding:'10px'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:'5px'}}><span style={{fontSize:'11px',color:'#9ca3af'}}>Personnel Pay</span><span style={{fontSize:'12px',fontWeight:700,color:personnelPay<90?'#ef4444':personnelPay>=120?'#4ade80':'#f0c040'}}>{personnelPay}%</span></div>
-                  <input type="range" min="0" max="150" step="5" value={personnelPay} onChange={e=>dispatch({type:'setPersonnelPay',payload:{pay:+e.target.value}})} style={{width:'100%',accentColor:personnelPay<90?'#ef4444':personnelPay>=120?'#4ade80':'#3b82f6'}}/>
-                  <div style={{fontSize:'10px',color:'#6b7280',marginTop:'3px'}}>
-                    {personnelPay<90?'⚠ Readiness −15%, morale drain (−0.03 stability/mo)':personnelPay>=120?'✓ Readiness +10%, veteran loyalty (+0.02 stability/mo)':'Standard readiness'}
-                  </div>
-                  <div data-pay-effect style={{fontSize:'10px',color:'#f87171',marginTop:'2px'}}>{(()=>{const fv=forceView({forces,country,stats,personnelPay});const u=Object.values(platforms).reduce((a,b)=>a+(b||0),0)+Object.values(platformsImported).reduce((a,b)=>a+(b||0),0);return <>Payroll: ${Math.round(u*3*(personnelPay/100)+fv.payroll)}M/mo ({u} units + manpower) · <span style={{color:fv.retTarget<fv.retention-1?'#ef4444':'#9ca3af'}}>retention → {Math.round(fv.retTarget)}%</span></>;})()}</div>
-                </div>
-                <div style={{background:'#0d1117',border:'1px solid #1f2937',borderRadius:'7px',padding:'10px'}}>
                   <div style={{fontSize:'11px',color:'#9ca3af',marginBottom:'6px'}}>Acquisition Policy</div>
                   {[['efficiency','💲 Efficiency','Build −15%, maint −15%, effectiveness −5%'],['balanced','⚖️ Balanced','Standard terms'],['surge','🚀 Surge','Build +25%, maint +20%, effectiveness +8%']].map(([m,l,d])=>(
                     <button key={m} onClick={()=>dispatch({type:'setProcurement',payload:{mode:m}})} style={{display:'block',width:'100%',marginBottom:'4px',background:procureMode===m?'#1d4ed8':'transparent',border:`1px solid ${procureMode===m?'#3b82f6':'#374151'}`,color:procureMode===m?'white':'#9ca3af',padding:'5px 8px',borderRadius:'4px',fontSize:'10px',textAlign:'left',fontWeight:procureMode===m?700:400}}>{l} — {d}</button>
@@ -1564,6 +1524,10 @@ function WorldLeadersInner({resumeSignal}){
             </div>}
           </div>
         </div>}
+
+        {/* FORCES TAB (E5a): people and readiness. Sub-tabs and cards live in src/ui/forces. */}
+        {activeTab==='forces'&&<ForcesTab sub={forcesSub} onSub={setForcesSub} dispatch={dispatch} toast={showToast} onJump={goPane}
+          view={{forces,country,stats,personnelPay,platforms,platformsImported,blackPrograms,forceDeployments,forcePosture,defLevels,intelInfra}}/>}
 
         {/* TECHNOLOGY TAB */}
         {activeTab==='technology'&&<div style={{flex:1,overflowY:'auto',padding:'12px'}}>
@@ -1956,9 +1920,10 @@ function WorldLeadersInner({resumeSignal}){
         </div>}
 
       </div>
-      <BottomNav active={activeTab} onSelect={t=>{setActiveTab(t);setVitalsDrill(null);}} tabs={TABS.map(id=>{const live=(flashpoint?1:0)+Object.values(rivalHolds||{}).filter(m=>m>0).length+Object.keys(blockades).length+Object.values(chokeStatus).filter(st=>st==='disrupted').length+Object.entries(rivalTension).filter(([cid,t])=>t>=70&&cid!==country?.id&&!isAllyOf(country?.id,cid)).length;
-        const badge={overview:(activeDecision?1:0)+(doctrine?0:1),sitroom:live+(ultimatum?1:0)+(confrontation?1:0),economy:issues.filter(i=>i.status==='unexamined'||i.status==='ready').length,energy:Object.values(chokeStatus).filter(st=>st==='disrupted').length,intel:intelCrisis?1:0,trade:Object.keys(blocLock||{}).length}[id]||0;
-        return {id,icon:TABM[id].i,label:TABM[id].l,short:TAB_SHORT[id],badge,sev:(id==='sitroom'||id==='intel')&&badge?'alert':'warn'};})}/>
+      <BottomNav active={PARENT[activeTab]||activeTab} onSelect={t=>{setActiveTab(t);setVitalsDrill(null);}} tabs={TABS.map(id=>{
+        const sb=sitBadge();
+        const badge={overview:(activeDecision?1:0)+(doctrine?0:1)+sb,economy:issues.filter(i=>i.status==='unexamined'||i.status==='ready').length,energy:Object.values(chokeStatus).filter(st=>st==='disrupted').length,intel:intelCrisis?1:0,trade:Object.keys(blocLock||{}).length}[id]||0;
+        return {id,icon:TABM[id].i,label:TABM[id].l,short:TAB_SHORT[id],badge,sev:((id==='overview'&&sb)||id==='intel')&&badge?'alert':'warn'};})}/>
       <Outliner open={outlinerOpen} onOpenChange={setOutlinerOpen} onJump={({tab,region,nation,issue})=>{setActiveTab(tab);if(issue)setIntelIssue(issue);setVitalsDrill(null);if(region){setSelNation(null);setSelectedRegion(region);}if(nation)setSelNation(nation);setOutlinerOpen(false);}}
         rows={buildOutliner({issues,evState,arsenal,flashpoint,worldEvent,ultimatum,confrontation,blockades,intelOps,continuousOps,investigations,platformDev,blackResearch,deployments,defResearch,defLevels,gracePeriod,pariah,hegHold,embargoedBy,expelled:expelR.current,embassyLocks:embLockR.current,blocLock,concessions,sprRelease,actionCooldowns})}/>
       <Sheet open={!!selectedRegion||!!selNation} onClose={()=>{setSelectedRegion(null);setSelNation(null);}} back={!!selNation&&!!selectedRegion} onBack={()=>setSelNation(null)}

@@ -4,7 +4,13 @@ import { build } from 'esbuild';
 import { JSDOM } from 'jsdom';
 import { mulberry32 } from '../../src/sim/rng.js';
 
-export const TABS = ['overview', 'sitroom', 'economy', 'energy', 'resources', 'defense', 'intel', 'technology', 'trade'];
+// The v57 bundle's nine tabs; the App's nav has eight verticals (Situation folds under Overview, Resources under Economy).
+export const LEGACY_TABS = ['overview', 'sitroom', 'economy', 'energy', 'resources', 'defense', 'intel', 'technology', 'trade'];
+export const TABS = ['overview', 'economy', 'energy', 'defense', 'forces', 'intel', 'technology', 'trade'];
+export const FOLDED = { sitroom: 'overview', resources: 'economy' };
+// Every pane the App can show; a pane with a data-sentinel root proves its own content rendered (not just chrome).
+export const PANES = ['overview', 'sitroom', 'economy', 'resources', 'energy', 'defense', 'forces', 'intel', 'technology', 'trade'];
+export const SENTINEL_PANES = ['overview', 'sitroom', 'economy', 'resources', 'forces'];
 // Settle React: render, commit and passive effects (ref sync) each land in their own macrotask; drain 4 rounds.
 export const flush = async () => { for (let i = 0; i < 4; i++) await new Promise((r) => setTimeout(r, 0)); };
 
@@ -54,7 +60,10 @@ export async function mount(entry, { seed = null, testHook = false, preload = nu
     text: () => doc.body.textContent,
     faulted: () => /Simulation fault contained/.test(doc.body.textContent),
     pickCountry: async (i = 0) => { doc.querySelectorAll('.cc')[i].click(); await flush(); await flush(); },
-    tabBtn: (t) => doc.querySelector(`[data-tab=${t}]`) || [...doc.querySelectorAll('button')].find((b) => b.style.borderBottom && b.textContent.toLowerCase().includes(t === 'sitroom' ? 'situation' : t)),
+    // Folded panes (sitroom, resources) have no nav button: .click() taps the parent vertical, then its segment.
+    tabBtn: (t) => doc.querySelector(`[data-tab=${t}]`) || (FOLDED[t] && doc.querySelector('[data-nav]') && {
+      click: () => { doc.querySelector(`[data-tab=${FOLDED[t]}]`).click(); setTimeout(() => doc.querySelector(`[data-seg=${t}]`)?.click(), 0); },
+    }) || [...doc.querySelectorAll('button')].find((b) => b.style.borderBottom && b.textContent.toLowerCase().includes(t === 'sitroom' ? 'situation' : t)),
     // v57 pauses for modals (doctrine, intel crises, confrontations, ultimatums, victory). Answer the first option.
     answerModal: () => {
       const overlay = topOverlay(doc);

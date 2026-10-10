@@ -13,5 +13,7 @@ Every v57 function must exist in the new build or be listed here with a reason. 
 | P3c | Region panel below the map | Preserved, moved | bottom sheet on region tap, with the region's nations as rows |
 | P3c | Top tab strip | Replaced | bottom nav (phone) / side rail (desktop), same nine verticals |
 | P3c | Leverage, Petrodollar, Grace, Decision and unexamined-issue HUD chips | Partly moved | grace and leverage are outliner timers / badges; petrodollar chip dropped from the HUD (still on the Economy tab) |
+| E5a | Nine-vertical nav (Situation Room, Resources as verticals) | Replaced | eight verticals, 48.7px each at 390px (the only count that meets 44px): Situation folds under Overview and Resources under Economy behind a segmented control (Map / Situation, Ledger / Resources); every pane and action is unchanged, the Situation threat badge rolls up onto the Overview icon (owner ruling 2026-10-10) |
+| E5a | Defense tab: Forces panel, Order of Battle, personnel pay slider | Moved | Forces vertical: Manpower (strength, retention, pay), Quality, Training, Equipment (crews, inventory, station/recall, theaters, maintenance), Specialized (SOF, ISR, cyber, nuclear crews) |
 
 No gaps open; the petrodollar HUD chip is the one cosmetic removal, listed for sign-off.

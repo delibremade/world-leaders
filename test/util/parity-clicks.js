@@ -4,11 +4,31 @@
 // Avoided on purpose: a player embargoed by Russia while holding import contracts (PR #3 fixed that fault in the
 // engine, so v57 and App legitimately differ there). Import contracts are signed only while nobody embargoes us.
 import { flush, topOverlay } from './harness.js';
+import { DEPLOYABLE } from '../../src/data/platforms.js';
 
 export function clickDriver(g) {
   const { w, doc } = g;
   const hits = [];
   const tab = async (t) => { g.tabBtn(t).click(); await flush(); };
+  // Segmented sub-tab inside the current vertical (Forces: manpower, quality, training, equipment, specialized).
+  // E5a: troops, pay and the Order of Battle moved to the Forces vertical; v57 keeps them on the Defense tab. One script drives both.
+  const forces = async (sub) => { if (doc.querySelector('[data-nav]')) { await tab('forces'); await seg(sub); } else await tab('defense'); };
+  // Order of Battle controls in v57's order (DEPLOYABLE, then region): the App groups units by branch, so pick by unit, not DOM position.
+  const dIdx = (pid) => { const i = DEPLOYABLE.indexOf(pid); return i < 0 ? 99 : i; };
+  const stationFirst = async (rid) => {
+    const sel = [...doc.querySelectorAll('select[id^=oob_]')].sort((a, b) => dIdx(a.id.slice(4)) - dIdx(b.id.slice(4)))[0];
+    if (!sel) return false;
+    sel.value = rid;
+    const btn = [...sel.parentElement.children].find((e) => e.tagName === 'BUTTON' && /^\+ Station$/.test(e.textContent));
+    btn.click(); hits.push('/^\\+ Station$/'); await flush(); return true;
+  };
+  const recallFirst = async () => {
+    const all2 = [...doc.querySelectorAll('button')].filter((b) => /^recall$/.test(b.textContent));
+    if (!all2.length) throw new Error('click target not found: recall');
+    const best = all2.map((b, i) => [b, i]).sort((x, y) => dIdx(x[0].dataset.recall) - dIdx(y[0].dataset.recall) || x[1] - y[1])[0][0];
+    best.click(); hits.push('/^recall$/'); await flush();
+  };
+  const seg = async (id) => { const el = doc.querySelector(`[data-seg=${id}]`); if (!el) throw new Error(`segment not found: ${id}`); el.click(); await flush(); };
   const all = (sel, root = doc) => [...root.querySelectorAll(sel)];
   const find = (re, { sel = 'button', root = doc, nth = 0 } = {}) => all(sel, root).filter((b) => re.test(b.textContent))[nth];
   const click = async (re, opts = {}) => {
@@ -35,7 +55,7 @@ export function clickDriver(g) {
     gEl.dispatchEvent(new w.MouseEvent('click', { bubbles: true })); await flush();
   };
   const closeRegion = async () => { const x = all('button').find((b) => b.textContent === '✕' && !/border/.test(b.getAttribute('style') || '') && /Your Influence/.test(b.parentElement?.parentElement?.textContent || '')); if (!x) throw new Error('region close not found'); x.click(); await flush(); };
-  return { tab, find, click, tryClick, div, clickDiv, range, mm, region, closeRegion, hits };
+  return { tab, seg, forces, stationFirst, recallFirst, find, click, tryClick, div, clickDiv, range, mm, region, closeRegion, hits };
 }
 
 // Modal answerer that rotates through options so every modal choice gets exercised over a run. Game-over prefers the
@@ -63,7 +83,7 @@ export function rotatingAnswer(g, offset = 0) {
 // `shocks` is the existing hook script (fund, platforms, deployments, tension) that makes the verbs reachable.
 export const verbScript = (g, shocks) => {
   const d = clickDriver(g);
-  const { tab, click, tryClick, clickDiv, range, mm, region, closeRegion, find } = d;
+  const { tab, seg, forces, stationFirst, recallFirst, click, tryClick, clickDiv, range, mm, region, closeRegion, find } = d;
   const h = () => g.w.__wl;
   const plan = {
     2: async () => { // doctrine; economy: rate, stance, tax, sector budget, social program, policy action, budget drill +/-
@@ -91,7 +111,10 @@ export const verbScript = (g, shocks) => {
       await click(/Establish SAP Office/); await click(/Develop \$400M/); await click(/^Build \$400M$/);
       await click(/^−1$/); await click(/^−1🌐$/);
       // #20 (E8): the pay slider now reaches 0 (unpaid army); v57's runs 80..150. Same control, either range.
-      await range((el) => (el.min === '80' || el.min === '0') && el.max === '150', 120); await click(/Surge/);
+      // E5a: it lives in the Forces vertical (Manpower).
+      await forces('manpower');
+      await range((el) => (el.min === '80' || el.min === '0') && el.max === '150', 120);
+      await tab('defense'); await click(/Surge/);
       await click(/Material Science L/); await click(/Sell .* to All Eligible Buyers/);
     },
     6: async () => { // technology: R&D invest, IP policy, era program
@@ -117,8 +140,8 @@ export const verbScript = (g, shocks) => {
     },
     9: async () => { // overview: issue brief, map region actions (posture, deploy +/-, blockade, strike, intel, alliance)
       // Map +/- deploy intentionally diverges from v57 (#6); station via OOB (shared deployUnit path) instead.
-      await tab('defense');
-      { const sel = g.doc.querySelector('select[id^=oob_]'); if (sel) { sel.value = 'ME'; await click(/^\+ Station$/); } }
+      await forces('equipment');
+      await stationFirst('ME');
       await tab('overview');
       await region('Middle East');
       await click(/Escort \/ FON/);
@@ -135,9 +158,9 @@ export const verbScript = (g, shocks) => {
     12: async () => { // SAP program, OOB station + recall, Tier-1 intervention
       await tab('defense');
       await tryClick(/^Initiate \$/);
-      const sel = g.doc.querySelector('select[id^=oob_]');
-      if (sel) { sel.value = 'EU'; await click(/^\+ Station$/); }
-      await click(/^recall$/);
+      await forces('equipment');
+      await stationFirst('EU');
+      await recallFirst();
       await tab('energy'); await click(/Launch Absolute Resolve/);
     },
     16: async () => { await tab('defense'); await tryClick(/Tranche #/); await tab('energy'); await tryClick(/Rehabilitate fields/); },
