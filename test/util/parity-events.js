@@ -22,6 +22,8 @@ const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activ
 // first decision or world event. The v57 prefix check above is untouched; the five pinned cases are re-baselined citing #18.
 // #33 (F2): decisions open only at the quarterly briefing, one at a time, clear of world events, and every card carries a why-now, so the five
 // pinned cases are re-baselined citing #33 (each opens a decision inside the 120-month window; the month and the stored card moved).
+// #37 (F5): processing plants and GGRB retorting are private capital (margin-driven builds, state levers, sector income). Private plants
+// come online by default (US/Japan/Russia enrichment ~month 24), so all five pinned cases are re-baselined citing #37; the v57 prefix is untouched.
 const NEW_KEYS = ['arsenal', 'minerals', 'forces'];
 const dropNew = (s) => { if (!NEW_KEYS.some((k) => s.includes(`"${k}"`))) return s; const o = JSON.parse(s); for (const k of NEW_KEYS) delete o[k]; return JSON.stringify(o); };
 const strip = (s) => { const o = JSON.parse(dropNew(s)); delete o.evState; return JSON.stringify(o); };
