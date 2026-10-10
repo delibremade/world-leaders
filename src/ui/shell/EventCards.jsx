@@ -22,6 +22,9 @@ function Responses({ kind, opts, dispatch }) {
     </div>);
 }
 
+// 'Why now' (F2, #33): the state that opened this card. Saves from before the line existed show a neutral stand-in.
+function WhyNow({ text }) { return <div className="wl-why-now" data-why-now>Why now: {text || 'carried over from an earlier save'}</div>; }
+
 export function EventCards({ doctrine, activeDecision, decisionDesc, worldEvent, flashpoint, worldOpts = [], fpOpts = [], decisionOpts = null, country = null, dispatch, onOpenRegion, fxBadge, readyBriefs = [], onOpenBrief }) {
   const cards = [];
   if (!doctrine) cards.push(
@@ -39,8 +42,9 @@ export function EventCards({ doctrine, activeDecision, decisionDesc, worldEvent,
     </div>);
   if (activeDecision) cards.push(
     <div key="decision" className="wl-card-ev" data-event-card="decision" style={{ '--ev': COLOR.accent.warn }}>
-      <div className="wl-label">{activeDecision.icon} Decision Required</div>
+      <div className="wl-label">{activeDecision.urgentNow ? '⚡ Urgent decision' : `${activeDecision.icon} Cabinet briefing`}</div>
       <h4>{activeDecision.title}</h4>
+      <WhyNow text={activeDecision.why} />
       <p>{decisionDesc}</p>
       <div className="wl-opts" style={{ display: 'grid' }}>
         {activeDecision.options.map((opt) => { const st = decisionOpts?.find((o) => o.id === opt.id); const ok = !st || st.ok; return (
@@ -62,6 +66,7 @@ export function EventCards({ doctrine, activeDecision, decisionDesc, worldEvent,
     <div key="we" className="wl-card-ev" data-event-card="world" style={{ '--ev': COLOR.accent.energy }}>
       <div className="wl-label">{we?.i} World event · {worldEvent.mo}mo left</div>
       <h4>{we?.n || worldEvent.id}</h4>
+      <WhyNow text={worldEvent.why} />
       <p>{typeof we?.d === 'function' ? we.d(country) : we?.d}</p>
       <Responses kind="world" opts={worldOpts} dispatch={dispatch} />
     </div>); }

@@ -279,7 +279,8 @@ test('tone: China and Russia cards carry no US-centric copy; seat-specific copy 
 // The policy is a plausible player: neglects training and pay, ramps tension through the cycle, sanctions, controls a
 // mineral, opens prototype lines, joins and admits where the gates allow. Where a path is long, the policy writes the state
 // the way the __wl test hooks do (fund, setTension, platforms); each hook is marked.
-const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+// #33 (F2): decisions open only at the quarterly briefing, one at a time, clear of world events, so a run draws fewer: 36 seeds, not 12.
+const SEEDS = Array.from({ length: 36 }, (_, i) => i + 1);
 const RIVALS = ['china', 'russia', 'usa', 'germany'];
 function policy(h, m, nid) {
   const { g } = h; const me = nid;
@@ -334,8 +335,8 @@ test('reachability: every decision and world event is eligible in some 240-month
   assert.deepEqual(missD, [], `decisions never eligible: ${missD}`); assert.deepEqual(missW, [], `world events never eligible: ${missW}`);
   const unfiredD = DECISIONS.filter((d) => !firedD.has(d.id)).map((d) => d.id);
   const unfiredW = Object.keys(WORLD_RULES).filter((id) => id !== 'nuclear_taboo' && !firedW.has(id));
-  assert.deepEqual(unfiredD, [], `decisions eligible but never drawn in 96 runs: ${unfiredD}`);
-  assert.deepEqual(unfiredW, [], `world events eligible but never drawn in 96 runs: ${unfiredW}`);
+  assert.deepEqual(unfiredD, [], `decisions eligible but never drawn in 288 runs: ${unfiredD}`);
+  assert.deepEqual(unfiredW, [], `world events eligible but never drawn in 288 runs: ${unfiredW}`);
 });
 
 test('nuclear taboo stays reachable: an employment opens it', () => {

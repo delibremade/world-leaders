@@ -192,3 +192,15 @@ test('E4 gap: regular platform builds draw mineral inputs; a shortfall queues th
   assert.equal(h.g.platforms.fighter_wing, 2, `delivered after ${k} months`);
   assert.deepEqual(checkV57(h.g), []);
 });
+
+// Found by #33's rhythm change (a decision drew in a new month): a reserve call-up could push active strength past 100 and trip the
+// force-strength invariant. The call-up now stops at the cap.
+test('regression: a reserve call-up never takes active strength past 100', async () => {
+  const { DECISIONS } = await import('../src/data/world.js');
+  const h = headless('usa', 4); rich(h.g);
+  setF(h.g, { active: 98, reserve: 50 });
+  h.g.activeDecision = DECISIONS.find((d) => d.id === 'crew_shortfall');
+  h.run('makeDecision', { option: 'b' });
+  assert.equal(h.g.forces.active, 100); assert.equal(h.g.forces.reserve, 48);
+  assert.deepEqual(checkV57(h.g), []);
+});

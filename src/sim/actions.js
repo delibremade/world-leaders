@@ -156,7 +156,7 @@ function applySfx(g,S,fx,ops){
     else if(op.k==='mineral'&&g.minerals?.own?.[op.id]){const o=g.minerals.own[op.id];g.minerals={...g.minerals,own:{...g.minerals.own,[op.id]:{...o,stock:Math.max(0,o.stock+op.d)}}};S.setMinerals(g.minerals);}
     else if(op.k==='devSlip'&&g.arsenal?.dev?.[op.id]){const d=g.arsenal.dev[op.id];g.arsenal={...g.arsenal,dev:{...g.arsenal.dev,[op.id]:{...d,prog:Math.max(0,Math.min(d.mo-1,d.prog-op.mo))}}};S.setArsenal(g.arsenal);}
     else if(op.k==='suspend'){const pid=op.pid==='$member'?memberOf(g)?.pid:op.pid;const a=pid&&myAccess(g,pid);if(a?.status==='active'){setAccess(g,S,pid,g.country.id,{...a,status:'suspended',susp:ACCESS_RULES.suspendMo});bumpRel(g,S,{[ALLIED_PROGRAMS[pid].owner]:-ACCESS_RULES.breachRel});}}
-    else if(op.k==='manpower'&&g.forces){const f=g.forces;const d=Math.max(-f.active,Math.min(f.reserve,op.d));g.forces={...f,active:f.active+d,reserve:f.reserve-d};S.setForces(g.forces);} // reserve call-up (+) or stand-down (-)
+    else if(op.k==='manpower'&&g.forces){const f=g.forces;const d=Math.max(-f.active,Math.min(f.reserve,100-f.active,op.d));g.forces={...f,active:f.active+d,reserve:f.reserve-d};S.setForces(g.forces);} // reserve call-up (+) or stand-down (-)
     else if(op.k==='tradeDeal'){S.setTradeAgreements(p=>{const n2=new Set(p);n2.add(op.id);g.tradeAgreements=n2;return n2;});}
   });
 }
@@ -674,7 +674,7 @@ function nuclearEmployment(g,S,fx,rid){
   S.setNationRelations(p=>{const n2={...p};DIP_TARGETS.forEach(t=>{n2[t.id]=Math.max(-100,(n2[t.id]||0)-60);});return n2;});
   S.setBlocTrade(p=>{const nb={eu:0,cn:0,opec:0};g.blocTrade=nb;return nb;});S.setBlocLock(p=>{const nl={eu:36,cn:36,opec:36};g.blocLock=nl;return nl;});
   g.pariah=36;S.setPariah(36);S.setRivalTension(p=>{const n2={...p};Object.keys(n2).forEach(k=>{n2[k]=Math.min(99,(n2[k]||0)+20);});n2[rid]=92;return n2;});g.rivalTension={...g.rivalTension,[rid]:92};
-  g.worldEvent={id:'nuclear_taboo',mo:24};S.setWorldEvent({id:'nuclear_taboo',mo:24});stampEvent(g,S,'nuclear_taboo');
+  g.worldEvent={id:'nuclear_taboo',mo:24,why:'Nuclear weapons were used'};S.setWorldEvent({...g.worldEvent});stampEvent(g,S,'nuclear_taboo');
   recordNuke(g,S,fx,{actor:country?.id,target:rid,region:topRg?.[0],type:'employment'});S.setNationRelations(p=>({...p,[rid]:-100}));
   fx.toast(`☢️ TACTICAL EMPLOYMENT — ${REGIONS[topRg?.[0]]?.n||'the region'} is yours. You are a pariah for 36 months.`);S.setLog(p=>[{msg:`☢️ Tactical nuclear employment vs ${rname}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
 }

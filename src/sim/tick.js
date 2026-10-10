@@ -18,7 +18,7 @@ import { crewOf } from '../data/forces.js';
 import { naturalDrift } from './economy.js';
 import { rng } from './rng.js';
 import { stepIssues, ISSUE_TTL } from './issues.js';
-import { pickWorldEvent, startWorldEvent, eventCooldowns, fireChain, eventEffects } from './events.js';
+import { pickWorldEvent, startWorldEvent, eventCooldowns, fireChain, eventEffects, decisionsDue, openDecision, markWorldEvent } from './events.js';
 import { stepMinerals, rivalSupplyFactor } from './minerals.js';
 
 // ── v57 monthly tick, extracted (P2). Zero rule changes: test/parity-app.test.js proves the App's autosaves are
@@ -742,7 +742,7 @@ function market(g,S,fx,m){
   eventCooldowns(g,S);
   if(g.worldEvent){const we={...g.worldEvent};const def=WORLD_EVENTS[we.id];
     Object.entries(def?.fx||{}).forEach(([k,v])=>{if(k in ns)ns[k]+=v;});
-    we.mo--; if(we.mo<=0){fx.toast(`${def.i} ${def.n} — conditions normalize`);g.worldEvent=null;S.setWorldEvent(null);}else{g.worldEvent=we;S.setWorldEvent(we);}}
+    we.mo--; if(we.mo<=0){fx.toast(`${def.i} ${def.n} — conditions normalize`);g.worldEvent=null;S.setWorldEvent(null);markWorldEvent(g,S);}else{g.worldEvent=we;S.setWorldEvent(we);}}
   else if(!fireChain(g,S,fx)&&g.gracePeriod<=0&&rng()<0.045){
     const id=pickWorldEvent(g,rng());
     if(id)startWorldEvent(g,S,fx,id);
@@ -988,7 +988,10 @@ function world(g,S,fx,m){
   if(g.decisionTimer<=0&&!g.activeDecision){
     const dctx={ns,ten:g.rivalTension,rel:g.nationRelations,bt:g.blocTrade,ex:g.defExports,dl:g.defLevels,g}; // E6 (#18): g for the new systems
     const avail=DECISIONS.filter(d=>!g.usedDecisions.has(d.id)&&(!d.when||d.when(dctx)));
-    if(avail.length){const d=avail[Math.floor(rng()*avail.length)];S.setActiveDecision(d);g.activeDecision=d;fx.toast(`🎯 Decision: ${d.title}`);}
+    if(avail.length){ // F2 (#33): due decisions wait for the quarterly briefing (urgent ones excepted) and for a world-event gap
+      const due=decisionsDue(g,avail,dctx);
+      if(due.length){const d=openDecision(g,due[Math.floor(rng()*due.length)],dctx);S.setActiveDecision(d);g.activeDecision=d;fx.toast(`🎯 ${d.urgentNow?'Urgent decision':'Cabinet briefing'}: ${d.title}`);}
+    }
     else g.decisionTimer=g.usedDecisions.size>=DECISIONS.length?12:4; // the pool never resets: nothing eligible means quiet months
   }
 

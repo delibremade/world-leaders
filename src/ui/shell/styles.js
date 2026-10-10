@@ -31,6 +31,7 @@ export const SHELL_CSS = `
 .wl-card-ev{flex:0 0 min(86vw,420px);scroll-snap-align:start;background:${c.bg.raised};border:1px solid ${c.border.strong};border-left:3px solid var(--ev,${c.accent.command});border-radius:${RADIUS.xxl}px;padding:${SPACE[5]}px ${SPACE[6]}px;animation:wl-rise ${MOTION.slow} ${MOTION.ease}}
 .wl-card-ev h4{margin:0 0 2px;font-size:${SIZE.lg}px;color:${c.text.primary}}
 .wl-card-ev .wl-label{color:var(--ev,${c.accent.command})}
+.wl-why-now{margin:${SPACE[2]}px 0 0;font-size:${SIZE.caption}px;color:var(--ev,${c.accent.command});line-height:1.4}
 .wl-card-ev p{margin:${SPACE[2]}px 0 ${SPACE[4]}px;font-size:${SIZE.body}px;color:${c.text.muted};line-height:1.5}
 .wl-opts{display:grid;gap:${SPACE[3]}px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
 .wl-opt{min-height:${TAP}px;background:${c.bg.panel};border:1px solid ${c.border.strong};border-radius:${RADIUS.xl}px;padding:${SPACE[4]}px;cursor:pointer;font-size:${SIZE.small}px;color:${c.text.secondary}}

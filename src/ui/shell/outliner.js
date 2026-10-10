@@ -6,6 +6,7 @@ import { WORLD_EVENTS } from '../../data/world.js';
 import { REGIONS, FLASHPOINTS } from '../../data/regions.js';
 import { ISSUES } from '../../data/economy.js';
 import { NATIONS } from '../../data/nations.js';
+import { monthsToBriefing } from '../../sim/events.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 const nat = (id) => NATIONS[id]?.n || cap(id);
@@ -40,6 +41,8 @@ export function buildOutliner(v) {
   for (const [vert, ml] of Object.entries(v.defResearch || {})) if (ml > 0) push({ id: `rd_${vert}`, group: 'research', icon: DV[vert]?.i || '🔬', title: `${DV[vert]?.n || vert} L${(v.defLevels?.[vert] || 0) + 1}`, sub: 'R&D in progress', months: ml, jump: { tab: 'technology' } });
 
   const timer = (id, icon, title, months, sub, jump, sev) => months > 0 && push({ id, group: 'timers', icon, title, sub, months, jump, sev });
+  // F2 (#33): decisions arrive at the quarterly briefing; this row is the countdown.
+  if (v.date) timer('briefing', '🗂️', 'Cabinet briefing', monthsToBriefing(v), v.activeDecision ? 'A decision is on the table' : 'Decisions arrive here, one at a time', { tab: 'overview' });
   timer('grace', '🛡', 'Grace period', v.gracePeriod, 'Rivals hold back', { tab: 'sitroom' });
   timer('pariah', '☢️', 'Pariah status', v.pariah, 'Arms markets closed', { tab: 'arsenal', sub: 'exports' }, 'alert');
   timer('heg', '👑', 'Hegemony hold', v.hegHold > 0 ? 24 - v.hegHold : 0, `${v.hegHold}/24 months held`, { tab: 'overview' });
