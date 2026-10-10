@@ -8,7 +8,7 @@ import { MINERALS, MINERAL_RULES } from '../data/minerals.js';
 import { isrScore, panamaPriorityBlock, meetsReq, trancheCost, devCost, interceptChance, espionageExposure, defGdpPct } from './formulas.js';
 import { BLACK_PROGRAMS, CATALOGS, nationCatalog } from '../data/platforms.js';
 import { WORLD_RULES } from '../data/events.js';
-import { worldOptions, flashpointOptions } from './events.js';
+import { worldOptions, flashpointOptions, decisionOptions } from './events.js';
 
 // Derived views shared by the UI (display) and the verbs (gates), so a rule has one implementation.
 
@@ -105,7 +105,7 @@ export const openEventCards=(g)=>({
   flashpoint:g.flashpoint&&g.flashpoint.t>0?g.flashpoint:null,
   decision:g.activeDecision||null,
 });
-export const eventOptions=(g,kind)=>kind==='flashpoint'?flashpointOptions(g):worldOptions(g);
+export const eventOptions=(g,kind)=>kind==='flashpoint'?flashpointOptions(g):kind==='decision'?decisionOptions(g):worldOptions(g);
 export { panamaPriorityBlock };
 
 // ── Nation catalogs (E3, #15). One stage rule for the verbs, the tick and the Defense tab.

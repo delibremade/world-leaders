@@ -22,7 +22,7 @@ function Responses({ kind, opts, dispatch }) {
     </div>);
 }
 
-export function EventCards({ doctrine, activeDecision, decisionDesc, worldEvent, flashpoint, worldOpts = [], fpOpts = [], dispatch, onOpenRegion, fxBadge, readyBriefs = [], onOpenBrief }) {
+export function EventCards({ doctrine, activeDecision, decisionDesc, worldEvent, flashpoint, worldOpts = [], fpOpts = [], decisionOpts = null, country = null, dispatch, onOpenRegion, fxBadge, readyBriefs = [], onOpenBrief }) {
   const cards = [];
   if (!doctrine) cards.push(
     <div key="doctrine" className="wl-card-ev" data-event-card="doctrine" data-modal="1900" style={{ '--ev': COLOR.accent.command }}>
@@ -43,11 +43,11 @@ export function EventCards({ doctrine, activeDecision, decisionDesc, worldEvent,
       <h4>{activeDecision.title}</h4>
       <p>{decisionDesc}</p>
       <div className="wl-opts" style={{ display: 'grid' }}>
-        {activeDecision.options.map((opt) => (
-          <div key={opt.id} className="wl-opt" style={{ cursor: 'pointer' }} onClick={() => dispatch({ type: 'makeDecision', payload: { option: opt.id } })}>
-            <b>{opt.label}</b>{opt.tags.map((t, i) => <small key={i}>· {t}</small>)}
+        {activeDecision.options.map((opt) => { const st = decisionOpts?.find((o) => o.id === opt.id); const ok = !st || st.ok; return (
+          <div key={opt.id} className="wl-opt" aria-disabled={!ok} style={{ cursor: 'pointer' }} onClick={() => { if (ok) dispatch({ type: 'makeDecision', payload: { option: opt.id } }); }}>
+            <b>{opt.label}{opt.cost ? ` · $${opt.cost}M` : ''}</b>{ok ? opt.tags.map((t, i) => <small key={i}>· {t}</small>) : <small className="wl-reason">{st.reason}</small>}
             {fxBadge && <span style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>{Object.entries(opt.effects || {}).map(([k, v]) => fxBadge(k, v, true))}</span>}
-          </div>))}
+          </div>); })}
       </div>
     </div>);
   if (flashpoint) { const fp = FLASHPOINTS[flashpoint.type]; cards.push(
@@ -62,7 +62,7 @@ export function EventCards({ doctrine, activeDecision, decisionDesc, worldEvent,
     <div key="we" className="wl-card-ev" data-event-card="world" style={{ '--ev': COLOR.accent.energy }}>
       <div className="wl-label">{we?.i} World event · {worldEvent.mo}mo left</div>
       <h4>{we?.n || worldEvent.id}</h4>
-      <p>{we?.d}</p>
+      <p>{typeof we?.d === 'function' ? we.d(country) : we?.d}</p>
       <Responses kind="world" opts={worldOpts} dispatch={dispatch} />
     </div>); }
   // Intelligence brief ready (E9, #23): the investigation finished; the card carries the deploy timer and opens the Intel tab.

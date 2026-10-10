@@ -2,7 +2,7 @@
 // One implementation per rule (CLAUDE.md #8): the tick, the verbs and the UI selectors all go through here.
 // Shape of g.evState: { cd:{eventId:monthsLeft}, fx:[row], q:[{id,at}], log:[{id,m}] }
 //   row = { id, kind:'world'|'flashpoint', ev, rid, choice, mo, sync, mods:{stats,cash,sphere} }
-import { WORLD_EVENTS } from '../data/world.js';
+import { WORLD_EVENTS, DECISIONS } from '../data/world.js';
 import { REGIONS } from '../data/regions.js';
 import { WORLD_RULES, FP_RESPONSES, FP_LINGER, EVENT_COOLDOWN, CHAIN_PATIENCE } from '../data/events.js';
 import { rng } from './rng.js';
@@ -91,6 +91,17 @@ export function worldOptions(g) {
     const reason = we.ans ? 'Already answered' : r.req?.(g) || (r.cost > 0 && treasury(g) < r.cost ? `Need $${r.cost}M` : null);
     return { id: r.id, label: r.label, tags: r.tags, cost: Math.max(0, r.cost), ok: !reason, reason };
   });
+}
+// Decisions (E6, #18): an option may declare `cost` ($M, charged on top of `effects`), `req(g)` (a gate with a reason),
+// `act(g)` (engine verbs) and `chain` (a queued world event). Options without them behave exactly as in v57.
+export function decisionReason(g, opt) {
+  if (opt.cost > 0 && treasury(g) < opt.cost) return `Need $${opt.cost}M`;
+  return opt.req?.(g) || null;
+}
+export function decisionOptions(g) {
+  const d = g.activeDecision; if (!d) return [];
+  const def = DECISIONS.find((x) => x.id === d.id) || d;
+  return def.options.map((o) => { const reason = decisionReason(g, o); return { id: o.id, label: o.label, tags: o.tags, cost: o.cost || 0, effects: o.effects || {}, ok: !reason, reason }; });
 }
 export function flashpointOptions(g) {
   const fp = g.flashpoint; if (!fp) return [];

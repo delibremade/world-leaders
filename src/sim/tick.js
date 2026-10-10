@@ -986,7 +986,7 @@ function world(g,S,fx,m){
   // Decisions
   g.decisionTimer--;
   if(g.decisionTimer<=0&&!g.activeDecision){
-    const dctx={ns,ten:g.rivalTension,rel:g.nationRelations,bt:g.blocTrade,ex:g.defExports,dl:g.defLevels};
+    const dctx={ns,ten:g.rivalTension,rel:g.nationRelations,bt:g.blocTrade,ex:g.defExports,dl:g.defLevels,g}; // E6 (#18): g for the new systems
     const avail=DECISIONS.filter(d=>!g.usedDecisions.has(d.id)&&(!d.when||d.when(dctx)));
     if(avail.length){const d=avail[Math.floor(rng()*avail.length)];S.setActiveDecision(d);g.activeDecision=d;fx.toast(`🎯 Decision: ${d.title}`);}
     else g.decisionTimer=g.usedDecisions.size>=DECISIONS.length?12:4; // the pool never resets: nothing eligible means quiet months

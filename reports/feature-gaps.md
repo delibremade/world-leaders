@@ -42,6 +42,6 @@ Every mechanic has a control or a figure on a screen; each row is asserted by `t
 | 7 | Capability per branch, Tier-1 odds, export edge | Forces > Training (per-branch multiplier), Intel Tier-1 card, Arsenal > Exports (buyer terms) |
 | 5 | Event cards and responses | not in E5 scope (E2 event cards and outliner, unchanged) |
 
-Nothing from Parts 1-7 is unreachable. Known thin spots, for sign-off: the equipment factor in capability is shown only through the branch multiplier, not as its own line; Part 5 stays in the event-card strip.
+Nothing from Parts 1-7 is unreachable. Part 5 events: E6 (#18) content is on the existing event cards, nothing new to reach. Known thin spots, for sign-off: the equipment factor in capability is shown only through the branch multiplier, not as its own line; Part 5 stays in the event-card strip.
 
 No gaps open; the petrodollar HUD chip is the one cosmetic removal, listed for sign-off.
