@@ -4,10 +4,10 @@ import { build } from 'esbuild';
 import { JSDOM } from 'jsdom';
 import { mulberry32 } from '../../src/sim/rng.js';
 
-// The v57 bundle's nine tabs; the App's nav has eight verticals (Situation folds under Overview, Resources under Economy).
+// The v57 bundle's nine tabs; the App's nav has nine verticals (Situation folds under Overview).
 export const LEGACY_TABS = ['overview', 'sitroom', 'economy', 'energy', 'resources', 'defense', 'intel', 'technology', 'trade'];
-export const TABS = ['overview', 'economy', 'energy', 'arsenal', 'forces', 'intel', 'technology', 'trade'];
-export const FOLDED = { sitroom: 'overview', resources: 'economy' };
+export const TABS = ['overview', 'economy', 'energy', 'resources', 'arsenal', 'forces', 'intel', 'technology', 'trade'];
+export const FOLDED = { sitroom: 'overview' };
 // Every pane the App can show; a pane with a data-sentinel root proves its own content rendered (not just chrome).
 export const PANES = ['overview', 'sitroom', 'economy', 'resources', 'energy', 'arsenal', 'forces', 'intel', 'technology', 'trade'];
 export const SENTINEL_PANES = ['overview', 'sitroom', 'economy', 'resources', 'arsenal', 'forces'];

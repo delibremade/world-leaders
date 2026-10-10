@@ -80,7 +80,7 @@ test('App: shell renders (HUD, speed, nav badges, doctrine card, sheet, outliner
     const { doc, w } = g;
     const q = (s) => doc.querySelector(s), qa = (s) => [...doc.querySelectorAll(s)];
     assert.ok(q('[data-hud]') && q('[data-nav]') && q('[data-outliner]'), 'shell chrome present');
-    assert.equal(qa('[data-nav] [data-tab]').length, 8, 'eight verticals');
+    assert.equal(qa('[data-nav] [data-tab]').length, 9, 'nine verticals');
     assert.equal(qa('[data-nav] [data-tab]').map((b) => b.getAttribute('data-tab')).join(','), TABS.join(','));
     assert.ok(q('[data-event-card=doctrine]'), 'doctrine is a non-blocking card');
     assert.equal(q('[data-event-card=doctrine]').getAttribute('data-modal'), '1900');

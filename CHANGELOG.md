@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.72.1 (2026-10-10) — F1 (#34): Resources is a top-level tab again
+- Nav is 9 verticals (Resources after Energy). The six sub-tabs (Reserves/Processing/Stockpile/Deals/Controls/Natural) live under it; Economy is Ledger only (its Ledger|Resources switch is gone).
+- Nav buttons are 43.3px wide at 390px: the 44px rule is relaxed to 43px width for the nav only (docs/PLAYABLE-PLAN.md). Height stays 56px.
+- UI only; parity byte-identical.
+
 ## 0.72.0 (2026-10-10) — E6 (#18): event content expansion
 - Content, plus the minimum engine to carry it. Decisions 8 -> 30, world events 10 -> 20. Every item is gated on state through the system that produces it (controls against you, a program membership, readiness and retention, a Tier 1 squadron, tension, ore left); `pandemic` (health system) and `breakthrough` (a lead worth losing) are no longer unconditional. Costs $100M-$1B, stat nudges 1-4 points, 2-3 options each, 10+ chained follow-ups.
 - New decisions (22): J-36 and J-50 setbacks (China), Okhotnik engines (Russia), GCAP workshare (Japan), FCAS defection (Germany), F-47 buyer offer (Japan/Germany/Norway), allies ask for F-47 access (USA), flagged-source trade offer (compliance breach), ore running out, export-control temptation and review, processing pact, pay dispute, crews short, recruit quality, joint exercise, SOF raid, selection course, SOF scandal (only after the raid), reserve refill, defecting station chief, warships off the coast. Cards are written from the player's seat (China and Russia copy carries no US wording).
