@@ -4,9 +4,10 @@ import { DOCTRINES } from '../data/world.js';
 import { PLATFORMS, BLACK_PROGRAMS, DV } from '../data/platforms.js';
 import { PA, ISSUES, SOCIAL_PROGRAMS, SECTOR_LABELS, IP_POLICY_LABELS } from '../data/economy.js';
 import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, INTEL_POSTURE_LABELS } from '../data/intel.js';
-import { BLOC_TRADE } from '../data/trade.js';
-import { CONCESSIONS } from '../data/energy.js';
+import { BLOC_TRADE, CURRENCY_LABELS } from '../data/trade.js';
+import { RES_META, CONCESSIONS } from '../data/energy.js';
 import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRunCost, recapCost, getQualMult } from './formulas.js';
+import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups } from './selectors.js';
 import { rng } from './rng.js';
 
 // ── Toy-engine action vocabulary (scaffold for the pure tick(state, actions, rng) API in tick.js). Not used by the v57 UI.
@@ -583,6 +584,58 @@ function setIntelPosture(g,S,fx,k){const lab=INTEL_POSTURE_LABELS[k];S.setIntelP
 function toggleCovertProgram(g,S,fx,cpId){const cp=COVERT_PROGRAMS[cpId];S.setCovertPrograms(prev=>{const n2=new Set(prev);if(n2.has(cpId)){n2.delete(cpId);fx.toast(`${cp.i} ${cp.n} defunded`);}else{n2.add(cpId);fx.toast(`${cp.i} ${cp.n} funded — $${cp.cost}M/mo`);}g.covertPrograms=n2;return n2;});}
 function toggleContinuousOp(g,S,fx,opId,target){const op=INTEL_OPS.find(o=>o.id===opId);const ck=`${op.id}@${target}`;S.setContinuousOps(p=>{const n2={...p};if(n2[ck]){delete n2[ck];fx.toast(`${op.n} standing program ended`);}else{n2[ck]=true;fx.toast(`♻️ ${op.n} now continuous vs ${target} — auto-relaunches (~1.6× cost)`);}g.continuousOps=n2;return n2;});}
 
+// Trade tab: bloc trade architecture (tiers, EU summit / pact, OPEC swing), bloc-group bulk statecraft, per-member
+// influence / embassy / mission, influence budget, sanctions, import contracts, currency posture.
+function liftBlocSanctions(g,S,fx,bk){const sm=BLOC_TRADE[bk].members.filter(m=>g.sanctions.has(m));S.setSanctions(prev=>{const n2=new Set(prev);sm.forEach(m=>n2.delete(m));g.sanctions=n2;return n2;});fx.toast('🚫 Sanctions on bloc members lifted');}
+function euFocusInfluence(g,S,fx){const bm=BLOC_TRADE.eu;const nationRelations=g.nationRelations;const influenceBudget=g.influenceBudget;const need=euTierNeed(g.blocTrade.eu||0);const lag=bm.members.filter(m=>(nationRelations[m]||0)<need);
+  if(!lag.length){fx.toast('All members already above the next threshold');return;}S.setInfluenceAlloc(p=>{const n2={...p};lag.forEach(m=>{n2[m]=Math.min(100,(n2[m]||0)+50);});g.influenceAlloc=n2;return n2;});if((influenceBudget||0)<2){S.setInfluenceBudget(2);g.influenceBudget=2;}fx.toast(`🗳️ Influence focused on ${lag.map(m=>NATIONS[m]?.n).join(', ')}`);
+}
+function euSummit(g,S,fx){const bm=BLOC_TRADE.eu;const scd=g.actionCooldowns['eu_summit']||0;
+  if(scd>0){fx.toast(`Summit calendar full — ${scd}mo`);return;}if((g.stats?.treasury||0)<1200){fx.toast('⚠ $1,200M');return;}S.setStats(p=>({...p,treasury:p.treasury-1200}));S.setNationRelations(p=>{const n2={...p};bm.members.forEach(m=>{n2[m]=Math.min(100,(n2[m]||0)+6);});return n2;});g.actionCooldowns={...g.actionCooldowns,eu_summit:12};S.setActionCooldowns(p=>({...p,eu_summit:12}));fx.toast('🇪🇺 EU Summit — every member +6 relations');
+}
+function euDefensePact(g,S,fx){const bm=BLOC_TRADE.eu;const nationRelations=g.nationRelations;const best=bm.members.map(m=>[m,nationRelations[m]||0]).sort((a,b)=>b[1]-a[1])[0];const ok=best&&best[1]>=60;const needEmb=best&&!g.embassies.has(best[0]);const cost=800+(needEmb?300:0);
+  if(!ok){fx.toast(`⚠ ${NATIONS[best?.[0]]?.n} needs +60 relations first`);return;}if((g.stats?.treasury||0)<cost){fx.toast(`⚠ Need $${cost}M`);return;}if(needEmb){S.setStats(p=>({...p,treasury:p.treasury-300}));const n2=new Set(g.embassies);n2.add(best[0]);g.embassies=n2;S.setEmbassies(n2);}diplomaticAction(g,S,fx,best[0],'pact');
+}
+function blocAdvance(g,S,fx,bk){const bm=BLOC_TRADE[bk];const blocTrade=g.blocTrade;const tier=blocTrade[bk]||0;const lock=g.blocLock[bk]||0;const reqs=blocTierReqs(bk,g,bm.members);const next=tier<3?reqs[tier]:null;const canUp=blocCanAdvance(bk,tier,next,lock,blocTrade);
+  if(lock){fx.toast(`${bm.n} frozen — ${lock}mo remaining`);return;}if(!canUp){fx.toast(next&&!next[1]?`Requirements not met: ${next[0]}`:'Exclusive: exit the rival pole\'s Tier 3 first');return;}S.setBlocTrade(p=>{const nb={...p,[bk]:tier+1};g.blocTrade=nb;return nb;});fx.toast(`${bm.i} ${bm.n} — Tier ${tier+1} concluded`);S.setLog(p=>[{msg:`${bm.i} ${bm.n} T${tier+1}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+}
+function blocStepDown(g,S,fx,bk){const bm=BLOC_TRADE[bk];const tier=g.blocTrade[bk]||0;S.setBlocTrade(p=>{const nb={...p,[bk]:tier-1};g.blocTrade=nb;return nb;});fx.toast(`${bm.n} stepped down to Tier ${tier-1}`);}
+function opecSwing(g,S,fx,mode){const scd=g.actionCooldowns['opec_swing']||0;
+  if(scd>0){fx.toast(`Swing capacity rebuilding — ${scd}mo`);return;}S.setOpecSwing({mode,mo:12});g.opecSwing={mode,mo:12};g.actionCooldowns={...g.actionCooldowns,opec_swing:24};S.setActionCooldowns(p=>({...p,opec_swing:24}));
+  fx.toast(mode==='cut'?'🛢️ OPEC+ CUT — prices surge. Your oil ×1.6, importers squirm, your inflation climbs':'🛢️ FLOOD — prices crater. Your oil ×0.55, Russia\'s petro-empire bleeds worldwide');
+}
+const groupOf=(g,gid)=>blocGroups(g.country?.id).find(([id])=>id===gid);
+function groupEmbassies(g,S,fx,gid){const [,gn,ms]=groupOf(g,gid);const embassies=g.embassies;const missing=ms.filter(m=>!embassies.has(m)&&(g.embassyLocks[m]||0)===0);
+  if(!missing.length){fx.toast('Embassies already everywhere in this bloc');return;}const cost=missing.length*300;if((g.stats?.treasury||0)<cost){fx.toast(`⚠ ${missing.length} embassies need $${cost}M`);return;}S.setStats(p=>({...p,treasury:p.treasury-cost}));S.setEmbassies(prev=>{const n2=new Set(prev);missing.forEach(m=>n2.add(m));g.embassies=n2;return n2;});fx.toast(`🏛️ ${missing.length} embassies opened across ${gn}`);
+}
+const MISSION_ICONS={trade:'🏪',intel:'🕵️',culture:'🎭'};
+function groupMissions(g,S,fx,gid,mk){const [,gn,ms]=groupOf(g,gid);const mi=MISSION_ICONS[mk];const embassies=g.embassies;
+  const has=ms.filter(m=>embassies.has(m));if(!has.length){fx.toast('No embassies in this bloc yet');return;}S.setEmbassyMissions(p=>{const n2={...p};has.forEach(m=>{n2[m]=mk;});g.embassyMissions=n2;return n2;});fx.toast(`${mi} All ${gn} embassies set to ${mk} mission`);
+}
+function groupVisits(g,S,fx,gid){const [,gn,ms]=groupOf(g,gid);const actionCooldowns=g.actionCooldowns;
+  let n=0;ms.forEach(m=>{if((actionCooldowns[`visit_${m}`]||0)===0&&(g.stats?.treasury||0)>=150){diplomaticAction(g,S,fx,m,'visit');n++;}});fx.toast(n?`🤝 ${n} state visits across ${gn}`:'No visits available (cooldowns/treasury)');
+}
+function groupTradeAgreements(g,S,fx,gid){const [,,ms]=groupOf(g,gid);const tradeAgreements=g.tradeAgreements;const nationRelations=g.nationRelations;
+  let n=0;ms.forEach(m=>{if(!tradeAgreements.has(m)&&(nationRelations[m]||0)>=30){diplomaticAction(g,S,fx,m,'trade');n++;}});fx.toast(n?`📜 ${n} trade agreements signed`:'No member at +30 without an agreement');
+}
+function groupInfluenceEven(g,S,fx,gid){const [,gn,ms]=groupOf(g,gid);const influenceBudget=g.influenceBudget;
+  S.setInfluenceAlloc(p=>{const n2={...p};ms.forEach(m=>{n2[m]=50;});g.influenceAlloc=n2;return n2;});if((influenceBudget||0)<2){S.setInfluenceBudget(2);g.influenceBudget=2;}fx.toast(`🗳️ Influence spread evenly across ${gn}`);
+}
+function groupInfluenceClear(g,S,fx,gid){const [,gn,ms]=groupOf(g,gid);S.setInfluenceAlloc(p=>{const n2={...p};ms.forEach(m=>{delete n2[m];});g.influenceAlloc=n2;return n2;});fx.toast(`🗳️ Influence to ${gn} cleared`);}
+function setInfluence(g,S,fx,m,w){S.setInfluenceAlloc(p=>{const n2={...p,[m]:w};g.influenceAlloc=n2;return n2;});}
+function toggleEmbassy(g,S,fx,m){const t=DIP_TARGETS.find(d=>d.id===m);const hasEmb=g.embassies.has(m);
+  if(hasEmb){S.setEmbassies(prev=>{const n2=new Set(prev);n2.delete(m);g.embassies=n2;return n2;});fx.toast(`Embassy in ${t.n} closed`);}else establishEmbassy(g,S,fx,m);
+}
+function setEmbassyMission(g,S,fx,m,mk){S.setEmbassyMissions(p=>{const n2={...p,[m]:mk};g.embassyMissions=n2;return n2;});}
+function setInfluenceBudget(g,S,fx,v){S.setInfluenceBudget(v);fx.toast(v===0?'Influence budget paused':`Influence pool: $${v*100}M/mo`);}
+function toggleSanctions(g,S,fx,id){const on=g.sanctions.has(id);const country=g.country;const blocTrade=g.blocTrade;const myBloc=NATION_BLOC[country?.id]||'neutral';const theirBloc=NATION_BLOC[id]||'neutral';const ally=myBloc!=='neutral'&&theirBloc===myBloc;
+  if(!on&&ally){fx.toast(`⚠ ${id.charAt(0).toUpperCase()+id.slice(1)} is a ${myBloc} bloc partner — sanctioning an ally costs −10 standing and risks bloc backlash`);}S.setSanctions(prev=>{const n2=new Set(prev);if(n2.has(id)){n2.delete(id);fx.toast(`Sanctions on ${id} lifted`);}else{n2.add(id);Object.entries(BLOC_TRADE).forEach(([bk,bm])=>{if(bm.members.includes(id)&&blocTrade[bk]>0){S.setBlocTrade(p=>{const nb={...p,[bk]:0};g.blocTrade=nb;return nb;});S.setBlocLock(p=>{const nl={...p,[bk]:12};g.blocLock=nl;return nl;});fx.toast(`💥 ${bm.n} suspended — you sanctioned a member. Doors closed 12mo`);}});if(ally){S.setStats(p=>({...p,stability:Math.max(0,p.stability-4)}));fx.toast(`🚫 Sanctions on ALLY ${id} — bloc cohesion damaged, −4 stability`);}else{fx.toast(`🚫 Sanctions imposed on ${id} — $60M/mo`);}}g.sanctions=n2;return n2;});
+}
+function toggleImportContract(g,S,fx,k){const meta=RES_META[k];S.setImportContracts(prev=>{const n2=new Set(prev);if(n2.has(k)){n2.delete(k);fx.toast(`${meta.i} ${meta.n} import contract cancelled`);}else{n2.add(k);fx.toast(`${meta.i} ${meta.n} imports secured — $80M/mo`);}g.importContracts=n2;return n2;});}
+function setCurrencyPosture(g,S,fx,k){const lab=CURRENCY_LABELS[k];const locked=g.country?.id==='usa'&&k!=='usd';
+  if(locked){fx.toast('The dollar is yours to defend, not to leave');return;}S.setCurrencyPosture(k);g.currencyPosture=k;fx.toast(`Currency posture: ${lab}`);
+}
+
 // type -> (g, S, fx, payload). Return values are UI hints only (true = the verb went through).
 export const VERBS={
   // issues, policies, decisions
@@ -678,6 +731,27 @@ export const VERBS={
   setIntelPosture:(g,S,fx,{posture})=>setIntelPosture(g,S,fx,posture),
   toggleCovertProgram:(g,S,fx,{program})=>toggleCovertProgram(g,S,fx,program),
   toggleContinuousOp:(g,S,fx,{op,nation})=>toggleContinuousOp(g,S,fx,op,nation),
+  // trade and diplomacy
+  liftBlocSanctions:(g,S,fx,{bloc})=>liftBlocSanctions(g,S,fx,bloc),
+  euFocusInfluence:(g,S,fx)=>euFocusInfluence(g,S,fx),
+  euSummit:(g,S,fx)=>euSummit(g,S,fx),
+  euDefensePact:(g,S,fx)=>euDefensePact(g,S,fx),
+  blocAdvance:(g,S,fx,{bloc})=>blocAdvance(g,S,fx,bloc),
+  blocStepDown:(g,S,fx,{bloc})=>blocStepDown(g,S,fx,bloc),
+  opecSwing:(g,S,fx,{mode})=>opecSwing(g,S,fx,mode),
+  groupEmbassies:(g,S,fx,{group})=>groupEmbassies(g,S,fx,group),
+  groupMissions:(g,S,fx,{group,mission})=>groupMissions(g,S,fx,group,mission),
+  groupVisits:(g,S,fx,{group})=>groupVisits(g,S,fx,group),
+  groupTradeAgreements:(g,S,fx,{group})=>groupTradeAgreements(g,S,fx,group),
+  groupInfluenceEven:(g,S,fx,{group})=>groupInfluenceEven(g,S,fx,group),
+  groupInfluenceClear:(g,S,fx,{group})=>groupInfluenceClear(g,S,fx,group),
+  setInfluence:(g,S,fx,{nation,weight})=>setInfluence(g,S,fx,nation,weight),
+  toggleEmbassy:(g,S,fx,{nation})=>toggleEmbassy(g,S,fx,nation),
+  setEmbassyMission:(g,S,fx,{nation,mission})=>setEmbassyMission(g,S,fx,nation,mission),
+  setInfluenceBudget:(g,S,fx,{level})=>setInfluenceBudget(g,S,fx,level),
+  toggleSanctions:(g,S,fx,{nation})=>toggleSanctions(g,S,fx,nation),
+  toggleImportContract:(g,S,fx,{resource})=>toggleImportContract(g,S,fx,resource),
+  setCurrencyPosture:(g,S,fx,{posture})=>setCurrencyPosture(g,S,fx,posture),
 };
 
 export function applyVerb(g,S,fx,action){
