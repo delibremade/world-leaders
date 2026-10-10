@@ -55,3 +55,31 @@ E2 (fixes):
 - Tests: every response option changes state measurably; a 600-month seeded fuzz asserts zero repeats inside cooldown windows and no card outliving its resolution.
 
 E6 (content): decisions 8 -> ~30, world events 9 -> ~20, each with conditions, responses and at least one chained follow-up where it makes sense.
+
+## Part 6. Allied access to programs (E7, rules)
+Programs with access pathways: F-47, B-21, CCA (owner USA); GCAP (founders UK, Italy, Japan); FCAS (founders France, Germany, Spain). Only Japan, Germany, Norway and USA are playable among these; UK, Italy, France, Spain act as AI partners.
+- **Tiers per program:** Buyer (export variant at 85-90% of domestic performance, delivery queue, owner retains sustainment and can suspend it) -> Partner (cost share buys workshare: GDP and jobs at home, better variant) -> Co-developer (join at R&D stage only; full variant, say in upgrades).
+- **Gates:** relations with owner >= 70; defense pact; NATO members spend >= 2% GDP on defense; cost share paid; **mineral contribution** (supply the program's binding minerals from Part 3 at an agreed rate).
+- **Security compliance:** counter-intel strength above a floor, espionage exposure below a ceiling, no flagged tech or trade deals with China or Russia. A breach **suspends** membership mid-program (Turkey/F-35 precedent); re-entry costs relations and time.
+- **Playing the owner (USA):** the player decides admissions; export income and bloc cohesion vs leak risk (rivals target partner nations' programs).
+- CCA is open to USA + NATO allies as partners. Germany starts in FCAS and may defect to GCAP (relations cost with France).
+- Done when: Norway or Germany can reach Buyer and Partner tiers for F-47/CCA by meeting the gates; a compliance breach suspends and reinstates correctly; a US player can admit and expel; tests cover each gate.
+
+## Part 7. Troops, training and capability (E8, rules)
+- **Manpower:** active and reserve strength, monthly recruitment (population, unemployment, pay), retention (pay vs civilian wages, stability).
+- **Force quality index** = f(education, healthcare, foodSecurity, stability, inequality) using the existing vitals; no new stats, new effects of old ones. Neglect shows up years later.
+- **Training:** budget + pipeline months -> readiness per branch; readiness decays without funding; Joint Exercises posture raises it.
+- **Crews gate platforms:** each platform declares crew requirements; wings/hulls without trained crews cannot deploy (gap shown, never silent).
+- **SOF:** Tier 2 (e.g. Rangers) feeds Tier 1 (e.g. Delta) through selection; pipelines 24-36 months, small, expensive. Tier 1 strength drives Intel Tier-1 operation odds (existing overmatch math) and un-defers the JSOC task-force item. Nation-specific unit names in data with `status_source`; China and Brazil generic until the owner supplies names.
+- **Capability per branch = strength x quality x readiness x equipment**, consumed by deployed military power, posture-driven tension, the hegemony military pillar, export buyer advantage.
+- **Cohesion rules:** force quality is defined once in `src/sim/formulas.js`; pay and training are `cash(category)` ledger lines; invariants bound strength, readiness, quality to 0..100, crews <= trained pool, pay >= 0.
+- Done when: cutting education for 10 years measurably lowers force quality and Tier-1 op odds; an unpaid army loses retention; F-47 wings without crews cannot deploy; all consumers read the single formula.
+
+## Part 8. Arsenal / Forces split (E5, UI; supersedes Part 4's single Defense tab)
+Defense becomes two verticals:
+- **Arsenal** (industrial): Programs pipeline (R&D / prototype / LRIP / full rate), Procurement, Supply (mineral inputs and coverage), Partnerships (allied access tiers, compliance status), Exports, Deterrence (triad, MAD, nuclear register).
+- **Forces** (people and readiness): Manpower (strength, recruitment, retention, pay slider with live effect), Quality (index and its vitals drivers with why-breakdowns linking to Economy levers), Training (budget, pipelines, readiness, decay countdowns), Equipment (inventory by branch and generation, crews vs airframes, maintenance, theater assignment), Specialized (SOF tiers, ISR, cyber, nuclear crews, selection pipelines).
+- Nav: 10 verticals in P3d's icon nav; if it crowds at 390px, Resources folds under Economy as a sub-tab.
+- Done when: every Part 1-7 mechanic is reachable from these screens at 390px with no sideways scroll; 390px screenshots attached.
+
+Build order (final): E1 -> E2 -> E3 + E7 -> E4 -> E8 -> E5 -> E6.
