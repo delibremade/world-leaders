@@ -61,15 +61,15 @@ export async function mount(entry, { seed = null, testHook = false, preload = nu
       if (!target) return false;
       target.click(); return true;
     },
-    // Advance up to n months. onMonth(m) runs before month m is ticked.
-    advance: async (n, onMonth) => {
+    // Advance up to n months. onMonth(m) runs before month m is ticked; answer() handles modals (default: first option).
+    advance: async (n, onMonth, answer = api.answerModal) => {
       let months = 0, stall = 0; const hooked = new Set();
       while (months < n && stall < 40) {
         if (api.faulted()) throw new Error(`ErrorGate fault at month ${months}`);
         const fn = [...intervals.values()].pop();
         if (fn && onMonth && !hooked.has(months)) { hooked.add(months); await onMonth(months); await flush(); continue; }
         if (fn) { stall = 0; fn(); months++; await flush(); }
-        else { stall++; api.answerModal(); await flush(); }
+        else { stall++; answer(); await flush(); }
       }
       return months;
     },
