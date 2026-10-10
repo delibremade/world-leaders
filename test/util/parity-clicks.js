@@ -3,7 +3,7 @@
 // a missing button throws, so a silent UI change cannot quietly drop coverage.
 // Avoided on purpose: a player embargoed by Russia while holding import contracts (PR #3 fixed that fault in the
 // engine, so v57 and App legitimately differ there). Import contracts are signed only while nobody embargoes us.
-import { flush } from './harness.js';
+import { flush, topOverlay } from './harness.js';
 
 export function clickDriver(g) {
   const { w, doc } = g;
@@ -44,8 +44,7 @@ export function rotatingAnswer(g, offset = 0) {
   const seen = {};
   const answer = () => {
     const { doc } = g;
-    const overlays = [...doc.querySelectorAll('div')].filter((d) => d.style.position === 'fixed' && d.style.inset);
-    const overlay = overlays.sort((x, y) => (+y.style.zIndex || 0) - (+x.style.zIndex || 0))[0];
+    const overlay = topOverlay(doc);
     if (!overlay) return false;
     const opts = [...overlay.querySelectorAll('button, div')].filter((d) => d.tagName === 'BUTTON' || d.style.cursor === 'pointer');
     if (!opts.length) return false;
@@ -141,6 +140,8 @@ export const verbScript = (g, shocks) => {
       await tab('energy'); await click(/Launch Absolute Resolve/);
     },
     16: async () => { await tab('defense'); await tryClick(/Tranche #/); await tab('energy'); await tryClick(/Rehabilitate fields/); },
+    // More ops so a discovery (intel crisis) stays on the path; discovery is a 5..30% roll per op.
+    ...Object.fromEntries([14, 18, 22, 26, 32, 36, 44, 48].map((m, i) => [m, async () => { await tab('intel'); await tryClick(/^🇨🇳 China$/); await tryClick(/^Launch Op$/, { nth: i % 3 }); }])),
     20: async () => { await tab('intel'); await tryClick(/Launch decapitation raid/); await tab('trade'); await click(/Step down/); },
     24: async () => { await tab('energy'); await tryClick(/Hand over to interim/); await click(/Lift — Venezuela/); await tab('resources'); await tryClick(/Activate Phase II/); },
     30: async () => { await tab('defense'); await tryClick(/Recapitalize Forces/); await tryClick(/Cut Off/); },
@@ -154,7 +155,9 @@ export const verbScript = (g, shocks) => {
   const every = async (m) => {
     await tab('overview');
     // Decisions: answer with the option index rotating by month.
-    const opts = [...g.doc.querySelectorAll('div')].filter((x) => x.style.cursor === 'pointer' && x.parentElement && /Decision Required/.test(x.parentElement.parentElement?.textContent || ''));
+    // Option divs sit in an inline display:grid row under the "Decision Required" block (v57 overview block and the
+    // P3c event card alike). Without the grid check, v57's issue cards in the same column matched too.
+    const opts = [...g.doc.querySelectorAll('div')].filter((x) => x.style.cursor === 'pointer' && x.parentElement?.style.display === 'grid' && /Decision Required/.test(x.parentElement.parentElement?.textContent || ''));
     if (opts.length) { opts[m % opts.length].click(); d.hits.push('decision'); await flush(); }
     // Flashpoints: open the region and respond, rotating intervene / mediate / diplomatic.
     const fp = [...g.doc.querySelectorAll('svg text')].find((t) => /⚠$/.test(t.textContent));

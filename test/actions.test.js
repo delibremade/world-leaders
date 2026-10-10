@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { NATION_VERBS } from '../src/ui/shell/nation-verbs.js';
 import { VERBS, applyVerb } from '../src/sim/actions.js';
 import { newCampaign, STATE_FIELDS } from '../src/sim/state.js';
 import { COUNTRIES } from '../src/data/nations.js';
@@ -21,10 +23,16 @@ function headless(countryIdx = 0) {
   return { g, ui, toasts, run: (type, payload) => applyVerb(g, S, fx, { type, payload }) };
 }
 
-test('every verb the App dispatches exists, and every verb is dispatched by the App', () => {
-  const src = readFileSync('src/ui/App.jsx', 'utf8');
-  const used = new Set([...src.matchAll(/dispatch\(\{type:'(\w+)'/g)].map((m) => m[1]));
-  for (const m of src.matchAll(/type:\w+==='\w+'\?'(\w+)':'(\w+)'/g)) { used.add(m[1]); used.add(m[2]); }
+// The UI's dispatch sites: App.jsx plus the P3c shell (event cards, nation sheet rows in nation-verbs.js).
+const uiFiles = () => { const walk = (d) => readdirSync(d).flatMap((f) => { const p = join(d, f); return statSync(p).isDirectory() ? walk(p) : /\.(jsx?|js)$/.test(f) ? [p] : []; }); return walk('src/ui'); };
+test('every verb the UI dispatches exists, and every verb is dispatched by the UI', () => {
+  const used = new Set();
+  for (const f of uiFiles()) {
+    const src = readFileSync(f, 'utf8');
+    for (const m of src.matchAll(/dispatch\(\{ ?type: ?'(\w+)'/g)) used.add(m[1]);
+    for (const m of src.matchAll(/type:\w+==='\w+'\?'(\w+)':'(\w+)'/g)) { used.add(m[1]); used.add(m[2]); }
+  }
+  for (const r of NATION_VERBS) used.add(r.type);
   assert.deepEqual([...used].sort(), Object.keys(VERBS).sort());
 });
 
@@ -37,7 +45,7 @@ test('UI layer no longer writes game state: no ref writes or game setters in ren
   const src = readFileSync('src/ui/App.jsx', 'utf8');
   const body = src.slice(src.indexOf('const tick=useCallback'));
   assert.equal((body.match(/\b\w+R\.current\s*=(?!=)/g) || []).length, 0, 'ref writes after the engine seam');
-  const UI = /^set(Phase|SelectedRegion|SelDipNation|SelIssue|SelOption|RightMode|SelDefVert|SelExportVert|SelIntelTarget|T1Target|VitalsDrill|HovOpt|ActiveTab|Toasts|Collapsed|Paused|GameSpeed|SaveInfo|LastSaved|VictoryShown|Interval|MapMode)$/;
+  const UI = /^set(Phase|SelectedRegion|SelDipNation|SelIssue|SelOption|RightMode|SelDefVert|SelExportVert|SelIntelTarget|T1Target|VitalsDrill|HovOpt|ActiveTab|Toasts|Collapsed|Paused|GameSpeed|SaveInfo|LastSaved|VictoryShown|Interval|MapMode|SelNation|OutlinerOpen|History)$/;
   // New Nation (back to country select) is session lifecycle, like startGame/restoreGame: it clears gameOver.
   const game = [...body.matchAll(/(?<![\w.])(set[A-Z]\w*)\(/g)].map((m) => m[1]).filter((n) => !UI.test(n) && n !== 'setGameOver');
   assert.deepEqual(game, []);

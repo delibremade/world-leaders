@@ -1,37 +1,37 @@
 [
   {
-    "name": "p3b-map-sphere",
-    "file": "reports/screens/p3b-map-sphere.png",
+    "name": "p3c-hud-cards",
+    "file": "reports/screens/p3c-hud-cards.png",
     "errors": []
   },
   {
-    "name": "p3b-map-tension",
-    "file": "reports/screens/p3b-map-tension.png",
+    "name": "p3c-why",
+    "file": "reports/screens/p3c-why.png",
     "errors": []
   },
   {
-    "name": "p3b-map-trade",
-    "file": "reports/screens/p3b-map-trade.png",
+    "name": "p3c-region-sheet",
+    "file": "reports/screens/p3c-region-sheet.png",
     "errors": []
   },
   {
-    "name": "p3b-map-energy",
-    "file": "reports/screens/p3b-map-energy.png",
+    "name": "p3c-nation-sheet",
+    "file": "reports/screens/p3c-nation-sheet.png",
     "errors": []
   },
   {
-    "name": "p3b-map-military",
-    "file": "reports/screens/p3b-map-military.png",
+    "name": "p3c-outliner",
+    "file": "reports/screens/p3c-outliner.png",
     "errors": []
   },
   {
-    "name": "p3b-map-intel",
-    "file": "reports/screens/p3b-map-intel.png",
+    "name": "p3c-event-cards",
+    "file": "reports/screens/p3c-event-cards.png",
     "errors": []
   },
   {
-    "name": "p3b-map-tap",
-    "file": "reports/screens/p3b-map-tap.png",
+    "name": "p3c-desktop",
+    "file": "reports/screens/p3c-desktop.png",
     "errors": []
   }
 ]

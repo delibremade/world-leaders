@@ -33,6 +33,14 @@ export const SCENARIOS = {
     await page.evaluate((mode) => document.querySelector(`[data-map-mode-btn=${mode}]`).click(), mode); await settle(page, 600); await showMap(page);
   }])),
   'p3b-map-tap': async (page) => { await inGame(page); await pause(page); await showMap(page); const box = await page.locator('[data-map] canvas').boundingBox(); await page.mouse.click(box.x + box.width * 0.62, box.y + box.height * 0.42); await settle(page, 600); await showMap(page); },
+  // P3c: shell surfaces. The HUD + cards + nav are on every screen; the sheet, outliner and why open on demand.
+  'p3c-hud-cards': async (page) => { await startUSA(page); await settle(page, 600); },
+  'p3c-why': async (page) => { await inGame(page); await pause(page); await page.evaluate(() => document.querySelector('[data-why^="Treasury"]').click()); await settle(page, 500); },
+  'p3c-region-sheet': async (page) => { await inGame(page); await pause(page); await showMap(page); await page.evaluate(() => window.__wlMap.tapRegion('ME')); await settle(page, 900); },
+  'p3c-nation-sheet': async (page) => { await inGame(page); await pause(page); await showMap(page); await page.evaluate(() => window.__wlMap.tapRegion('ME')); await settle(page, 900); await page.evaluate(() => document.querySelector('[data-nation-row]')?.click()); await settle(page, 900); },
+  'p3c-outliner': async (page) => { await inGame(page); await page.evaluate(() => { const h = window.__wl; h.setTension('russia', 82); h.deploy('ME', 'carrier', 2); h.event('red_sea_attacks', 6); }); await settle(page, 4500); await pause(page); await page.evaluate(() => document.querySelector('[data-outliner-handle]').click()); await settle(page, 700); },
+  'p3c-event-cards': async (page) => { await startUSA(page); await page.evaluate(() => { const h = window.__wl; h.setTension('russia', 82); h.event('pandemic', 6); }); await settle(page, 4500); await pause(page); },
+  'p3c-desktop': async (page) => { await page.setViewportSize({ width: 1280, height: 800 }); await inGame(page); await pause(page); await settle(page, 600); },
 };
 
 export async function run(names) {

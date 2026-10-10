@@ -1,4 +1,5 @@
 import { applyAction } from './actions.js';
+import { renewableTotal, oilPriceTerms, influencePool, influenceGain } from './selectors.js';
 import { MONTHLY_SYSTEMS } from './systems.js';
 import { assertInvariants } from './invariants.js';
 import { NATIONS, DIP_TARGETS, INTEL_TARGETS, NATION_TRAITS } from '../data/nations.js';
@@ -288,17 +289,14 @@ function economy(g,S,fx,m){
   const oilNations=['usa','russia','norway'];
   const refMult=oilNations.includes(c.id)?getRefineMult(g.defLevels):1.0;
   // Renewable energy: material returns — avoided imports, green industry, health, exports
-  const renTot=(g.resources?.renewable?.solar||0)+(g.resources?.renewable?.wind||0)+(g.resources?.renewable?.hydro||0);
+  const renTot=renewableTotal(g);
   if(renTot>0){
     cash('Energy edge',renTot*6);                                   // avoided fuel imports: up to $90M/mo at 15
     ns.gdpGrowth+=renTot*0.004;                              // green industrial base: up to +0.06
     if(renTot>=8)ns.healthcare=Math.min(100,ns.healthcare+0.02); // air quality dividend
     if(renTot>=12)cash('Energy edge',40);                           // grid surplus exported to neighbors
   }
-  const opecPrem=(g.blocTrade.opec>=2&&(g.resExtraction.oil||0)<=2)?1.35:1;
-  const swingM=g.opecSwing?(g.opecSwing.mode==='cut'?1.6:0.55):1;
-  const evOilM=g.worldEvent?(WORLD_EVENTS[g.worldEvent.id]?.oilM||1):1;
-  const oilExportM=(renTot>=10?1.2:1)*opecPrem*swingM*evOilM*(hormuzHit?1.4:1)*(g.embargoes.size?1.15:1)*(g.embargoes.size?0.8:1); // withholding lifts price, cuts your volume // displacement × cartel price power × swing posture
+  const oilExportM=oilPriceTerms(g,{renTot,hormuzHit}).mult; // terms shared with the HUD why-breakdown (selectors.js)
   // Resource import contracts: continuity when domestic reserves run dry
   if(g.importContracts.size>0){
     const blocCut=(g.blocTrade.eu>=1?0.9:1)*(g.blocTrade.cn>=1?0.85:1);
@@ -752,19 +750,13 @@ function statecraft(g,S,fx,m){
       if(sw2.mo<=0){fx.toast(`🛢️ OPEC+ ${sw2.mode==='cut'?'production cut':'flood'} posture ends`);g.opecSwing=null;S.setOpecSwing(null);}else{g.opecSwing=sw2;S.setOpecSwing(sw2);}}
   }
   // ── Diplomatic influence allocation: distribute a budget pool across nations ──
-  const infPool=(g.influenceBudget||0)*100; // $100M per budget tier
-  const iaW=g.influenceAlloc||{};const totW=Object.values(iaW).reduce((a,b)=>a+(b||0),0);
+  const {infPool,iaW,totW}=influencePool(g); // $100M per budget tier
   const relCur={...g.nationRelations};let relChanged=false;
   if(infPool>0&&totW>0){
     cash('Influence ops',-infPool);
     DIP_TARGETS.forEach(t=>{
       const w=iaW[t.id]||0;if(w<=0)return;
-      const share=infPool*(w/totW);
-      const embMult=g.embassies.has(t.id)?1.8:1; // embassy amplifies influence
-      const stabConf=ns.stability<40?0.6:ns.stability>75?1.15:1; // unstable nations struggle to project; stable ones magnetize
-      const regControl=g.dominance.regions?.has(t.region)?1.4:1; // you dominate their region → influence lands harder
-      const docInfM=g.doctrine==='hegemon'?1.5:g.doctrine==='fortress'?0.7:g.doctrine==='vanguard'?1+(Object.values(g.defLevels).reduce((a,b)=>a+(b||0),0)/200):1;
-      const gain=Math.min(6,(share/40)*embMult*docInfM*stabConf*regControl);
+      const {gain}=influenceGain(g,ns.stability,t,infPool,totW); // terms shared with the nation sheet (selectors.js)
       relCur[t.id]=Math.min(100,(relCur[t.id]||0)+gain);relChanged=true;
     });
   }
