@@ -48,20 +48,43 @@ test('390px: HUD speed control and all three figures are fully on screen; nav re
   } finally { await ctx.close(); }
 });
 
-test('390px: Resources minerals view with every row open stays inside the screen (E4, #16)', async () => {
-  const { ctx, page, errors } = await openGame(browser, { width: 390 });
-  try {
-    await go(page, 'resources');
-    const ids = await page.evaluate(() => [...document.querySelectorAll('[data-mineral]')].map((r) => r.dataset.mineral));
-    assert.equal(ids.length, 10);
-    for (const id of ids) {
-      await page.evaluate((id) => document.querySelector(`[data-mineral=${id}] [data-mineral-head]`).click(), id); await settle(page, 120);
-      const o = await overflow(page, 390);
-      assert.ok(o.scrollWidth <= 390, `${id}: scrollWidth ${o.scrollWidth}`); assert.deepEqual(o.bad, [], `${id}: elements past the right edge`);
-    }
-    assert.deepEqual(errors, []);
-  } finally { await ctx.close(); }
-});
+// E5c: Resources vertical (minerals). Six sub-tabs fit both widths with no sideways scroll, every row and button is
+// a 44px target, and every Part 3 lever (plants, recycling, reserve, offtake, pact, export controls) plus the merged
+// rare-earth export extraction and the natural-resource cards are reachable.
+for (const [W, H] of [[390, 844], [1280, 800]]) {
+  test(`${W}px: Resources minerals view, six sub-tabs inside the screen; every Part 3 lever reachable`, async () => {
+    const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
+    try {
+      await go(page, 'resources');
+      const segs = await page.evaluate(() => [...document.querySelectorAll('[data-segbar=resources] [data-seg]')].map((b) => { const r = b.getBoundingClientRect(); return { id: b.dataset.seg, w: r.width, h: r.height, r: r.right }; }));
+      assert.deepEqual(segs.map((x) => x.id), ['reserves', 'processing', 'stockpile', 'deals', 'controls', 'natural']);
+      for (const x of segs) assert.ok(x.h >= 44 && x.w >= 44 && x.r <= W + 0.5, `segment ${JSON.stringify(x)}`);
+      const want = {
+        reserves: [/Ore reserves/, /to zero|unrefined|—/, /Rare earths · export extraction/, /Revenue/],
+        processing: [/Processing capacity/, /Build plant/, /Recycle/, /Gallium/],
+        stockpile: [/Stockpile and reserve/, /Buy reserve/, /Release reserve|Hold reserve/],
+        deals: [/Offtake deals/, /Available partners/, /Offtake · /, /Processing pact/],
+        controls: [/Your export controls/, /Controls against you/, /Rival impact/, /Export control/],
+        natural: [/Natural Resource Management/, /Crude Oil/, /Renewable Energy/],
+      };
+      for (const [id, res] of Object.entries(want)) {
+        await seg(page, id);
+        const txt = await page.evaluate(() => (document.querySelector('[data-minerals]') || document.querySelector('[data-sentinel=resources]')).innerText);
+        for (const re of res) assert.match(txt, new RegExp(re.source, 'i'), `${id}: ${re}`);
+        const o = await overflow(page, W);
+        assert.ok(o.scrollWidth <= W, `${id}: scrollWidth ${o.scrollWidth}`); assert.deepEqual(o.bad, [], `${id}: elements past the right edge`);
+        if (id !== 'natural') {
+          const small = await page.evaluate(() => [...document.querySelectorAll('[data-minerals] .wl-r, [data-minerals] .wl-p-head, [data-minerals] .wl-btn')].filter((e) => e.getBoundingClientRect().height < 43.5).map((e) => (e.className || e.tagName) + ':' + e.textContent.slice(0, 20)));
+          assert.deepEqual(small, [], `${id}: targets under 44px`);
+        }
+      }
+      await seg(page, 'controls');
+      await page.evaluate(() => [...document.querySelectorAll('[data-minerals] button')].find((b) => /Export control/.test(b.textContent))?.click()); await settle(page, 400);
+      const c = await rect(page, '[data-confirm]'); if (c) assert.ok(c.x >= 0 && c.r <= W + 0.5, JSON.stringify(c));
+      assert.deepEqual(errors, []);
+    } finally { await ctx.close(); }
+  });
+}
 
 // E5a: Forces vertical. Every sub-tab fits both widths with no sideways scroll, every segment and row control is a
 // 44px target, and every E8 mechanic (spec Part 7) has a control or a figure on one of the five screens.

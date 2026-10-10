@@ -49,7 +49,7 @@ function Quality({ fv, onJump }) {
       <Row title="Index now → target" sub={`Moves ${f2(gap * R.qualityLag)}/mo: a cohort trains for years`} value={`${Math.round(fv.quality)} → ${Math.round(fv.qTarget)}`} tone={gap < -1 ? 'alert' : gap > 1 ? 'good' : undefined}><Bar pct={fv.quality} tone={tone(fv.quality, 45, 65)} marker={fv.qTarget} /></Row>
       <Row title="Capability multiplier" sub="Applied to strength x readiness x equipment" value={`×${f2(fv.qMult)}`} />
     </Panel>
-    <Panel id="drivers" title="Drivers · tap a figure, or open the lever" figure={`${fv.drivers.length} vitals`}>
+    <Panel id="drivers" title="Drivers" figure={`${fv.drivers.length} vitals`}>
       {fv.drivers.map((d) => (
         <Row key={d.k} data-driver={d.k} title={d.label} sub={`weight ${d.w}`}
           value={<WhyV title={`${d.label} → quality`} total={d.v * d.w} terms={[{ label: `${d.label} ${Math.round(d.v)}`, value: d.v * d.w }]} note="Quality target = sum of weight x vital. Raise the vital on the Economy tab.">{f1(d.v * d.w)}</WhyV>}

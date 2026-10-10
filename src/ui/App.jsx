@@ -17,8 +17,6 @@ import { runMonth } from '../sim/tick.js';
 import { applyVerb } from '../sim/actions.js';
 import { stateView, openingPosition, newArsenal, newMinerals, newForces } from '../sim/state.js';
 import { forceView } from '../sim/forces.js';
-import { mineralView, programSupply, inputsOf } from '../sim/minerals.js';
-import { MINERALS, MINERAL_RULES } from '../data/minerals.js';
 import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups } from '../sim/selectors.js';
 import { VERSION, BUILD_STAMP } from './version.js';
 import { MapView } from './map/MapView.jsx';
@@ -31,13 +29,13 @@ import { nationName } from './shell/nation-verbs.js';
 import { Outliner } from './shell/Outliner.jsx';
 import { buildOutliner } from './shell/outliner.js';
 import { newEvState } from '../sim/events.js';
-import { openEventCards, eventOptions, programView, accessView, compliance } from '../sim/selectors.js';
-import { TIERS, ACCESS_RULES } from '../data/alliance.js';
+import { openEventCards, eventOptions } from '../sim/selectors.js';
 import { EventCards } from './shell/EventCards.jsx';
 import { SHELL_CSS } from './shell/styles.js';
 import { Seg } from './shell/Seg.jsx';
 import { ForcesTab } from './forces/ForcesTab.jsx';
 import { ArsenalTab } from './arsenal/ArsenalTab.jsx';
+import { MineralsTab, RES_SUBS } from './resources/MineralsTab.jsx';
 import { NukeRegister } from './shell/NukeRegister.jsx';
 // Nav verticals (8). Situation and Resources are panes folded under Overview and Economy behind a segmented control; activeTab keeps their ids.
 const TABS=['overview','economy','energy','arsenal','forces','intel','technology','trade'];
@@ -58,7 +56,7 @@ function WorldLeadersInner({resumeSignal}){
   const [activeEffects,setActiveEffects]=useState([]);
   const [resources,setResources]=useState(null);
   const [resExtraction,setResExtraction]=useState({});
-  const [forcesSub,setForcesSub]=useState('manpower');const [arsenalSub,setArsenalSub]=useState('programs');
+  const [forcesSub,setForcesSub]=useState('manpower');const [arsenalSub,setArsenalSub]=useState('programs');const [resSub,setResSub]=useState('reserves');
   const [defLevels,setDefLevels]=useState({});
   const [defResearch,setDefResearch]=useState({});
   const [spillApplied,setSpillApplied]=useState(new Set());
@@ -123,7 +121,7 @@ function WorldLeadersInner({resumeSignal}){
   const [forcePosture,setForcePosture]=useState({});
   const [evState,setEvState]=useState(newEvState());
   const [arsenal,setArsenal]=useState(newArsenal());
-  const [minerals,setMinerals]=useState(newMinerals());const [forces,setForces]=useState(null);const [openMineral,setOpenMineral]=useState(null);
+  const [minerals,setMinerals]=useState(newMinerals());const [forces,setForces]=useState(null);
   const [nukeLog,setNukeLog]=useState([]);
   const [embargoes,setEmbargoes]=useState(new Set());
   const [embargoedBy,setEmbargoedBy]=useState(null);
@@ -495,6 +493,7 @@ function WorldLeadersInner({resumeSignal}){
   const sitBadge=()=>{const live=(flashpoint?1:0)+Object.values(rivalHolds||{}).filter(m=>m>0).length+Object.keys(blockades).length+Object.values(chokeStatus).filter(st=>st==='disrupted').length+Object.entries(rivalTension).filter(([cid,t])=>t>=70&&cid!==country?.id&&!isAllyOf(country?.id,cid)).length;return live+(ultimatum?1:0)+(confrontation?1:0);};
   const goPane=(t)=>{setActiveTab(t);setVitalsDrill(null);};
   const segOverview=<Seg id="overview" label="Overview views" active={activeTab} onSelect={goPane} items={[{id:'overview',label:'Map'},{id:'sitroom',label:'Situation',badge:sitBadge(),sev:'alert'}]}/>;
+  const segResources=<Seg id="resources" label="Resources views" cols={3} active={resSub} onSelect={setResSub} items={RES_SUBS}/>;
   const segEconomy=<Seg id="economy" label="Economy views" active={activeTab} onSelect={goPane} items={[{id:'economy',label:'Ledger'},{id:'resources',label:'Resources'}]}/>;
   // Plain render helper (not a component: an inner component would remount every render)
   const panelBox=(id,title,accent,content)=>{const open=!collapsed.has(id);
@@ -1208,11 +1207,11 @@ function WorldLeadersInner({resumeSignal}){
           <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'10px'}}>Energy Policy Actions</div><div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'9px'}}>{PA.filter(a=>a.t==='energy').map(a=><ActionCard key={a.id} action={a}/>)}</div></div>}
 
         {/* RESOURCES TAB */}
-        {activeTab==='resources'&&<div className="wl-pane-wrap" data-sentinel="resources">{segEconomy}<div style={{flex:1,overflowY:'auto',padding:'12px'}}>
+        {activeTab==='resources'&&<div className="wl-pane-wrap" data-sentinel="resources">{segEconomy}{segResources}{resSub!=='natural'&&<MineralsTab sub={resSub} dispatch={dispatch} view={{country,minerals,nationRelations,resources,resExtraction,globalDef}}/>}{resSub==='natural'&&<div style={{flex:1,overflowY:'auto',padding:'12px'}}>
           <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'12px'}}>Natural Resource Management</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(1,1fr)',gap:'10px',maxWidth:'650px'}}>
             {resources&&Object.entries(RES_META).map(([k,meta])=>{
-              if(!resources[k])return null;
+              if(!resources[k]||k==='rareEarth')return null; // rare-earth export extraction lives on Reserves (E5c)
               const res=resources[k];const pct=res.max>0?Math.round((res.r/res.max)*100):0;
               const rate=resExtraction[k]||0;const monthsLeft=rate>0&&res.r>0?Math.round(res.r/(rate*meta.depRate)):null;
               const revPerMo=rate*meta.rev*((['oil','gas'].includes(k)&&['usa','russia','norway'].includes(country?.id||''))?getRefineMult(defLevels):1);
@@ -1276,36 +1275,7 @@ function WorldLeadersInner({resumeSignal}){
                 {[['☀️','Solar','solar','#fbbf24'],['💨','Wind','wind','#60a5fa'],['💧','Hydro','hydro','#4ade80']].map(([em,n,k,col])=>{const lvl=resources?.renewable?.[k]||0;return <div key={k} style={{background:'#111827',borderRadius:'5px',padding:'8px',textAlign:'center'}}><div style={{fontSize:'16px'}}>{em}</div><div style={{fontSize:'11px',color:'#9ca3af',marginBottom:'4px'}}>{n}</div><div style={{display:'flex',gap:'2px',justifyContent:'center'}}>{Array.from({length:5}).map((_,i)=><div key={i} style={{width:'6px',height:'6px',borderRadius:'50%',background:i<lvl?col:'#374151'}}/>)}</div><button onClick={()=>dispatch({type:'buildRenewable',payload:{kind:k}})} style={{marginTop:'5px',width:'100%',background:lvl>=5?'transparent':'rgba(0,0,0,.4)',border:`1px solid ${lvl>=5?'#374151':col}`,color:lvl>=5?'#4b5563':col,padding:'4px',borderRadius:'3px',fontSize:'10px'}}>{lvl>=5?'Max':`+$400M`}</button></div>;})}</div>
             </div>
           </div>
-          {/* E4 (#16): minerals and processing. Minimal lever UI; E5 redesigns it. Rows and costs from mineralView (one rule with the month). */}
-          {(()=>{const v={country,minerals,nationRelations};const rows=mineralView(v);const R=MINERAL_RULES;const nb=NATIONS[country?.id]?.bloc;const canPact=nb==='west'||nb==='east';
-            const btn=(on,warn)=>({background:on?'rgba(167,139,250,.12)':'rgba(0,0,0,.35)',border:`1px solid ${warn?'#f87171':on?'#a78bfa':'#374151'}`,color:warn?'#fca5a5':on?'#ddd6fe':'#9ca3af',padding:'6px 8px',borderRadius:'4px',fontSize:'10px',fontWeight:700,minHeight:'32px'});
-            const f1=(x)=>x.toFixed(1);
-            return <div data-minerals style={{maxWidth:'650px',marginTop:'14px'}}>
-              <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'5px'}}>Minerals · ore → processing → refined stockpile</div>
-              <div style={{fontSize:'10px',color:'#9ca3af',marginBottom:'7px',lineHeight:1.5}}>Production tranches draw refined minerals; a shortfall slows the line, never cancels it. 1 unit/mo ≈ 1% of world refining.</div>
-              {canPact&&<button onClick={()=>dispatch({type:'toggleProcessingPact',payload:{}})} style={{...btn(minerals.pact),width:'100%',marginBottom:'7px'}}>{minerals.pact?`🤝 Processing pact active · $${R.pact.cost}M/mo — end`:`🤝 Processing pact · bloc partners supply you first — $${R.pact.cost}M/mo`}</button>}
-              <div style={{display:'grid',gap:'6px'}}>{rows.map(r=>{const open=openMineral===r.id;const short=r.controlledBy.length>0;
-                return <div key={r.id} data-mineral={r.id} style={{background:'#0d1117',border:`1px solid ${short?'#7f1d1d':open?'#a78bfa':'#1f2937'}`,borderRadius:'7px',padding:'8px',minWidth:0}}>
-                  <button data-mineral-head onClick={()=>setOpenMineral(open?null:r.id)} style={{all:'unset',cursor:'pointer',display:'block',width:'100%'}}>
-                    <div style={{display:'flex',justifyContent:'space-between',gap:'6px',fontSize:'11px',fontWeight:700,color:'#f9fafb'}}><span>{r.i} {r.n}</span><span style={{color:r.stock<5?'#f87171':'#a3e635'}}>{Math.floor(r.stock)}/{R.stockMax}</span></div>
-                    <div style={{fontSize:'9px',color:'#9ca3af',marginTop:'2px'}}>ore {Math.round(r.ore)} · processing {r.cap}/mo · in +{f1(r.flow.total)}/mo{r.reserve?` · reserve ${r.reserve}`:''}{short?<span style={{color:'#f87171'}}> · ⛔ {r.controlledBy.join(', ')} {r.controlledBy.length>1?'control':'controls'} exports</span>:''}{r.controlled?<span style={{color:'#fbbf24'}}> · 🔒 you control</span>:''}</div>
-                  </button>
-                  {open&&<div style={{marginTop:'6px',display:'grid',gap:'5px'}}>
-                    <div style={{fontSize:'9px',color:'#6b7280',lineHeight:1.5}}>Use: {r.use}. Inflow: home {f1(r.flow.dom)} · recycling {f1(r.flow.rec)} · offtake {f1(r.flow.off)} · pact {f1(r.flow.pact)} · market {f1(r.flow.mkt)} · secure {f1(r.flow.secure)}/mo{r.upkeep?` · costs $${r.upkeep}M/mo`:''}</div>
-                    <div style={{fontSize:'9px',color:'#d1d5db'}}>reserve {r.reserve}/{R.reserveMax} · {r.releasing?'releasing':'on hold'}{r.built?` · ${r.built} plant${r.built>1?'s':''} built`:''}{r.plants.map((p,i)=><span key={i}> · 🏗️ plant {p.mo}mo</span>)}</div>
-                    {r.deals.map(d=><div key={d.n} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'6px',fontSize:'10px',color:d.paused?'#f87171':'#d1d5db'}}><span>📄 {d.name} {d.units}/mo · ${d.price}M/mo · {d.mo}mo{d.paused?' · paused':''}</span><button onClick={()=>dispatch({type:'cancelOfftake',payload:{mineral:r.id,nation:d.n}})} style={btn(false)}>Cancel</button></div>)}
-                    <div style={{display:'flex',flexWrap:'wrap',gap:'4px'}}>
-                      <button onClick={()=>dispatch({type:'buildPlant',payload:{mineral:r.id}})} style={btn(true)}>🏗️ Build plant ${R.plant.capex.toLocaleString()}M · {R.plant.mo}mo · +{r.ore>0?R.plant.add:R.plant.add*R.noOreEff}/mo{r.ore>0?'':' (no ore: imported concentrate)'}</button>
-                      <button onClick={()=>dispatch({type:'buyStockpile',payload:{mineral:r.id}})} style={btn(true)}>📦 Buy reserve ${Math.round(R.stockpile.lot*r.price*R.stockpile.markup)}M</button>
-                      <button onClick={()=>dispatch({type:'toggleStockpileRelease',payload:{mineral:r.id}})} style={btn(r.releasing)}>{r.releasing?'⏸ Hold reserve':'▶ Release reserve'}</button>
-                      {r.id!=='enrichment'&&<button onClick={()=>dispatch({type:'toggleRecycling',payload:{mineral:r.id}})} style={btn(r.recycling)}>{r.recycling?'♻️ Stop recycling':`♻️ Recycle +${R.recycle.add}/mo · $${R.recycle.cost}M/mo`}</button>}
-                      {r.partners.map(pn=><button key={pn.id} onClick={()=>dispatch({type:'signOfftake',payload:{mineral:r.id,nation:pn.id}})} style={btn(true)}>📄 Offtake · {pn.n} {pn.units}/mo ${pn.price}M/mo</button>)}
-                      {r.canControl&&<button onClick={()=>dispatch({type:'toggleExportControl',payload:{mineral:r.id}})} style={btn(r.controlled,!r.controlled)}>{r.controlled?'🔓 Lift export control':`🔒 Export control · −${R.controls.relHit} relations`}</button>}
-                    </div>
-                  </div>}
-                </div>;})}</div>
-            </div>;})()}
-        </div></div>}
+        </div>}</div>}
 
         {/* ARSENAL TAB (E5b): programs, procurement, supply, partnerships, exports, deterrence. Sub-tabs and cards live in src/ui/arsenal. */}
         {activeTab==='arsenal'&&<ArsenalTab sub={arsenalSub} onSub={setArsenalSub} dispatch={dispatch} toast={showToast} onJump={goPane} exportVert={selExportVert} onExportVert={setSelExportVert}
