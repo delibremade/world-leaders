@@ -14,6 +14,7 @@ import { RES_META, CONCESSIONS } from '../data/energy.js';
 import { sumDep, isAllyOf, topHostile, wSum, navalWeight, calcSCost, getEnergyTier, isDiversified, getRefineMult } from './formulas.js';
 import { naturalDrift } from './economy.js';
 import { rng } from './rng.js';
+import { stepIssues, ISSUE_TTL } from './issues.js';
 import { pickWorldEvent, startWorldEvent, eventCooldowns, fireChain, eventEffects } from './events.js';
 
 // ── v57 monthly tick, extracted (P2). Zero rule changes: test/parity-app.test.js proves the App's autosaves are
@@ -598,20 +599,24 @@ function intelOps(g,S,fx,m){
   S.setIntelOps(newOps);
 
   // Investigations
-  const ni={...g.investigations};const nb={...g.briefs};let bc=false;
+  const ni={...g.investigations};const nb={...g.briefs};let bc=false;const justBriefed=[];
   Object.entries(ni).forEach(([type,ml])=>{
-    if(ml<=1){delete ni[type];const def=ISSUES[type];if(def){nb[type]=def.brief(ns,c);bc=true;S.setIssues(p=>p.map(i=>i.type===type?{...i,status:'briefed'}:i));S.setLog(l=>[{msg:`📄 Brief: ${def.title}`,yr:g.date.yr,mo:g.date.mo},...l.slice(0,19)]);fx.toast(`📄 Brief ready: ${def.title}`);}}else ni[type]=ml-1;
+    if(ml<=1){delete ni[type];const def=ISSUES[type];if(def){nb[type]=def.brief(ns,c);bc=true;justBriefed.push(type);S.setLog(l=>[{msg:`📄 Brief: ${def.title}`,yr:g.date.yr,mo:g.date.mo},...l.slice(0,19)]);fx.toast(`📄 Brief ready: ${def.title}`);}}else ni[type]=ml-1;
   });
   S.setInvestigations(ni);if(bc)S.setBriefs(nb);
 
-  // New issues
-  const et=new Set(g.issues.map(i=>i.type));const nt=[];
-  Object.entries(ISSUES).forEach(([type,def])=>{if(!et.has(type)&&def.trigger(ns))nt.push(type);});
-  if(nt.length){S.setIssues(p=>[...p.slice(-11),...nt.map(t=>({type:t,id:`${t}_${fx.now()}`,status:'unexamined',yr:g.date.yr,mo:g.date.mo}))]);nt.forEach(t=>fx.toast(`⚠ ${ISSUES[t].title}`));}
-  S.setIssues(p=>p.filter(i=>{if(i.status!=='unexamined')return true;const def=ISSUES[i.type];return!(def&&!def.trigger(ns)&&!(def.preloadedFor||[]).includes(c.id));}));
+  let issueCool={};
+  // Issue lifecycle (issues.js): spawn on a 6-10 month cadence, persist with a ttl, lapse or resolve. No trigger-flip removal.
+  {const r=stepIssues({issues:g.issues,deployments:g.deployments,stats:ns,now:g.tickCount,date:g.date,briefed:justBriefed,cooldowns:g.actionCooldowns});issueCool=r.cool;
+   S.setIssues(r.issues);
+   const lg=(msg)=>S.setLog(l=>[{msg,yr:g.date.yr,mo:g.date.mo},...l.slice(0,19)]);
+   r.spawned.forEach(t=>{fx.toast(`⚠ ${ISSUES[t].title} — examine within ${ISSUE_TTL.unexamined} months`);lg(`⚠ Issue: ${ISSUES[t].title}`);});
+   r.lapsed.forEach(t=>{fx.toast(`⌛ ${ISSUES[t].title} lapsed unaddressed`);lg(`⌛ Lapsed: ${ISSUES[t].title}`);});
+   {const gone=[...r.lapsed,...r.resolved].filter(t=>nb[t]);if(gone.length){const nb2={...nb};gone.forEach(t=>{delete nb2[t];});S.setBriefs(nb2);}}
+   r.resolved.forEach(t=>lg(`✔ Resolved: ${ISSUES[t].title}`));}
 
   // Cooldowns
-  const ncd={};Object.entries(g.actionCooldowns).forEach(([id,ml])=>{if(ml>1)ncd[id]=ml-1;});S.setActionCooldowns(ncd);
+  const ncd={};Object.entries(g.actionCooldowns).forEach(([id,ml])=>{if(ml>1)ncd[id]=ml-1;});Object.assign(ncd,issueCool);S.setActionCooldowns(ncd);
 
   // Intelligence infrastructure maintenance + monthly agency budget (real money now)
   {let iInf=0;Object.entries(g.intelInfra||{}).forEach(([fid,ct])=>{const f=INTEL_INFRA[fid];if(f&&ct)iInf+=f.maint*ct;});cash('Intel infrastructure',-iInf);}

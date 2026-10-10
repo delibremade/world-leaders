@@ -11,7 +11,8 @@ import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
 const GOLDEN = new URL('../golden/parity-events.json', import.meta.url);
-const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activeDecision', 'decisionTimer', 'demand'];
+// #23 (E9): issues spawn on a cadence now, so the first spawn changes issues/log/actionCooldowns (issue_next) before any event.
+const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activeDecision', 'decisionTimer', 'demand', 'issues', 'briefs', 'investigations', 'actionCooldowns'];
 const strip = (s) => { const o = JSON.parse(s); delete o.evState; return JSON.stringify(o); };
 const hash = (s) => createHash('sha256').update(s).digest('hex').slice(0, 16);
 

@@ -22,7 +22,7 @@ function Responses({ kind, opts, dispatch }) {
     </div>);
 }
 
-export function EventCards({ doctrine, activeDecision, decisionDesc, worldEvent, flashpoint, worldOpts = [], fpOpts = [], dispatch, onOpenRegion, fxBadge }) {
+export function EventCards({ doctrine, activeDecision, decisionDesc, worldEvent, flashpoint, worldOpts = [], fpOpts = [], dispatch, onOpenRegion, fxBadge, readyBriefs = [], onOpenBrief }) {
   const cards = [];
   if (!doctrine) cards.push(
     <div key="doctrine" className="wl-card-ev" data-event-card="doctrine" data-modal="1900" style={{ '--ev': COLOR.accent.command }}>
@@ -65,5 +65,13 @@ export function EventCards({ doctrine, activeDecision, decisionDesc, worldEvent,
       <p>{we?.d}</p>
       <Responses kind="world" opts={worldOpts} dispatch={dispatch} />
     </div>); }
+  // Intelligence brief ready (E9, #23): the investigation finished; the card carries the deploy timer and opens the Intel tab.
+  for (const b of readyBriefs) cards.push(
+    <div key={`brief_${b.type}`} className="wl-card-ev" data-event-card="brief" data-brief={b.type} style={{ '--ev': COLOR.accent.command }}>
+      <div className="wl-label">{b.icon} Intelligence brief ready · {b.ttl}mo to deploy</div>
+      <h4>{b.title}</h4>
+      <p>{b.rc}</p>
+      <button type="button" className="wl-btn" onClick={() => onOpenBrief(b.type)}>Open brief · {b.n} options</button>
+    </div>);
   return <div className="wl-cards" data-event-cards>{cards}</div>;
 }
