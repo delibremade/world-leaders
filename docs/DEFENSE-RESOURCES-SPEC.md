@@ -83,3 +83,31 @@ Defense becomes two verticals:
 - Done when: every Part 1-7 mechanic is reachable from these screens at 390px with no sideways scroll; 390px screenshots attached.
 
 Build order (final): E1 -> E2 -> E3 + E7 -> E4 -> E8 -> E5 -> E6.
+
+## Part 9. Tangible order of battle (F7, rules + data; replaces E8's abstract strength)
+- **Real inventories, not indices.** Each nation starts with its actual 2024 fleet by type: airframes (e.g. US F-22, F-35A/B/C, F/A-18E/F, F-15E/EX, B-1, B-2, B-52, tankers, AWACS, C-17), hulls (carriers, SSN/SSBN/SSGN, destroyers, frigates, amphibs), army formations (brigades, battalions), SOF units by name and approximate size. Numbers come from open sources with a `status_source` on every line; the owner corrects. Owner-set parameters where real plans are contested: B-21 planned buy (owner: 200+; program of record ≥100), F/A-XX timeline.
+- **Manpower is population-bounded.** Active and reserve strength are headcounts drawn from the recruitable population (age cohort × eligibility × propensity); pay, unemployment and stability move propensity. Crews per platform are real ratios (pilots per airframe, crew per hull, maintainers per squadron).
+- **Managing, not building:** the player's job is readiness (mission-capable rate per type), maintenance budget and depot throughput, modernization (block upgrades, SLEP), attrition and replacement, basing and rotation, retirement decisions (e.g. retiring F-22s early to fund F-47). Procurement adds airframes to an existing fleet, it does not create a fleet from nothing.
+- **Force quality stays** (from Part 7) but is applied per unit type to readiness and effectiveness, not as a global strength.
+- **Capability per theater = platforms present × mission-capable rate × crews × quality × basing** (Part 11).
+- Done when: a US campaign starts with the real fleet (counts visible per type), readiness and maintenance are managed per type with measurable effects, a 10% maintenance cut shows up as lower mission-capable rates within 12 months, crewless airframes sit unready rather than vanishing, and every number has a source line.
+
+## Part 10. Tier 1 / Tier 2 as real units (F8, rules + data)
+- Named units with approximate real sizes and roles (US: Tier 1 CAG/Delta, DEVGRU, 24th STS; Tier 2 75th Rangers, MARSOC, Army SF groups, Navy SEAL teams; others per nation; China and Brazil generic until the owner names them). `status_source` on each.
+- Selection pipelines feed Tier 1 from Tier 2 and conventional forces at realistic rates; attrition from operations; training cost and time per operator.
+- Operations consume specific units for a duration (an op ties up a troop or squadron), with recovery time. Tier-1 op odds use the actual units available, not a global score.
+- Done when: a Tier-1 op shows which unit is committed and for how long; running ops back to back degrades odds until recovery; units are listed with counts on the Forces Specialized tab.
+
+## Part 11. Bases, nodes and map placement (F9, rules + map)
+- **Zoomable map** (PixiJS, already pan/pinch) gains a build layer: the player places **naval bases, air bases, army garrisons, logistics hubs, radar/ISR sites, missile defense sites, SOF forward staging, and processing/port nodes** on real candidate locations (existing real bases pre-placed: e.g. Guam, Diego Garcia, Okinawa, Rota, Djibouti, Bahrain for the US; Djibouti and Ream for China; Tartus for Russia).
+- **Placement ROI:** each node type has a reach (radius or chokepoint coverage) and multipliers it applies when well placed: sortie generation and sustainment for air and naval forces in theater, chokepoint control weight, ISR coverage, trade-lane protection, response time to flashpoints, sphere influence in the host region. Badly placed nodes cost upkeep and relations for little effect. Host-nation consent depends on relations and pacts; losing it (regime change, sanctions) can close a base.
+- **Cost model follows Part 3:** construction is a capex item but basing agreements, host-nation payments and upkeep are the recurring cost; some nodes (ports, processing) are private-capital with government enabling.
+- **AI nations place too**, creating contestable chokepoints (e.g. Djibouti crowding).
+- Done when: placing a naval base at a chokepoint measurably raises control weight and escort effectiveness there; an air base in theater raises deployed power for air units stationed within reach; a host-nation relations collapse closes a base with its effects removed; nodes render on the map with reach rings at zoom, and the map's tap-to-build flow works one-thumbed at 390px.
+
+## Part 12. Tangible minerals (F10, data; amends Part 3)
+- Quantities in real units (tonnes per year of ore and refined output; plants as named facilities where real: e.g. Mountain Pass and the Texas separation plant for US rare earths, Chinese capacity by province in aggregate), with `status_source` lines; demand per platform tranche in the same units.
+- The Resources tab shows tonnes, plant names and capacity, and years-to-depletion in those units; the private-capital model from F5 applies.
+- Done when: every mineral row shows real units and a source; a platform tranche's demand is expressed in tonnes and matches the supply math.
+
+Build order (updated): F5 (running) -> F9 bases (Fable, map) in parallel with F7 order of battle (Opus) -> F8 SOF units (Opus) -> F10 tangible minerals (Sonnet) -> qol #41, #42, #44.
