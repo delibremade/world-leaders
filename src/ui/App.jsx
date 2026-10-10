@@ -14,6 +14,7 @@ import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, calcSCost, g
 import { naturalDrift } from '../sim/economy.js';
 import { rng } from '../sim/rng.js';
 import { runMonth } from '../sim/tick.js';
+import { applyVerb, pushTension as pushTensionV, recordNuke as recordNukeV } from '../sim/actions.js';
 import { stateView, openingPosition } from '../sim/state.js';
 const TABS=['overview','sitroom','economy','energy','resources','defense','intel','technology','trade'];
 const TABM={overview:{i:'🌍',l:'Overview'},economy:{i:'💰',l:'Economy'},energy:{i:'⚡',l:'Energy'},resources:{i:'⛏️',l:'Resources'},sitroom:{i:'🎖️',l:'Situation Room'},defense:{i:'🛡️',l:'Defense'},intel:{i:'🕵️',l:'Intel'},technology:{i:'💻',l:'Technology'},trade:{i:'🤝',l:'Trade'}};
@@ -407,354 +408,23 @@ function WorldLeadersInner({resumeSignal}){
     setPhase('play');
   },[]);
 
-  const investigate=useCallback(t=>{
-    const s=sR.current;if(!s)return;
-    if(s.treasury<300){showToast('⚠ Insufficient treasury');return;}
-    setStats(p=>({...p,treasury:p.treasury-300}));
-    setInvestigations(p=>({...p,[t]:2}));
-    setIssues(p=>p.map(i=>i.type===t?{...i,status:'investigating'}:i));
-    setLog(p=>[{msg:`🔍 ${ISSUES[t]?.title}`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
-    showToast('🔍 Investigation started — brief in 2 months ($300M)');
-  },[showToast]);
-
-  const deployPolicy=useCallback((issueType,optId)=>{
-    const s=sR.current;const brief=brR.current?.[issueType];if(!s||!brief)return;
-    const opt=(brief?.opts||[]).find(o=>o.id===optId);if(!opt)return;
-    const cost=Math.max(0,opt.cost||0);
-    if(cost>0&&s.treasury<cost){showToast('⚠ Insufficient treasury');return;}
-    if(cost>0)setStats(p=>({...p,treasury:p.treasury-cost}));
-    setDeployments(p=>[...p,{id:`${issueType}_${optId}_${Date.now()}`,issueType,policyName:opt.n,effects:opt.fx||[],timeMonths:opt.tm,monthsElapsed:0,status:'active'}]);
-    setIssues(p=>p.map(i=>i.type===issueType?{...i,status:'deployed'}:i));
-    setLog(p=>[{msg:`📋 ${opt.n}`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
-    showToast(`📋 ${opt.n} initiated`);
-    setRightMode('intel');setSelIssue(null);setSelOption(null);
-  },[showToast]);
-
-  const ownedUnits=(pid)=>BLACK_PROGRAMS[pid]?(+blackR.current?.[pid]||0):((platformsR.current[pid]||0)+(impR.current[pid]||0));
-  const deployedTotal=(pid)=>Object.values(fdR.current||{}).reduce((a,o)=>a+(o?.[pid]||0),0);
-  const deployUnit=useCallback((rid,pid)=>{
-    const avail=ownedUnits(pid)-deployedTotal(pid);const nm=(PLATFORMS[pid]||BLACK_PROGRAMS[pid])?.n||pid;
-    if(avail<=0){showToast(`⚠ No free ${nm} — build more or recall from other regions`);return false;}
-    setForceDeployments(pr=>{const n2={...pr,[rid]:{...(pr[rid]||{}),[pid]:((pr[rid]||{})[pid]||0)+1}};fdR.current=n2;return n2;});
-    showToast(`🪖 ${nm} stationed in ${REGIONS[rid]?.n}`);return true;
-  },[showToast]);
-  const establishEmbassy=useCallback((nid)=>{
-    const t=DIP_TARGETS.find(d=>d.id===nid);if(!t||embR.current.has(nid))return;
-    if((embLockR.current[nid]||0)>0){showToast(`⚠ Persona non grata in ${t.n} — ${embLockR.current[nid]}mo`);return;}
-    if((sR.current?.treasury||0)<300){showToast('⚠ Embassy costs $300M');return;}
-    setStats(p=>({...p,treasury:p.treasury-300}));setEmbassies(prev=>{const n2=new Set(prev);n2.add(nid);embR.current=n2;return n2;});showToast(`🏛️ Embassy established in ${t.n}`);
-  },[showToast]);
-  const launchIntervention=useCallback((ck)=>{
-    const cp=CONCESSIONS[ck];const iv=cp?.intervention;const s=sR.current;const c=cR.current;if(!iv||!s||!c)return;
-    const nat=NATIONS[cp.nation];const dep=fdR.current?.[cp.region]||{};const nw=navalWeight(dep);
-    const isrSc=isrScore(platformsR.current,dlR.current,infraR.current,blackR.current);
-    const icd=cdR.current[`interv_${ck}`]||0;const hostile=Math.max(sphR.current[cp.region]?.competitors?.china||0,sphR.current[cp.region]?.competitors?.russia||0);
-    const chance=Math.min(0.95,0.5+isrSc*0.03+nw*0.05-hostile/200);
-    if(icd>0){showToast(`Forces regrouping — ${icd}mo`);return;}
-    if((s.military||0)<iv.req.military){showToast(`⚠ Military ≥${iv.req.military} required`);return;}
-    if(nw<iv.req.naval){showToast(`⚠ Naval weight ≥${iv.req.naval} in ${REGIONS[cp.region]?.n} required (have ${nw.toFixed(1)})`);return;}
-    if(isrSc<iv.req.isr){showToast(`⚠ ISR ≥${iv.req.isr} required (have ${isrSc})`);return;}
-    if(s.treasury<iv.cost){showToast(`⚠ Need $${iv.cost}M`);return;}
-    setStats(p=>({...p,treasury:p.treasury-iv.cost}));cdR.current={...cdR.current,[`interv_${ck}`]:12};setActionCooldowns(p=>({...p,[`interv_${ck}`]:12}));
-    if(rng()<chance){
-      setStewardship(p=>{const n2={...p,[ck]:{mo:0,tiers:0,unrest:0}};stewR.current=n2;return n2;});
-      setNationRelations(p=>{const n2={...p,[cp.nation]:30};DIP_TARGETS.forEach(t=>{if(t.region===cp.region&&t.id!==cp.nation)n2[t.id]=Math.max(-100,(n2[t.id]||0)-10);});if(btR.current.opec>=1){n2.saudi=Math.max(-100,(n2.saudi||0)-10);}return n2;});
-      setRivalTension(p=>{const n2={...p};['china','russia'].forEach(r=>{if(r!==c.id)n2[r]=Math.min(99,(n2[r]||0)+12);});return n2;});setStats(p=>({...p,stability:p.stability-2}));
-      showToast(`⚔️ ${iv.n} — the raid succeeds. ${nat?.n}'s leader is in custody; its oil now sells through your channels.`);setLog(p=>[{msg:`⚔️ ${iv.n}: stewardship of ${nat?.n} oil`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
-    } else {
-      setStats(p=>({...p,stability:p.stability-4}));setNationRelations(p=>{const n2={...p,[cp.nation]:Math.max(-100,(p[cp.nation]||0)-30)};DIP_TARGETS.forEach(t=>{if(t.region===cp.region&&t.id!==cp.nation)n2[t.id]=Math.max(-100,(n2[t.id]||0)-10);});return n2;});
-      setRivalTension(p=>{const n2={...p};['china','russia'].forEach(r=>{if(r!==c.id)n2[r]=Math.min(99,(n2[r]||0)+8);});return n2;});
-      showToast(`💥 ${iv.n} failed — the raid was repelled. Stability −4, the region hardens against you.`);setLog(p=>[{msg:`💥 ${iv.n} failed`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
-    }
-  },[showToast]);
-  const regimeChange=useCallback((nid)=>{
-    const s=sR.current;const c=cR.current;if(!s||!c||nid===c.id)return;const ally=isAllyOf(c.id,nid);
-    const home=NATIONS[nid]?.region;const dep=fdR.current?.[home]||{};const w=wSum(dep);
-    const isr=isrScore(platformsR.current,dlR.current,infraR.current,blackR.current);
-    const saps=Object.values(blackR.current||{}).reduce((a,b)=>a+(+b||0),0);
-    const gl=gdR.current[nid];const their=gl?40+Object.values(gl).reduce((a,b)=>a+(b||0),0)*2:(NATION_BLOC[nid]==='east'?45:30);
-    const mine=(s.military||0)+isr*2+saps*10+w*5;const ratio=mine/their;
-    const cd=cdR.current[`regime_${nid}`]||0;
-    if(cd>0){showToast(`Forces regrouping — ${cd}mo`);return;}
-    if(saps<1){showToast('⚠ Regime change needs a fielded Special Access Program — the extreme asset');return;}
-    if(isr<10){showToast(`⚠ ISR ≥10 required (have ${isr})`);return;}
-    if(w<3){showToast(`⚠ Naval/air weight ≥3 stationed in ${REGIONS[home]?.n} required (have ${w.toFixed(1)})`);return;}
-    if(ratio<2){showToast(`⚠ Overmatch insufficient — ${ratio.toFixed(2)}× (need 2×). Yours ${Math.round(mine)} vs theirs ${Math.round(their)}`);return;}
-    if(s.treasury<6000){showToast('⚠ $6,000M required');return;}
-    setStats(p=>({...p,treasury:p.treasury-6000}));cdR.current={...cdR.current,[`regime_${nid}`]:24};setActionCooldowns(p=>({...p,[`regime_${nid}`]:24}));
-    const chance=Math.min(0.9,0.3+(ratio-2)*0.2+(embR.current.has(nid)?0.1:0)+(embMisR.current[nid]==='intel'?0.1:0));
-    const nm=NATIONS[nid]?.n||nid;
-    if(rng()<chance){
-      setSphere(p=>{const n2={...p};Object.keys(n2).forEach(rid=>{const v=n2[rid].competitors?.[nid]||0;if(v>0)n2[rid]={...n2[rid],competitors:{...n2[rid].competitors,[nid]:Math.max(0,v-(rid===home?40:10))}};});if(!gl&&n2[home])n2[home]={...n2[home],player:Math.min(100,(n2[home].player||0)+30)};return n2;});
-      if(gl)setGlobalDef(p=>{const ng={...p};const lv={...ng[nid]};Object.keys(lv).forEach(v=>{lv[v]=Math.max(0,lv[v]-0.5);});ng[nid]=lv;return ng;});
-      setNationRelations(p=>{const n2={...p};DIP_TARGETS.forEach(t=>{n2[t.id]=Math.max(-100,(n2[t.id]||0)-(ally?30:20));});n2[nid]=60;return n2;});
-      setRivalTension(p=>{const n2={...p};Object.keys(n2).forEach(k=>{if(k!==nid&&k!==c.id)n2[k]=Math.min(99,(n2[k]||0)+15);});n2[nid]=40;return n2;});
-      setStats(p=>({...p,stability:p.stability-(ally?8:5)}));
-      if(ally){setBlocTrade(p=>{const nb={eu:0,cn:0,opec:0};btR.current=nb;return nb;});setBlocLock(p=>{const nl={eu:24,cn:24,opec:24};bLockR.current=nl;return nl;});}
-      showToast(`🎯 REGIME CHANGE — ${nm}'s government has fallen. An aligned administration takes office; the world recoils −20`);
-      setLog(p=>[{msg:`🎯 Regime change: ${nm}`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
-    } else {
-      setStats(p=>({...p,stability:p.stability-6}));setNationRelations(p=>{const n2={...p};n2[nid]=Math.max(-100,(n2[nid]||0)-40);DIP_TARGETS.forEach(t=>{if(t.id!==nid)n2[t.id]=Math.max(-100,(n2[t.id]||0)-10);});return n2;});
-      setRivalTension(p=>({...p,[nid]:Math.min(99,(p[nid]||0)+20)}));
-      showToast(`💥 Regime change FAILED in ${nm} — the operation was blown. Stability −6, relations −40, tension +20`);
-      setLog(p=>[{msg:`💥 Regime change failed: ${nm}`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
-    }
-  },[showToast]);
-  const recordNuke=useCallback((e)=>{const entry={...e,yr:dateR.current.yr,mo:dateR.current.mo};nukeR.current=[entry,...nukeR.current].slice(0,40);setNukeLog(nukeR.current);},[]);
-  const recallUnit=useCallback((rid,pid)=>{setForceDeployments(pr=>{const here={...(pr[rid]||{})};if(!here[pid])return pr;here[pid]-=1;if(here[pid]<=0)delete here[pid];const n2={...pr,[rid]:here};fdR.current=n2;return n2;});},[]);
-  const pushTension=useCallback((cid,d,why)=>{
-    const cur=tenR.current[cid]||0;const nv=Math.max(0,cur+d);
-    if(nv>=100){setGameOver(`☢️ NUCLEAR EXCHANGE. Your ${why} pushed ${cid.charAt(0).toUpperCase()+cid.slice(1)} past the brink and the world did not survive the reply. Whoever "started it," it ended on your watch.`);return;}
-    setRivalTension(p=>({...p,[cid]:nv}));tenR.current={...tenR.current,[cid]:nv};
-    if(d>0)setNationRelations(p=>({...p,[cid]:Math.max(-100,(p[cid]||0)-d*0.8)}));
-  },[]);
-  const applySfx=useCallback(ops=>{
-    (ops||[]).forEach(op=>{
-      const hot=()=>Object.entries(tenR.current).sort((a,b)=>b[1]-a[1])[0]?.[0];
-      if(op.k==='tension'){const id=op.id==='$hottest'?hot():op.id;if(id&&id!==cR.current?.id)setRivalTension(p=>({...p,[id]:Math.max(0,Math.min(100,(p[id]||0)+op.d))}));}
-      else if(op.k==='relBloc'){setNationRelations(p=>{const n2={...p};DIP_TARGETS.forEach(t=>{if(NATION_BLOC[t.id]===op.bloc)n2[t.id]=Math.max(-100,Math.min(100,(n2[t.id]||0)+op.d));});return n2;});}
-      else if(op.k==='rel'){setNationRelations(p=>({...p,[op.id]:Math.max(-100,Math.min(100,(p[op.id]||0)+op.d))}));}
-      else if(op.k==='relBuyers'){setNationRelations(p=>{const n2={...p};Object.keys(exR.current).forEach(k2=>{const bid=k2.split('_')[0];n2[bid]=Math.max(-100,Math.min(100,(n2[bid]||0)+op.d));});return n2;});}
-      else if(op.k==='gdbTop'){const id=op.id==='$hottest'?hot():op.id;if(id)setGlobalDef(p=>{const ng={...p};const lv=ng[id];if(!lv)return p;const top=Object.entries(lv).sort((a,b)=>b[1]-a[1])[0];if(top)ng[id]={...lv,[top[0]]:Math.max(0,top[1]+op.d)};return ng;});}
-      else if(op.k==='relAnchor'||op.k==='relRivalAnchor'){const mine=btR.current.cn>=2?'cn':'eu';const key=op.k==='relAnchor'?mine:(mine==='cn'?'eu':'cn');const aid=BLOC_TRADE[key].anchor;setNationRelations(p=>({...p,[aid]:Math.max(-100,Math.min(100,(p[aid]||0)+op.d))}));}
-      else if(op.k==='blocStep'){const mine=btR.current.cn>=2?'cn':'eu';setBlocTrade(p=>{const nb={...p,[mine]:Math.max(0,(p[mine]||0)+op.d)};btR.current=nb;return nb;});}
-    });
-  },[]);
-  const executeAction=useCallback(action=>{
-    if(action.oneTime)setUsedTech(prev=>new Set([...prev,action.id]));
-    if(action.sfx)applySfx(action.sfx);
-    const s=sR.current;const c=cR.current;if(!s||!c)return;
-    if(action.of&&!action.of.includes(c.id)){showToast('⚠ Not available for '+c.name);return;}
-    if(action.excludedFor?.includes(c.id)){showToast('⚠ Self-dealing not applicable — you already ARE this market');return;}
-    const cd=cdR.current[action.id]||0;
-    if(cd>0){showToast(`⚠ On cooldown — ${cd} months remaining`);return;}
-    // Blocks check
-    const blocked=(action.blocks||[]).some(bid=>(cdR.current[bid]||0)>0);
-    if(blocked){showToast('⚠ Conflicting policy active — wait for it to complete');return;}
-    const cost=action.cost>0?action.cost:0;
-    if(cost>0&&s.treasury<cost){showToast('⚠ Insufficient treasury');return;}
-    setStats(p=>{
-      const ns={...p};
-      if(action.cost>0)ns.treasury-=action.cost;
-      else if(action.cost<0)ns.treasury+=Math.abs(action.cost);
-      Object.entries(action.fx||{}).forEach(([k,v])=>{if(k in ns&&typeof v==='number')ns[k]+=v;});
-      return ns;
-    });
-    // Add ongoing effects
-    if((action.tx||[]).length>0){
-      const newAE=(action.tx).map(t=>({id:`${action.id}_${t.stat}_${Date.now()}`,source:action.id,stat:t.stat,d:t.d,monthsLeft:t.mo,totalMonths:t.mo}));
-      setActiveEffects(p=>[...p,...newAE]);
-    }
-    if(action.cd>0){cdR.current={...cdR.current,[action.id]:action.cd};setActionCooldowns(p=>({...p,[action.id]:action.cd}));}
-    // Petrodollar activation
-    if(action.id==='tr5'&&c.id==='usa'){
-      setActivePolicies(p=>new Set([...p,'petrodollar']));
-      showToast('💵 Petrodollar Dominance activated — inflation suppression + buying power uplift');
-    }
-    // Sphere update for trade deals
-    if(action.region){
-      setSphere(p=>{const ns={...p};if(ns[action.region])ns[action.region]={...ns[action.region],player:Math.min(100,(ns[action.region].player||0)+12)};return ns;});
-    }
-    setLog(p=>[{msg:`${action.i} ${action.n}`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
-    showToast(`${action.i} ${action.n} executed`);
-  },[showToast,applySfx]);
-
-  const investDefense=useCallback(vert=>{
-    const s=sR.current;if(!s)return;
-    const lvl=dlR.current[vert]||0;
-    if(lvl>=7){showToast('Maximum level reached');return;}
-    if(drR.current[vert]){showToast('Research already in progress for this vertical');return;}
-    const lvlDef=DV[vert]?.lvl[lvl];if(!lvlDef)return;
-    const disc=ddR.current[vert]||0;
-    const qm=getQualMult(vert,dlR.current);
-    const docM=doctrineR.current==='fortress'?0.8:doctrineR.current==='hegemon'?1.15:1;
-    const cid=cR.current?.id;const nm0=RD_MODS[cid]||{};const expPen=(nm0.exp||[]).includes(vert)&&!(cid==='japan'&&apR.current.has('jp_normalization'));const natM=(nm0.cheap||[]).includes(vert)?0.75:expPen?1.4:1;
-    const cost=Math.round(lvlDef.$*(1-disc)*docM*natM);
-    const mo=Math.round(lvlDef.mo*(1+(1-qm)*0.5)*(doctrineR.current==='fortress'?0.8:1));
-    if(s.treasury<cost){showToast('⚠ Insufficient treasury');return;}
-    setStats(p=>({...p,treasury:p.treasury-cost}));
-    setDefResearch(p=>({...p,[vert]:mo}));
-    setLog(p=>[{msg:`🔬 ${DV[vert].n} L${lvl+1}: ${lvlDef.n}`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
-    showToast(`🔬 Researching ${DV[vert].n} L${lvl+1} — ${mo} months`);
-  },[showToast]);
-
-  const sellDefTech=useCallback((buyerId,vert)=>{
-    const c=cR.current;const s=sR.current;if(!c||!s)return;
-    const playerLvl=dlR.current[vert]||0;
-    const buyer=BUYERS.filter(b=>b.id!==c.id).find(b=>b.id===buyerId);if(!buyer)return;
-    if((buyer.noBuy||[]).includes(vert)){showToast(`⚠ ${buyer.n} produces ${DV[vert].n} domestically — won't import it`);return;}
-    const key=`${buyerId}_${vert}`;
-    if(exR.current[key]){showToast('Deal already active with this nation');return;}
-    if(blkR.current[buyer.region]){showToast(`⚓ ${REGIONS[buyer.region]?.n} sea lanes are blockaded — deliveries impossible`);return;}
-    if(pariahR.current>0){showToast(`☢️ Pariah state — no nation will sign arms contracts with you (${pariahR.current}mo)`);return;}
-    if(embgR.current.has(buyerId)){showToast(`⛽ ${buyer.n} won't buy from a supplier embargoing them — lift the embargo first`);return;}
-    // Exportable if you've actually developed the system (L1+). Buyers won't take obsolete kit:
-    // it must be at least as good as what the world average fields, but you don't have to lead the world.
-    const excGlobal=Object.entries(gdR.current);
-    const globalAvg=excGlobal.length?excGlobal.reduce((s,[,n])=>s+(n[vert]||0),0)/excGlobal.length:0;
-    if(playerLvl<1){showToast(`⚠ Develop ${DV[vert].n} before exporting it`);return;}
-    const advantage=Math.max(0,playerLvl-Math.floor(globalAvg)); // 0 at parity; positive when ahead → more revenue
-    // Relations gate: hostile nations won't buy; allies pay a premium (relations from influence allocation)
-    const rel=relR.current[buyerId]!==undefined?relR.current[buyerId]:buyer.rel;
-    if(rel<-30){showToast(`⚠ ${buyer.n} relations too hostile to buy (${Math.round(rel)}). Build influence first.`);return;}
-    const relMult=1+Math.max(-0.3,Math.min(0.4,rel/180));
-    const fielded=Object.entries(PLATFORMS).some(([pid2,p2])=>p2.req[vert]!=null&&(platformsR.current[pid2]||0)>0);
-    const buyerInSphere=domR.current.regions?.has(buyer.region)?1.18:1;
-    const demandM=demR.current[vert]??1; // world market at signing — prices lock into the contract
-    const attache=embR.current.has(buyerId)?1.10:1; // defense attaché brokering // exports flow through territory you dominate
-    const revenue=Math.round(buyer.budget*(0.20+Math.max(0.10,advantage*0.13))*(fielded?1.25:1)*relMult*buyerInSphere*attache*demandM);
-    setDefExports(p=>({...p,[key]:{buyerId,vert,level:playerLvl,relationship:Math.round(rel),revenue}}));
-    setSphere(p=>{const ns={...p};const r=buyer.region;if(ns[r])ns[r]={...ns[r],player:Math.min(100,(ns[r].player||0)+15)};return ns;});
-    // Arms sales deepen ties with the buyer (+8 relations)
-    setNationRelations(p=>({...p,[buyerId]:Math.min(100,(p[buyerId]!==undefined?p[buyerId]:buyer.rel)+8)}));
-    // Selling advanced arms to a contested ally angers the opposing bloc's lead (the Taiwan dilemma)
-    const buyerBloc=NATION_BLOC[buyerId];const rivalLead=buyerBloc==='west'?(c.id==='china'?null:'china'):buyerBloc==='east'?'usa':null;
-    if(rivalLead&&advantage>=2){setNationRelations(p=>({...p,[rivalLead]:Math.max(-100,(p[rivalLead]!==undefined?p[rivalLead]:0)-6)}));}
-    setLog(p=>[{msg:`🤝 ${DV[vert].n} → ${buyer.flag}${buyer.n} $${revenue}M/yr`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
-    showToast(`🤝 Export deal: ${DV[vert].n} → ${buyer.n} ($${revenue}M/yr)${rel>60?' — ally premium':''}`);
-  },[showToast]);
-
-  const sellAllVert=useCallback((vert)=>{
-    const c=cR.current;if(!c)return;
-    const eligible=BUYERS.filter(b=>b.id!==c.id).filter(b=>{
-      if((b.noBuy||[]).includes(vert))return false;
-      if(exR.current[`${b.id}_${vert}`])return false;
-      const rel=relR.current[b.id]!==undefined?relR.current[b.id]:b.rel;
-      if(rel<-30)return false;
-      return (dlR.current[vert]||0)>=1;
-    });
-    if(!eligible.length){showToast('No eligible buyers for this system right now');return;}
-    eligible.forEach(b=>sellDefTech(b.id,vert));
-    showToast(`🤝 Offered ${DV[vert].n} to ${eligible.length} eligible nation${eligible.length>1?'s':''}`);
-  },[showToast,sellDefTech]);
-
-  const runIntelOp=useCallback((opId,targetId)=>{
-    const s=sR.current;if(!s)return;
-    const op=INTEL_OPS.find(o=>o.id===opId);const c=cR.current;
-    if(!op||!c)return;
-    if(opId==='sabotage'&&!(infraR.current.paramilitary>0)){showToast('⚠ Requires Special Activities Wing (Intel infrastructure)');return;}
-    if(opId==='mole'&&(infraR.current.overseas_stations||0)<3){showToast('⚠ Requires 3+ Overseas Stations');return;}
-    const opCost=Math.round(op.cost*(doctrineR.current==='shadow'?0.75:1));
-    if(s.treasury<opCost){showToast('⚠ Insufficient treasury');return;}
-    const cyberLvl=dlR.current.cyber||0;
-    const budgetBonus=((intelBudgetR.current||1)-1)*0.04;
-    const shB=doctrineR.current==='shadow'?0.12:0;const shD=doctrineR.current==='shadow'?0.10:0;
-    const asB=covR.current.has('asset_recruitment')?0.08:0;const asD=covR.current.has('asset_recruitment')?0.05:0;
-    const stB=Math.min(0.15,(infraR.current.overseas_stations||0)*0.03);
-    const isrSc=isrScore(platformsR.current,dlR.current,infraR.current,blackR.current);
-    const isrB=Math.min(0.10,isrSc*0.01);const lpD=infraR.current.listening_posts?0.04:0;
-    const abB=absorbR.current>0?0.15:0;if(absorbR.current>0)absorbR.current--;
-    const successRate=Math.min(0.95,op.baseSuccess+(cyberLvl-2)*0.05+budgetBonus+shB+asB+abB+stB+isrB);
-    const discoverRate=Math.max(0.05,op.baseDiscover-(cyberLvl-2)*0.03-budgetBonus-shD-asD-lpD);
-    setStats(p=>({...p,treasury:p.treasury-opCost}));
-    setIntelOps(p=>[...p,{id:`${opId}_${targetId}_${Date.now()}`,opId,targetId,monthsLeft:op.mo,successRate,discoverRate,type:op.type}]);
-    setLog(p=>[{msg:`${op.i} Op launched vs ${targetId} — ${op.mo}mo`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
-    showToast(`${op.i} ${op.n} operation underway`);
-  },[showToast]);
-
-  const respondIntelCrisis=useCallback(responseId=>{
-    if(!intelCrisis)return;
-    const {type,responses}=intelCrisis;
-    const resp=responses.find(r=>r.id===responseId);if(!resp)return;
-    setStats(p=>{const ns={...p};Object.entries(resp.effect||{}).forEach(([k,v])=>{if(k in ns&&typeof v==='number')ns[k]+=v;});return ns;});
-    if(resp.sphereEffect){
-      setSphere(p=>{const ns={...p};let count=0;Object.keys(ns).forEach(rid=>{if(count<(resp.sphereEffect.regions||1)){ns[rid]={...ns[rid],player:Math.max(0,(ns[rid].player||0)+resp.sphereEffect.delta)};count++;}});return ns;});
-    }
-    if(responseId==='absorb')absorbR.current=2;
-    if(responseId==='retaliate'&&intelCrisis.targetId)setTimeout(()=>runIntelOp('destab',intelCrisis.targetId),50);
-    setLog(p=>[{msg:`🕵️ Intel crisis response: ${resp.label}`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
-    showToast(`Response: ${resp.label}`);
-    setIntelCrisis(null);
-  },[intelCrisis,showToast]);
-
-  const diplomaticAction=useCallback((nid,action)=>{
-    const s=sR.current;if(!s||!nid)return;
-    const nat=DIP_TARGETS.find(d=>d.id===nid);if(!nat)return;
-    const rel=relR.current[nid]||0;const reg=nat.region;
-    const bump=(d)=>{setNationRelations(p=>({...p,[nid]:Math.max(-100,Math.min(100,(p[nid]||0)+d))}));};
-    const sphereBump=(d)=>{setSphere(p=>{const ns={...p};if(ns[reg])ns[reg]={...ns[reg],player:Math.min(100,(ns[reg].player||0)+d)};return ns;});};
-    if(action==='visit'){
-      const cd=cdR.current[`visit_${nid}`]||0;if(cd>0){showToast(`State visit on cooldown — ${cd}mo`);return;}
-      if(s.treasury<150){showToast('⚠ Need $150M');return;}
-      setStats(p=>({...p,treasury:p.treasury-150}));bump(8);
-      cdR.current={...cdR.current,[`visit_${nid}`]:6};setActionCooldowns(p=>({...p,[`visit_${nid}`]:6}));
-      showToast(`🤝 State visit to ${nat.n} — relations +8`);
-    } else if(action==='aid'){
-      const cd=cdR.current[`aid_${nid}`]||0;if(cd>0){showToast(`Aid package on cooldown — ${cd}mo`);return;}
-      if(s.treasury<600){showToast('⚠ Foreign aid package costs $600M');return;}
-      setStats(p=>({...p,treasury:p.treasury-600}));bump(15);sphereBump(5);
-      cdR.current={...cdR.current,[`aid_${nid}`]:12};setActionCooldowns(p=>({...p,[`aid_${nid}`]:12}));
-      showToast(`💵 Foreign aid to ${nat.n} — relations +15, sphere +5 in ${REGIONS[reg]?.n}`);
-    } else if(action==='trade'){
-      if(tradeAgR.current.has(nid)){setTradeAgreements(prev=>{const n2=new Set(prev);n2.delete(nid);tradeAgR.current=n2;return n2;});showToast(`Trade agreement with ${nat.n} ended`);return;}
-      if(rel<30){showToast(`⚠ Need +30 relations for a trade agreement (currently ${Math.round(rel)})`);return;}
-      setTradeAgreements(prev=>{const n2=new Set(prev);n2.add(nid);tradeAgR.current=n2;return n2;});
-      showToast(`📜 Trade agreement signed with ${nat.n} — +$40M/mo, relations grow`);
-      setLog(p=>[{msg:`📜 Trade agreement — ${nat.n}`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
-    } else if(action==='pact'){
-      if(pactR.current.has(nid)){setDefensePacts(prev=>{const n2=new Set(prev);n2.delete(nid);pactR.current=n2;return n2;});showToast(`Defense pact with ${nat.n} dissolved`);return;}
-      if(!embR.current.has(nid)){showToast(`⚠ Establish an embassy in ${nat.n} before a defense pact`);return;}
-      if(rel<60){showToast(`⚠ Need +60 relations for a defense pact (currently ${Math.round(rel)})`);return;}
-      if(s.treasury<800){showToast('⚠ Defense pact requires $800M to formalize');return;}
-      setStats(p=>({...p,treasury:p.treasury-800}));
-      setDefensePacts(prev=>{const n2=new Set(prev);n2.add(nid);pactR.current=n2;return n2;});bump(10);
-      showToast(`🛡️ Defense pact with ${nat.n} — permanent sphere in ${REGIONS[reg]?.n}, shared deterrence, bloc-aligned`);
-      setLog(p=>[{msg:`🛡️ Defense pact signed — ${nat.n}`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
-    }
-  },[showToast]);
-
-  const applyRegionAction=useCallback((regionId,actionType)=>{
-    const s=sR.current;if(!s||!regionId)return;
-    const costs={trade:0,intel:600,military:800,pact:0};
-    const cost=costs[actionType]||0;
-    if(cost>0&&s.treasury<cost){showToast('⚠ Insufficient treasury');return;}
-    if(cost>0)setStats(p=>({...p,treasury:p.treasury-cost}));
-    // Intel op is special: ISR-scaled, suppresses the local rival, and grants lasting collection
-    if(actionType==='intel'){
-      const isrSc=isrScore(platformsR.current,dlR.current,infraR.current,blackR.current);
-      const youGain=8+Math.round(isrSc/2);const rivalLoss=6+Math.round(isrSc/3);
-      setSphere(p=>{const ns={...p};const sph=ns[regionId];if(sph){const top=Object.entries(sph.competitors||{}).sort((a,b)=>b[1]-a[1])[0];ns[regionId]={...sph,player:Math.min(100,(sph.player||0)+youGain),competitors:top&&top[1]>3?{...sph.competitors,[top[0]]:Math.max(0,top[1]-rivalLoss)}:sph.competitors};}return ns;});
-      // Lasting intel network: small ongoing sphere + intercept boost is represented as a covert effect
-      setActiveEffects(p=>[...p,{id:`intelnet_${regionId}_${Date.now()}`,source:'intel_network',stat:'stability',d:0.01,monthsLeft:12,totalMonths:12}]);
-      showToast(`🕵️ Intel network in ${REGIONS[regionId]?.n} — +${youGain} you, −${rivalLoss} rival (ISR ${isrSc})`);
-      setLog(p=>[{msg:`🕵️ Intelligence network established — ${REGIONS[regionId]?.n}`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
-      return;
-    }
-    // 'pact' region action = ACTIVATE an existing Defense Pact ally in this region (basing rights surge).
-    // It no longer bypasses the earned per-nation pact system — it leverages it.
-    if(actionType==='pact'){
-      const allyHere=[...pactR.current].find(nid=>DIP_TARGETS.find(d=>d.id===nid)?.region===regionId);
-      if(!allyHere){showToast(`⚠ No Defense Pact ally in ${REGIONS[regionId]?.n} — sign one via Trade → Statecraft first`);return;}
-      const cdk=`allyact_${regionId}`;const cd=cdR.current[cdk]||0;
-      if(cd>0){showToast(`Alliance activation on cooldown — ${cd}mo`);return;}
-      setSphere(p=>{const ns2={...p};if(ns2[regionId])ns2[regionId]={...ns2[regionId],player:Math.min(100,(ns2[regionId].player||0)+18)};return ns2;});
-      cdR.current={...cdR.current,[cdk]:12};setActionCooldowns(p=>({...p,[cdk]:12}));
-      const an=DIP_TARGETS.find(d=>d.id===allyHere)?.n;
-      showToast(`🛡️ Alliance activated — ${an} grants basing rights (+18% sphere)`);
-      setLog(p=>[{msg:`🛡️ Alliance activated with ${an} — ${REGIONS[regionId]?.n}`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
-      return;
-    }
-    // No generic fall-through: every region action is an explicit branch above.
-  },[showToast]);
-
-
-  const makeDecision=useCallback(optId=>{
-    const d=decR.current;if(!d)return;
-    const opt=d.options.find(o=>o.id===optId);if(!opt)return;
-    setStats(p=>{const ns={...p};Object.entries(opt.effects||{}).forEach(([k,v])=>{if(k in ns)ns[k]+=v;});return ns;});
-    applySfx(opt.sfx);
-    setLog(p=>[{msg:`🎯 ${d.title}: ${opt.label}`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);
-    showToast(`🎯 ${opt.label}`);
-    setActiveDecision(null);decR.current=null;
-    setUsedDecisions(prev=>new Set([...prev,d.id]));decTimer.current=7+Math.floor(rng()*6);
-  },[showToast,applySfx]);
+  // Engine seam (src/sim): a live view over the refs, the setter sink, and presentation effects, built per call from
+  // stable refs/setters so nothing goes stale. The monthly tick runs runMonth (tick.js); every player verb is a
+  // dispatch({type, payload}) into applyVerb (actions.js). The UI keeps only presentation state.
+  const liveState=()=>stateView({stats:sR,country:cR,issues:issR,investigations:invR,deployments:depR,briefs:brR,date:dateR,activeEffects:aeR,resources:resR,resExtraction:extR,defLevels:dlR,defResearch:drR,spillApplied:spR,globalDef:gdR,defExports:exR,sphere:sphR,activePolicies:apR,actionCooldowns:cdR,darpaDisc:ddR,activeDecision:decR,usedDecisions:usedR,interestRate:irR,taxPolicy:taxR,spendingMode:spdR,intelOps:intelR,grrbState:grrbR,budgetAlloc:budgetR,equilibriumStats:equilibriumR,gracePeriod:graceR,intelBudget:intelBudgetR,doctrine:doctrineR,platforms:platformsR,socialPrograms:socialR,victory:victoryR,hegHold:hegHoldR,personnelPay:payR,procureMode:procR,forceDeployments:fdR,flashpoint:fpR,sphereSnapshot:trendSnapR,trendTimer:trendTimerR,platformsImported:impR,covertPrograms:covR,foreignOpTimer:foreignOpR,absorbBonus:absorbR,intelInfra:infraR,moles:molesR,sanctions:sanctR,importContracts:impCR,nationRelations:relR,embassies:embR,influenceAlloc:iaR,influenceBudget:ibR,proxyAlloc:paR,proxyBudget:pbR,sapOffice:sapR,blackPrograms:blackR,blackResearch:blackResR,defensePacts:pactR,tradeAgreements:tradeAgR,continuousOps:contOpsR,expertiseLease:leaseR,talentRetention:retR,tickCount:tickCountR,ipPortfolio:ipR,ipPolicy:ipPolR,dominance:domR,dominanceLeverage:domLevR,noticeCooldowns:respCdR,rivalTension:tenR,intelPosture:postR,blockades:blkR,disinfo:disinfoR,expelled:expelR,confrontation:confR,blocTrade:btR,blocLock:bLockR,opecSwing:swingR,worldEvent:wEvR,demand:demR,currencyPosture:curR,embassyMissions:embMisR,embassyLocks:embLockR,ultimatum:ultR,pariah:pariahR,confrontationCooldowns:confCdR,forcePosture:postureR,nukeLog:nukeR,embargoes:embgR,embargoedBy:embByR,spr:sprR,sprRelease:sprRelR,concessions:concR,chokeStatus:chokeR,stewardship:stewR,exportShare:shareR,chokeDeals:cdealR,platformDev:pdevR,developed:devR,pathHold:pathHoldR,usedTech:usedTechR,rivalHolds:rivalHoldR,sectorMaturity:maturityR,sectorAge:ageR,prevSectorLevels:prevLvlR,decisionTimer:decTimer,pressureTimer:compTimer});
+  const sink={setCountry,setStats,setIssues,setInvestigations,setBriefs,setDeployments,setActiveEffects,setResources,setResExtraction,setDefLevels,setDefResearch,setSpillApplied,setGlobalDef,setDefExports,setSphere,setIntelOps,setIntelBudget,setBudgetAlloc,setEquilibriumStats,setGracePeriod,setDoctrine,setPlatforms,setSocialPrograms,setVictory,setHegHold,setPersonnelPay,setProcureMode,setForceDeployments,setFlashpoint,setSphereTrend,setPlatformsImported,setCovertPrograms,setIntelInfra,setMoles,setSanctions,setImportContracts,setRivalHolds,setNationRelations,setEmbassies,setInfluenceAlloc,setInfluenceBudget,setProxyAlloc,setProxyBudget,setSapOffice,setBlackPrograms,setBlackResearch,setDefensePacts,setTradeAgreements,setContinuousOps,setTalentRetention,setExpertiseLease,setRivalTension,setIntelPosture,setBlockades,setConfrontation,setBlocTrade,setBlocLock,setOpecSwing,setLedger,setUsedTech,setWorldEvent,setDemand,setCurrencyPosture,setEmbassyMissions,setUltimatum,setPariah,setForcePosture,setNukeLog,setEmbargoes,setEmbargoedBy,setSpr,setSprRelease,setConcessions,setChokeStatus,setStewardship,setExportShare,setChokeDeals,setPlatformDev,setDeveloped,setVictoryType,setPathHold,setIpPortfolio,setIpPolicy,setSectorMaturity,setSectorAge,setIntelCrisis,setGrrbState,setActivePolicies,setActionCooldowns,setDarpaDisc,setActiveDecision,setUsedDecisions,setInterestRate,setTaxPolicy,setSpendingMode,setDate,setLog,setStatsTrend,setGameOver};
+  const engineFx={toast:showToast,now:()=>Date.now(),defer:(fn,ms)=>setTimeout(fn,ms)};
+  const dispatch=useCallback(a=>applyVerb(liveState(),sink,engineFx,a),[showToast]);
+  // Interim (P2b): helpers still called by handlers that have not moved yet.
+  const pushTension=(cid,d,why)=>pushTensionV(liveState(),sink,engineFx,cid,d,why);
+  const recordNuke=(e)=>recordNukeV(liveState(),sink,engineFx,e);
 
   // Monthly tick: the engine lives in src/sim/tick.js (runMonth). The component supplies a live view of its refs,
   // its setters, and presentation effects. Built per call from stable refs/setters, so nothing goes stale.
   const tick=useCallback(()=>{
    try{
-    const g=stateView({stats:sR,country:cR,issues:issR,investigations:invR,deployments:depR,briefs:brR,date:dateR,activeEffects:aeR,resources:resR,resExtraction:extR,defLevels:dlR,defResearch:drR,spillApplied:spR,globalDef:gdR,defExports:exR,sphere:sphR,activePolicies:apR,actionCooldowns:cdR,darpaDisc:ddR,activeDecision:decR,usedDecisions:usedR,interestRate:irR,taxPolicy:taxR,spendingMode:spdR,intelOps:intelR,grrbState:grrbR,budgetAlloc:budgetR,equilibriumStats:equilibriumR,gracePeriod:graceR,intelBudget:intelBudgetR,doctrine:doctrineR,platforms:platformsR,socialPrograms:socialR,victory:victoryR,hegHold:hegHoldR,personnelPay:payR,procureMode:procR,forceDeployments:fdR,flashpoint:fpR,sphereSnapshot:trendSnapR,trendTimer:trendTimerR,platformsImported:impR,covertPrograms:covR,foreignOpTimer:foreignOpR,absorbBonus:absorbR,intelInfra:infraR,moles:molesR,sanctions:sanctR,importContracts:impCR,nationRelations:relR,embassies:embR,influenceAlloc:iaR,influenceBudget:ibR,proxyAlloc:paR,proxyBudget:pbR,sapOffice:sapR,blackPrograms:blackR,blackResearch:blackResR,defensePacts:pactR,tradeAgreements:tradeAgR,continuousOps:contOpsR,expertiseLease:leaseR,talentRetention:retR,tickCount:tickCountR,ipPortfolio:ipR,ipPolicy:ipPolR,dominance:domR,dominanceLeverage:domLevR,noticeCooldowns:respCdR,rivalTension:tenR,intelPosture:postR,blockades:blkR,disinfo:disinfoR,expelled:expelR,confrontation:confR,blocTrade:btR,blocLock:bLockR,opecSwing:swingR,worldEvent:wEvR,demand:demR,currencyPosture:curR,embassyMissions:embMisR,embassyLocks:embLockR,ultimatum:ultR,pariah:pariahR,confrontationCooldowns:confCdR,forcePosture:postureR,nukeLog:nukeR,embargoes:embgR,embargoedBy:embByR,spr:sprR,sprRelease:sprRelR,concessions:concR,chokeStatus:chokeR,stewardship:stewR,exportShare:shareR,chokeDeals:cdealR,platformDev:pdevR,developed:devR,pathHold:pathHoldR,usedTech:usedTechR,rivalHolds:rivalHoldR,sectorMaturity:maturityR,sectorAge:ageR,prevSectorLevels:prevLvlR,decisionTimer:decTimer,pressureTimer:compTimer});
-    runMonth(g,{setActionCooldowns,setActiveDecision,setActiveEffects,setBlackPrograms,setBlackResearch,setBlocLock,setBlocTrade,setBlockades,setBriefs,setChokeDeals,setChokeStatus,setConcessions,setConfrontation,setDarpaDisc,setDate,setDefLevels,setDefResearch,setDefensePacts,setDemand,setDeployments,setDeveloped,setEmbargoedBy,setEmbargoes,setEmbassies,setEmbassyMissions,setFlashpoint,setGameOver,setGlobalDef,setGracePeriod,setGrrbState,setHegHold,setIntelCrisis,setIntelOps,setInvestigations,setIpPortfolio,setIssues,setLedger,setLog,setMoles,setNationRelations,setNukeLog,setOpecSwing,setPariah,setPathHold,setPlatformDev,setResources,setRivalHolds,setRivalTension,setSectorAge,setSectorMaturity,setSphere,setSphereTrend,setSpillApplied,setSpr,setSprRelease,setStats,setStatsTrend,setStewardship,setTalentRetention,setUltimatum,setUsedDecisions,setVictory,setVictoryType,setWorldEvent},{toast:showToast,now:()=>Date.now()});
+    const g=liveState();
+    runMonth(g,sink,engineFx);
    }catch(err){try{console.error('tick fault',err);showToast(`⚠ Simulation fault caught: ${String(err?.message||err).slice(0,70)}`);}catch(e){}}
   },[showToast]);
 
@@ -808,7 +478,7 @@ function WorldLeadersInner({resumeSignal}){
        :blocked?<div style={{fontSize:'11px',color:'#f0c040',padding:'5px 8px',background:'rgba(240,192,64,.08)',borderRadius:'4px'}}>Blocked by active conflicting policy</div>
        :onCd?<div style={{fontSize:'11px',color:'#f0c040',padding:'5px 8px',background:'rgba(240,192,64,.08)',borderRadius:'4px'}}>Cooldown: {cd} months</div>
        :isRunning?<div style={{fontSize:'11px',color:'#4ade80',padding:'5px 8px',background:'rgba(74,222,128,.08)',borderRadius:'4px'}}>● Active — {Math.max(...runningEffects.map(e=>e.monthsLeft))}mo remaining</div>
-       :<button onClick={()=>executeAction(action)} style={{width:'100%',background:'#1d4ed8',border:'none',color:'white',padding:'7px',borderRadius:'5px',fontSize:'12px',fontWeight:600}}>Execute</button>}
+       :<button onClick={()=>dispatch({type:'executePolicy',payload:{id:action.id}})} style={{width:'100%',background:'#1d4ed8',border:'none',color:'white',padding:'7px',borderRadius:'5px',fontSize:'12px',fontWeight:600}}>Execute</button>}
       {action.cd>0&&!onCd&&<div style={{fontSize:'10px',color:'#4b5563',marginTop:'3px',textAlign:'center'}}>{action.cd}-month cooldown</div>}
     </div>;
   };
@@ -918,7 +588,7 @@ function WorldLeadersInner({resumeSignal}){
         <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',marginBottom:'6px'}}>Targeted Interventions</div>
         {relevantActions.map(a=><div key={a.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 8px',background:'#111827',borderRadius:'5px',marginBottom:'4px'}}>
           <div><div style={{fontSize:'12px',fontWeight:600,color:'#f9fafb'}}>{a.i} {a.n}</div><div style={{fontSize:'10px',color:'#6b7280'}}>{(a.tx||[]).find(t=>t.stat===vitalsDrill)?.d>0?'+':''}{(a.tx||[]).find(t=>t.stat===vitalsDrill)?.d.toFixed(2)}/mo × {(a.tx||[]).find(t=>t.stat===vitalsDrill)?.mo}mo</div></div>
-          <button onClick={()=>executeAction(a)} disabled={(actionCooldowns[a.id]||0)>0} style={{background:(actionCooldowns[a.id]||0)>0?'transparent':'#1d4ed8',border:`1px solid ${(actionCooldowns[a.id]||0)>0?'#374151':'#3b82f6'}`,color:(actionCooldowns[a.id]||0)>0?'#4b5563':'white',padding:'4px 10px',borderRadius:'4px',fontSize:'11px',cursor:'pointer'}}>{(actionCooldowns[a.id]||0)>0?`${actionCooldowns[a.id]}mo`:'Execute'}</button>
+          <button onClick={()=>dispatch({type:'executePolicy',payload:{id:a.id}})} disabled={(actionCooldowns[a.id]||0)>0} style={{background:(actionCooldowns[a.id]||0)>0?'transparent':'#1d4ed8',border:`1px solid ${(actionCooldowns[a.id]||0)>0?'#374151':'#3b82f6'}`,color:(actionCooldowns[a.id]||0)>0?'#4b5563':'white',padding:'4px 10px',borderRadius:'4px',fontSize:'11px',cursor:'pointer'}}>{(actionCooldowns[a.id]||0)>0?`${actionCooldowns[a.id]}mo`:'Execute'}</button>
         </div>)}
       </div>}
     </div>;
@@ -998,7 +668,7 @@ function WorldLeadersInner({resumeSignal}){
             </div>
           </div>
         </div>);})()}
-      {intelCrisis&&(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1500}}><div style={{background:'#111827',border:'2px solid #ef4444',borderRadius:'10px',padding:'28px',maxWidth:'480px',width:'90%'}}><div style={{fontSize:'11px',color:'#ef4444',textTransform:'uppercase',letterSpacing:'2px',marginBottom:'8px'}}>🚨 Intelligence Crisis</div><div style={{fontSize:'14px',fontWeight:700,color:'#f9fafb',marginBottom:'8px'}}>{intelCrisis.type==='friendly'?'Operation Discovered by Ally':intelCrisis.type==='stolen'?'Foreign Operation Against You Detected':'Operation Discovered by Adversary'}</div><div style={{fontSize:'12px',color:'#9ca3af',marginBottom:'14px'}}>Target: {intelCrisis.targetId} · Op: {INTEL_OPS.find(o=>o.id===intelCrisis.opId)?.n}. Choose your response carefully — consequences are real.</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>{intelCrisis.responses.map(r=><div key={r.id} onClick={()=>respondIntelCrisis(r.id)} style={{background:'#0d1117',border:'1px solid #374151',borderRadius:'7px',padding:'10px',cursor:'pointer'}}><div style={{fontSize:'12px',fontWeight:700,color:'#f9fafb',marginBottom:'4px'}}>{r.label}</div>{r.tags.map((t,i)=><div key={i} style={{fontSize:'10px',color:'#6b7280'}}>· {t}</div>)}</div>)}</div></div></div>)}
+      {intelCrisis&&(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1500}}><div style={{background:'#111827',border:'2px solid #ef4444',borderRadius:'10px',padding:'28px',maxWidth:'480px',width:'90%'}}><div style={{fontSize:'11px',color:'#ef4444',textTransform:'uppercase',letterSpacing:'2px',marginBottom:'8px'}}>🚨 Intelligence Crisis</div><div style={{fontSize:'14px',fontWeight:700,color:'#f9fafb',marginBottom:'8px'}}>{intelCrisis.type==='friendly'?'Operation Discovered by Ally':intelCrisis.type==='stolen'?'Foreign Operation Against You Detected':'Operation Discovered by Adversary'}</div><div style={{fontSize:'12px',color:'#9ca3af',marginBottom:'14px'}}>Target: {intelCrisis.targetId} · Op: {INTEL_OPS.find(o=>o.id===intelCrisis.opId)?.n}. Choose your response carefully — consequences are real.</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>{intelCrisis.responses.map(r=><div key={r.id} onClick={()=>dispatch({type:'respondIntelCrisis',payload:{response:r.id,crisis:intelCrisis}})} style={{background:'#0d1117',border:'1px solid #374151',borderRadius:'7px',padding:'10px',cursor:'pointer'}}><div style={{fontSize:'12px',fontWeight:700,color:'#f9fafb',marginBottom:'4px'}}>{r.label}</div>{r.tags.map((t,i)=><div key={i} style={{fontSize:'10px',color:'#6b7280'}}>· {t}</div>)}</div>)}</div></div></div>)}
 
       {/* HUD */}
       <div style={{background:'#0d1117',borderBottom:'1px solid #1f2937',padding:'0 14px',height:'48px',display:'flex',alignItems:'center',gap:'8px',flexShrink:0}}>
@@ -1058,7 +728,7 @@ function WorldLeadersInner({resumeSignal}){
               <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'6px'}}><span style={{fontSize:'20px'}}>{activeDecision.icon}</span><div><div style={{fontSize:'10px',color:'#f0c040',textTransform:'uppercase',letterSpacing:'2px'}}>Decision Required</div><div style={{fontSize:'14px',fontWeight:700,color:'#f9fafb'}}>{activeDecision.title}</div></div></div>
               <div style={{fontSize:'12px',color:'#9ca3af',marginBottom:'12px'}}>{dDesc}</div>
               <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'7px'}}>
-                {activeDecision.options.map(opt=>(<div key={opt.id} onMouseEnter={()=>setHovOpt(opt.id)} onMouseLeave={()=>setHovOpt(null)} onClick={()=>makeDecision(opt.id)} style={{background:hovOpt===opt.id?'#1f2937':'#0d1117',border:`1px solid ${hovOpt===opt.id?'#f0c040':'#374151'}`,borderRadius:'7px',padding:'10px',cursor:'pointer',transition:'all .15s'}}><div style={{fontSize:'12px',fontWeight:700,color:hovOpt===opt.id?'#fbbf24':'#e5e7eb',marginBottom:'4px'}}>{opt.label}</div>{opt.tags.map((t,i)=><div key={i} style={{fontSize:'10px',color:'#6b7280',marginBottom:'2px'}}>· {t}</div>)}{hovOpt===opt.id&&<div style={{marginTop:'6px',borderTop:'1px solid #374151',paddingTop:'6px',display:'flex',flexWrap:'wrap',gap:'3px'}}>{Object.entries(opt.effects||{}).map(([k,v])=>fxBadge(k,v,true))}</div>}</div>))}
+                {activeDecision.options.map(opt=>(<div key={opt.id} onMouseEnter={()=>setHovOpt(opt.id)} onMouseLeave={()=>setHovOpt(null)} onClick={()=>dispatch({type:'makeDecision',payload:{option:opt.id}})} style={{background:hovOpt===opt.id?'#1f2937':'#0d1117',border:`1px solid ${hovOpt===opt.id?'#f0c040':'#374151'}`,borderRadius:'7px',padding:'10px',cursor:'pointer',transition:'all .15s'}}><div style={{fontSize:'12px',fontWeight:700,color:hovOpt===opt.id?'#fbbf24':'#e5e7eb',marginBottom:'4px'}}>{opt.label}</div>{opt.tags.map((t,i)=><div key={i} style={{fontSize:'10px',color:'#6b7280',marginBottom:'2px'}}>· {t}</div>)}{hovOpt===opt.id&&<div style={{marginTop:'6px',borderTop:'1px solid #374151',paddingTop:'6px',display:'flex',flexWrap:'wrap',gap:'3px'}}>{Object.entries(opt.effects||{}).map(([k,v])=>fxBadge(k,v,true))}</div>}</div>))}
               </div>
             </div>;})()}
 
@@ -1214,7 +884,7 @@ function WorldLeadersInner({resumeSignal}){
                       {rows.length?rows.map(([l,v])=><div key={l} style={{display:'flex',justifyContent:'space-between',fontSize:'10px',color:'#9ca3af',marginBottom:'2px'}}><span>{l}</span><span style={{color:'#4ade80',fontWeight:700}}>+{v.toFixed(2)}</span></div>):<div style={{fontSize:'10px',color:'#4b5563'}}>No active levers — fund influence, proxies, or station forces.</div>}
                       {supp>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:'10px',color:'#9ca3af'}}><span>⚔️ Rival suppression</span><span style={{color:'#ef4444',fontWeight:700}}>−{supp.toFixed(2)} them</span></div>}
                     </div>;})()}
-                  {[['pact','🛡️ Activate Alliance','Requires a Defense Pact ally here: basing rights +18% (12mo cd)',0],['intel','🕵️ Deploy Intel','ISR-scaled: boosts you, suppresses rival, lasting network',600]].map(([type,label,desc,cost])=>{const short=cost>0&&(stats?.treasury||0)<cost;return <button key={type} onClick={()=>applyRegionAction(selectedRegion,type)} disabled={short} style={{background:'#0d1117',border:`1px solid ${short?'#7f1d1d':'#374151'}`,color:short?'#4b5563':'#d1d5db',padding:'8px',borderRadius:'6px',fontSize:'11px',textAlign:'left',lineHeight:'1.4',opacity:short?0.7:1}}><div style={{fontWeight:700,marginBottom:'2px'}}>{label}{cost>0&&<span style={{color:short?'#ef4444':'#6b7280',fontWeight:400}}> · ${cost}M</span>}</div><div style={{color:short?'#ef4444':'#6b7280',fontSize:'10px'}}>{short?`Need $${cost}M — treasury short`:desc}</div></button>;})}
+                  {[['pact','🛡️ Activate Alliance','Requires a Defense Pact ally here: basing rights +18% (12mo cd)',0],['intel','🕵️ Deploy Intel','ISR-scaled: boosts you, suppresses rival, lasting network',600]].map(([type,label,desc,cost])=>{const short=cost>0&&(stats?.treasury||0)<cost;return <button key={type} onClick={()=>dispatch({type:type==='intel'?'regionIntel':'activateAlliance',payload:{region:selectedRegion}})} disabled={short} style={{background:'#0d1117',border:`1px solid ${short?'#7f1d1d':'#374151'}`,color:short?'#4b5563':'#d1d5db',padding:'8px',borderRadius:'6px',fontSize:'11px',textAlign:'left',lineHeight:'1.4',opacity:short?0.7:1}}><div style={{fontWeight:700,marginBottom:'2px'}}>{label}{cost>0&&<span style={{color:short?'#ef4444':'#6b7280',fontWeight:400}}> · ${cost}M</span>}</div><div style={{color:short?'#ef4444':'#6b7280',fontSize:'10px'}}>{short?`Need $${cost}M — treasury short`:desc}</div></button>;})}
                 </div>
               </div>}
             </div>
@@ -1265,7 +935,7 @@ function WorldLeadersInner({resumeSignal}){
                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:'10px'}}><div style={{fontSize:'10px',color:def.color,textTransform:'uppercase',letterSpacing:'1px'}}>Situation Report</div><button onClick={()=>setRightMode('intel')} style={{background:'transparent',border:'none',color:'#6b7280',fontSize:'14px'}}>✕</button></div>
                 <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'12px'}}><span style={{fontSize:'22px'}}>{def.icon}</span><div style={{fontSize:'13px',fontWeight:700,color:'#f9fafb',fontFamily:'Georgia,serif'}}>{def.title}</div></div>
                 {isInv?<div style={{textAlign:'center',padding:'24px',background:'#0d1117',borderRadius:'7px',border:'1px solid #1f2937'}}><div style={{fontSize:'24px',marginBottom:'8px',animation:'pulse 1.5s infinite'}}>🔍</div><div style={{fontSize:'12px',color:'#f0c040',fontWeight:600}}>Investigating — {moLeft}mo</div></div>
-                :<div><div style={{fontSize:'12px',color:'#9ca3af',lineHeight:'1.6',marginBottom:'14px'}}>Commission an intelligence brief to unlock policy options.</div><button onClick={()=>investigate(selIssue)} style={{width:'100%',background:'rgba(239,68,68,.08)',border:'1px solid #ef4444',color:'#ef4444',padding:'11px',borderRadius:'5px',fontSize:'12px',fontWeight:700}}>🔍 Commission — $300M · 2 months</button></div>}
+                :<div><div style={{fontSize:'12px',color:'#9ca3af',lineHeight:'1.6',marginBottom:'14px'}}>Commission an intelligence brief to unlock policy options.</div><button onClick={()=>dispatch({type:'investigate',payload:{issue:selIssue}})} style={{width:'100%',background:'rgba(239,68,68,.08)',border:'1px solid #ef4444',color:'#ef4444',padding:'11px',borderRadius:'5px',fontSize:'12px',fontWeight:700}}>🔍 Commission — $300M · 2 months</button></div>}
               </div>;
             })()}
             {rightMode==='brief'&&selIssue&&briefs[selIssue]&&(()=>{
@@ -1283,7 +953,7 @@ function WorldLeadersInner({resumeSignal}){
                     <div style={{fontSize:'11px',color:'#9ca3af',marginBottom:'4px'}}>{opt.mech}</div>
                     <div style={{display:'flex',justifyContent:'space-between',fontSize:'10px',color:'#6b7280',marginBottom:'4px'}}><span>{opt.cl}</span><span>{opt.tm}mo</span></div>
                     <div style={{display:'flex',gap:'3px',flexWrap:'wrap',marginBottom:isSel?'7px':'0'}}>{(opt.fx||[]).map(e=>{const pos=(GOOD.includes(e.s)&&e.d>0)||(!GOOD.includes(e.s)&&e.d<0);return <span key={e.s} style={{fontSize:'10px',padding:'1px 5px',background:'rgba(0,0,0,.4)',border:'1px solid #1f2937',borderRadius:'3px',color:pos?'#4ade80':'#ef4444'}}>{e.l}: {e.d>0?'+':''}{e.d.toFixed(1)}</span>;})}</div>
-                    {isSel&&<div><div style={{fontSize:'10px',color:'#f0c040',marginBottom:'3px',fontWeight:600}}>Risks:</div>{(opt.risks||[]).map((r,ri)=><div key={ri} style={{fontSize:'10px',color:'#6b7280',marginBottom:'2px'}}>⚠ {r}</div>)}<div style={{display:'flex',gap:'6px',marginTop:'7px'}}>{!isDep&&<button onClick={e=>{e.stopPropagation();deployPolicy(selIssue,opt.id);}} style={{flex:1,background:'#14532d',border:'1px solid #4ade80',color:'#4ade80',padding:'6px',borderRadius:'4px',fontSize:'11px',fontWeight:700}}>📋 Deploy</button>}</div></div>}
+                    {isSel&&<div><div style={{fontSize:'10px',color:'#f0c040',marginBottom:'3px',fontWeight:600}}>Risks:</div>{(opt.risks||[]).map((r,ri)=><div key={ri} style={{fontSize:'10px',color:'#6b7280',marginBottom:'2px'}}>⚠ {r}</div>)}<div style={{display:'flex',gap:'6px',marginTop:'7px'}}>{!isDep&&<button onClick={e=>{e.stopPropagation();if(dispatch({type:'deployPolicy',payload:{issue:selIssue,option:opt.id}})){setRightMode('intel');setSelIssue(null);setSelOption(null);}}} style={{flex:1,background:'#14532d',border:'1px solid #4ade80',color:'#4ade80',padding:'6px',borderRadius:'4px',fontSize:'11px',fontWeight:700}}>📋 Deploy</button>}</div></div>}
                   </div>
                 );})}
               </div>;
@@ -1312,37 +982,37 @@ function WorldLeadersInner({resumeSignal}){
             {/* ── Situation Room: live prompted decisions ── */}
             {(()=>{const items=[];
               Object.entries(blockades).forEach(([rid,b])=>{items.push({i:'⚓',c:'#60a5fa',t:`Blockading ${b.target} in ${REGIONS[rid]?.n}${b.half?' (porous)':''}`,d:`$120M/mo · their sphere ${b.half?'−0.15':'−0.30'}/mo · lanes cut both ways.`,acts:[
-                  {lane:'🪖',l:'Reinforce cordon (carrier)',f:()=>deployUnit(rid,'carrier_group')},{lane:'🪖',l:'Reinforce cordon (SSN(X))',f:()=>deployUnit(rid,'ssnx')},
+                  {lane:'🪖',l:'Reinforce cordon (carrier)',f:()=>dispatch({type:'deployUnit',payload:{region:rid,unit:'carrier_group'}})},{lane:'🪖',l:'Reinforce cordon (SSN(X))',f:()=>dispatch({type:'deployUnit',payload:{region:rid,unit:'ssnx'}})},
                   {lane:'🤝',l:'Back-channel ($250M · −8)',f:()=>{const cd=cdR.current[`bc_${b.target}`]||0;if(cd>0){showToast(`Back-channel exhausted — ${cd}mo`);return;}if((sR.current?.treasury||0)<250){showToast('⚠ Need $250M');return;}setStats(p=>({...p,treasury:p.treasury-250}));setRivalTension(p=>({...p,[b.target]:Math.max(0,(p[b.target]||0)-8)}));cdR.current={...cdR.current,[`bc_${b.target}`]:12};setActionCooldowns(p=>({...p,[`bc_${b.target}`]:12}));showToast(`🕊 Back-channel with ${b.target} — tension −8`);}},
                   {lane:'⚓',l:'Lift blockade',f:()=>{setBlockades(p=>{const n2={...p};delete n2[rid];blkR.current=n2;return n2;});showToast(`⚓ ${REGIONS[rid]?.n} blockade lifted`);}}]});});
               Object.entries(chokeStatus).forEach(([k,st])=>{if(st!=='disrupted')return;const cp=CHOKEPOINTS[k];const home=Object.entries(REGIONS).find(([,r])=>r.homeFor?.includes(country?.id))?.[0];const mine=(IMPORT_ROUTES[home]||[]).includes(k);
                 items.push({i:'⚓',c:'#ef4444',t:`${cp.n} DISRUPTED${mine?' — on your import route':''}`,d:`${cp.d} ${mine?'Your fossil imports cost ×1.5 and inflation climbs until the lane reopens.':'Downstream exports −25%.'}`,acts:[
-                  {lane:'🪖',l:`Station carrier in ${REGIONS[cp.region]?.n}`,f:()=>deployUnit(cp.region,'carrier_group')},{lane:'🪖',l:`Station SSN(X) in ${REGIONS[cp.region]?.n}`,f:()=>deployUnit(cp.region,'ssnx')},
+                  {lane:'🪖',l:`Station carrier in ${REGIONS[cp.region]?.n}`,f:()=>dispatch({type:'deployUnit',payload:{region:cp.region,unit:'carrier_group'}})},{lane:'🪖',l:`Station SSN(X) in ${REGIONS[cp.region]?.n}`,f:()=>dispatch({type:'deployUnit',payload:{region:cp.region,unit:'ssnx'}})},
                   {lane:'🚢',l:'Set Escort posture there',f:()=>{setForcePosture(p=>{const n2={...p,[cp.region]:'escort'};postureR.current=n2;return n2;});showToast(`🚢 Escort posture — ${REGIONS[cp.region]?.n}`);}},
                   {lane:'🛢️',l:sprRelease?'Reserve releasing':`Release strategic reserve (${spr})`,f:()=>{if(spr<=0){showToast('⚠ Reserve empty — fill it on the Energy tab');return;}sprRelR.current=true;setSprRelease(true);showToast('🛢️ Releasing reserve');}}]});});
-              Object.entries(stewardship).forEach(([ck,st])=>{const cp=CONCESSIONS[ck];const nw=navalWeight(forceDeployments[cp.region]);if(nw<2)items.push({i:'🛢️',c:'#f0c040',t:`${NATIONS[cp.nation]?.n} stewardship exposed — no fleet offshore`,d:'Shipping runs at half and unrest brews without naval weight 2+ in the region.',acts:[{lane:'🪖',l:`Station carrier in ${REGIONS[cp.region]?.n}`,f:()=>deployUnit(cp.region,'carrier_group')},{lane:'🪖',l:`Station SSN(X)`,f:()=>deployUnit(cp.region,'ssnx')}]});});
+              Object.entries(stewardship).forEach(([ck,st])=>{const cp=CONCESSIONS[ck];const nw=navalWeight(forceDeployments[cp.region]);if(nw<2)items.push({i:'🛢️',c:'#f0c040',t:`${NATIONS[cp.nation]?.n} stewardship exposed — no fleet offshore`,d:'Shipping runs at half and unrest brews without naval weight 2+ in the region.',acts:[{lane:'🪖',l:`Station carrier in ${REGIONS[cp.region]?.n}`,f:()=>dispatch({type:'deployUnit',payload:{region:cp.region,unit:'carrier_group'}})},{lane:'🪖',l:`Station SSN(X)`,f:()=>dispatch({type:'deployUnit',payload:{region:cp.region,unit:'ssnx'}})}]});});
               if(embargoedBy)items.push({i:'⛽',c:'#ef4444',t:`${embargoedBy.by.toUpperCase()} energy embargo — ${embargoedBy.mo}mo`,d:'Imports ×1.3, inflation and growth bleed unless you are diversified.',acts:[{lane:'🛢️',l:sprRelease?'Reserve releasing':`Release strategic reserve (${spr})`,f:()=>{if(spr<=0){showToast('⚠ Reserve empty');return;}sprRelR.current=true;setSprRelease(true);showToast('🛢️ Releasing reserve');}},{lane:'🤝',l:'Back-channel Russia ($250M · −8)',f:()=>{if((sR.current?.treasury||0)<250){showToast('⚠ Need $250M');return;}setStats(p=>({...p,treasury:p.treasury-250}));setRivalTension(p=>({...p,russia:Math.max(0,(p.russia||0)-8)}));showToast('🕊 Back-channel with Russia — tension −8');}}]});
               if(pariah>0)items.push({i:'☢️',c:'#ef4444',t:`Pariah state — ${pariah}mo`,d:'No nation will sign arms contracts; bloc doors are frozen. The taboo you broke is the price you pay.'});
               Object.entries(rivalTension).forEach(([cid,t])=>{if(t>=85&&cid!==country?.id&&!isAllyOf(country?.id,cid))items.push({i:'☢',c:'#f472b6',t:`${cid.charAt(0).toUpperCase()+cid.slice(1)} at the BRINK (${Math.round(t)})`,d:'Final options are unlocked in the Intel dossier. Any act of yours that pushes tension to 100 ends the world — and the game.'});});
               Object.entries(rivalTension).forEach(([cid,t])=>{if(t>=70&&t<85&&!isAllyOf(country?.id,cid))items.push({i:'⚔️',c:'#ef4444',t:`${cid.charAt(0).toUpperCase()+cid.slice(1)} tension CRITICAL (${Math.round(t)})`,d:`Confrontation risk is live.`,acts:[
                   {lane:'🤝',l:'Back-channel ($250M · −8)',f:()=>{const cd=cdR.current[`bc_${cid}`]||0;if(cd>0){showToast(`Back-channel exhausted — ${cd}mo`);return;}if((sR.current?.treasury||0)<250){showToast('⚠ Need $250M');return;}setStats(p=>({...p,treasury:p.treasury-250}));setRivalTension(p=>({...p,[cid]:Math.max(0,(p[cid]||0)-8)}));cdR.current={...cdR.current,[`bc_${cid}`]:12};setActionCooldowns(p=>({...p,[`bc_${cid}`]:12}));showToast(`🕊 Back-channel with ${cid} — tension −8`);}},
-                  {lane:'🕵️',l:'Counter-intel sweep',f:()=>runIntelOp('counter_int',cid)},
+                  {lane:'🕵️',l:'Counter-intel sweep',f:()=>dispatch({type:'runIntelOp',payload:{op:'counter_int',nation:cid}})},
                   {lane:'🪖',l:'Ready the triad (Defense)',f:()=>setActiveTab('defense')}]});});
               if(flashpoint){const fp=FLASHPOINTS[flashpoint.type];const rid=flashpoint.rid;const embHere=DIP_TARGETS.some(d=>d.region===rid&&embassies.has(d.id));
                 items.push({i:fp.i,c:'#ef4444',t:`${fp.n} in ${REGIONS[rid]?.n}`,d:`A crisis is unfolding — ${flashpoint.t}mo to respond.`,acts:[
-                  {lane:'🪖',l:'Station fighter wing',f:()=>deployUnit(rid,'fighter_wing')},{lane:'🪖',l:'Station carrier group',f:()=>deployUnit(rid,'carrier_group')},
-                  {lane:'🕵️',l:'Deploy intel ($600M)',f:()=>applyRegionAction(rid,'intel')},
-                  {lane:'🤝',l:embHere?'Open region panel → Diplomatic':'Establish embassy in region',f:()=>{if(embHere){setSelectedRegion(rid);}else{const d=DIP_TARGETS.find(x=>x.region===rid&&!embassies.has(x.id));if(d)establishEmbassy(d.id);else showToast('No embassy candidate in this region');}}}]});}
+                  {lane:'🪖',l:'Station fighter wing',f:()=>dispatch({type:'deployUnit',payload:{region:rid,unit:'fighter_wing'}})},{lane:'🪖',l:'Station carrier group',f:()=>dispatch({type:'deployUnit',payload:{region:rid,unit:'carrier_group'}})},
+                  {lane:'🕵️',l:'Deploy intel ($600M)',f:()=>dispatch({type:'regionIntel',payload:{region:rid}})},
+                  {lane:'🤝',l:embHere?'Open region panel → Diplomatic':'Establish embassy in region',f:()=>{if(embHere){setSelectedRegion(rid);}else{const d=DIP_TARGETS.find(x=>x.region===rid&&!embassies.has(x.id));if(d)dispatch({type:'establishEmbassy',payload:{nation:d.id}});else showToast('No embassy candidate in this region');}}}]});}
               // Rival hegemony threat
               Object.entries(rivalHolds||{}).forEach(([cid,mo])=>{if(mo>0&&cid!==country?.id){const topRg=Object.entries(sphere).map(([r2,s2])=>[r2,s2.competitors?.[cid]||0]).sort((a,b)=>b[1]-a[1])[0];
                 items.push({i:'⚠',c:'#ef4444',t:`${cid.charAt(0).toUpperCase()+cid.slice(1)} nearing hegemony`,d:`Held the threshold ${mo}/24 months. Break their strongest position (${REGIONS[topRg?.[0]]?.n||'—'}).`,acts:[
-                  {lane:'🪖',l:`Station SSN(X)/sub in ${REGIONS[topRg?.[0]]?.n||'their region'}`,f:()=>{if(topRg&&!deployUnit(topRg[0],'ssnx'))deployUnit(topRg[0],'sub_fleet');}},
-                  {lane:'🕵️',l:'Destabilization op',f:()=>runIntelOp('destab',cid)},{lane:'🕵️',l:'Deploy intel to their region',f:()=>{if(topRg)applyRegionAction(topRg[0],'intel');}},
+                  {lane:'🪖',l:`Station SSN(X)/sub in ${REGIONS[topRg?.[0]]?.n||'their region'}`,f:()=>{if(topRg&&!dispatch({type:'deployUnit',payload:{region:topRg[0],unit:'ssnx'}}))dispatch({type:'deployUnit',payload:{region:topRg[0],unit:'sub_fleet'}});}},
+                  {lane:'🕵️',l:'Destabilization op',f:()=>dispatch({type:'runIntelOp',payload:{op:'destab',nation:cid}})},{lane:'🕵️',l:'Deploy intel to their region',f:()=>{if(topRg)dispatch({type:'regionIntel',payload:{region:topRg[0]}});}},
                   {lane:'🤝',l:sanctions.has(cid)?'Sanctions active':'Impose sanctions',f:()=>{if(!sanctions.has(cid)){setSanctions(prev=>{const n2=new Set(prev);n2.add(cid);sanctR.current=n2;return n2;});showToast(`🚫 Sanctions imposed on ${cid}`);}}}]});}});
               // Diplomatic openings (near pact / trade-ready)
               DIP_TARGETS.forEach(t=>{const rel=Math.round(nationRelations[t.id]||0);if(rel>=55&&rel<60&&!defensePacts.has(t.id))items.push({i:'🤝',c:'#f0c040',t:`${t.n} near pact-ready (+${rel})`,d:`A few more points unlocks a defense pact.`,acts:[
-                  {lane:'🤝',l:'State visit ($150M · +8)',f:()=>diplomaticAction(t.id,'visit')},{lane:'🤝',l:'Foreign aid ($600M · +15)',f:()=>diplomaticAction(t.id,'aid')},
-                  {lane:'🤝',l:embassies.has(t.id)?'Embassy present':'Establish embassy ($300M)',f:()=>establishEmbassy(t.id)}]});});
+                  {lane:'🤝',l:'State visit ($150M · +8)',f:()=>dispatch({type:'stateVisit',payload:{nation:t.id}})},{lane:'🤝',l:'Foreign aid ($600M · +15)',f:()=>dispatch({type:'foreignAid',payload:{nation:t.id}})},
+                  {lane:'🤝',l:embassies.has(t.id)?'Embassy present':'Establish embassy ($300M)',f:()=>dispatch({type:'establishEmbassy',payload:{nation:t.id}})}]});});
               // Energy shortage risk
               const eTier=getEnergyTier(resources,resExtraction,importContracts);const fossilLow=['oil','gas','coal'].every(k=>(resources?.[k]?.r||0)<60);
               if(fossilLow&&eTier==='standard')items.push({i:'⚡',c:'#f0c040',t:'Energy security thin',d:'Domestic fossil reserves are running low with no nuclear/renewable cushion. Secure import contracts or build energy R&D before a shortage bites.'});
@@ -1350,8 +1020,8 @@ function WorldLeadersInner({resumeSignal}){
               const richBuyer=BUYERS.filter(b=>b.id!==country?.id).find(b=>b.budget>=1500&&(nationRelations[b.id]??b.rel)>40&&!Object.keys(defExports).some(k=>k.startsWith(b.id)));
               if(richBuyer){const best=Object.entries(defLevels).filter(([v])=>!(richBuyer.noBuy||[]).includes(v)).sort((a,b)=>b[1]-a[1])[0];
                 items.push({i:'💰',c:'#4ade80',t:`${richBuyer.n} is an open arms market`,d:`Budget $${richBuyer.budget}M, no deal yet.`,acts:[
-                  {lane:'🤝',l:best?`Offer ${DV[best[0]]?.n} L${best[1]}`:'Develop a system first',f:()=>{if(best)sellDefTech(richBuyer.id,best[0]);}},
-                  {lane:'🤝',l:embassies.has(richBuyer.id)?'Attaché in place (+10%)':'Establish embassy (+10% deals)',f:()=>establishEmbassy(richBuyer.id)}]});}
+                  {lane:'🤝',l:best?`Offer ${DV[best[0]]?.n} L${best[1]}`:'Develop a system first',f:()=>{if(best)dispatch({type:'sellDefTech',payload:{nation:richBuyer.id,vertical:best[0]}});}},
+                  {lane:'🤝',l:embassies.has(richBuyer.id)?'Attaché in place (+10%)':'Establish embassy (+10% deals)',f:()=>dispatch({type:'establishEmbassy',payload:{nation:richBuyer.id}})}]});}
               if(!items.length)return <div style={{padding:'11px',background:'#0d1117',border:'1px solid #1f2937',borderRadius:'10px',fontSize:'11px',color:'#6b7280'}}>🗺️ Situation Room — no urgent decisions. Expand your sphere, deepen alliances, or advance research while the board is quiet.</div>;
               return <div style={{background:'#0d1117',border:'1px solid #1f2937',borderRadius:'10px',padding:'11px'}}>
                 <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'9px'}}>🗺️ Situation Room · {items.length} active decision{items.length>1?'s':''}</div>
@@ -1615,7 +1285,7 @@ function WorldLeadersInner({resumeSignal}){
                         <div style={{fontSize:'10px',fontWeight:700,color:'#f472b6'}}>⚔️ Intervention — {iv.n} · ${iv.cost}M · success {Math.round(chance*100)}%</div>
                         <div style={{fontSize:'9px',color:'#6b7280',margin:'3px 0'}}>{iv.d}</div>
                         <div style={{fontSize:'9px',marginBottom:'5px'}}>{ireqs.map(([l,o])=><span key={l} style={{color:o?'#4ade80':'#ef4444',marginRight:'8px'}}>{o?'✓':'✗'} {l}</span>)}</div>
-                        <button onClick={()=>launchIntervention(ck)}style={{width:'100%',background:iok&&icd===0?'rgba(244,114,182,.1)':'rgba(0,0,0,.35)',border:`1px solid ${iok&&icd===0?'#f472b6':'#374151'}`,color:iok&&icd===0?'#f472b6':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{icd>0?`⚔️ Regrouping — ${icd}mo`:`⚔️ Launch ${iv.n} — $${iv.cost}M`}</button>
+                        <button onClick={()=>dispatch({type:'launchIntervention',payload:{concession:ck}})}style={{width:'100%',background:iok&&icd===0?'rgba(244,114,182,.1)':'rgba(0,0,0,.35)',border:`1px solid ${iok&&icd===0?'#f472b6':'#374151'}`,color:iok&&icd===0?'#f472b6':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{icd>0?`⚔️ Regrouping — ${icd}mo`:`⚔️ Launch ${iv.n} — $${iv.cost}M`}</button>
                         <div style={{fontSize:'8px',color:'#6b7280',marginTop:'3px'}}>Success: ~3× a concession's income, ramping to 2× over 24 months as production recovers, +25%/tier of field rehabilitation. China/Russia tension +12, region relations −10, stability −2. Failure: stability −4, relations −30, 12mo cooldown.</div>
                       </div>;})()}
                   </div>;})}
@@ -1735,7 +1405,7 @@ function WorldLeadersInner({resumeSignal}){
                   <button key={vert} onClick={()=>setSelExportVert(sel?null:vert)} style={{background:sel?'#1d4ed8':'#0d1117',border:`1px solid ${sel?'#3b82f6':'#1f2937'}`,color:sel?'white':lvl>0?'#9ca3af':'#4b5563',padding:'4px 8px',borderRadius:'5px',fontSize:'10px',fontWeight:sel?700:400}}>{def.i} {def.n} <span style={{opacity:0.7}}>L{lvl}</span></button>);})}
               </div>
               {selExportVert&&<div style={{fontSize:'10px',color:'#9ca3af',marginBottom:'7px'}}>Offering: <span style={{color:'#f9fafb',fontWeight:700}}>{DV[selExportVert]?.n} L{defLevels[selExportVert]||0}</span> · global avg {(Object.entries(globalDef).reduce((s,[,n])=>s+(n[selExportVert]||0),0)/Math.max(1,Object.keys(globalDef).length)).toFixed(1)}</div>}
-              {selExportVert&&(defLevels[selExportVert]||0)>=1&&<button onClick={()=>sellAllVert(selExportVert)} style={{width:'100%',marginBottom:'8px',background:'rgba(74,222,128,.1)',border:'1px solid #4ade80',color:'#4ade80',padding:'7px',borderRadius:'5px',fontSize:'11px',fontWeight:700}}>🤝 Sell {DV[selExportVert]?.n} to All Eligible Buyers</button>}
+              {selExportVert&&(defLevels[selExportVert]||0)>=1&&<button onClick={()=>dispatch({type:'sellAllVertical',payload:{vertical:selExportVert}})} style={{width:'100%',marginBottom:'8px',background:'rgba(74,222,128,.1)',border:'1px solid #4ade80',color:'#4ade80',padding:'7px',borderRadius:'5px',fontSize:'11px',fontWeight:700}}>🤝 Sell {DV[selExportVert]?.n} to All Eligible Buyers</button>}
               <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'7px'}}>
                 {BUYERS.filter(b=>b.id!==country?.id).map(buyer=>{
                   const key=selExportVert?`${buyer.id}_${selExportVert}`:'';
@@ -1752,7 +1422,7 @@ function WorldLeadersInner({resumeSignal}){
                       <div style={{display:'flex',alignItems:'center',gap:'6px'}}><span style={{fontSize:'18px'}}>{buyer.flag}</span><div><div style={{fontSize:'11px',fontWeight:700,color:'#f9fafb'}}>{buyer.n}</div><div style={{fontSize:'9px',color:'#6b7280'}}>{buyer.align} · ${buyer.budget}M budget</div></div></div>
                     </div>
                     {Object.entries(defExports).filter(([k])=>k.startsWith(buyer.id)).map(([k,d])=><div key={k} style={{fontSize:'9px',color:'#4ade80',marginBottom:'3px'}}>✓ {DV[k.split('_')[1]]?.n} L{d.level} — ${d.revenue}M/yr</div>)}
-                    {selExportVert&&<button onClick={()=>hasDeal?showToast('Deal active'):wontBuy?showToast(`${buyer.n} builds ${DV[selExportVert].n} domestically`):hostile?showToast(`${buyer.n} relations too hostile (${Math.round(bRel)}) — build influence first`):canSell?sellDefTech(buyer.id,selExportVert):showToast(`⚠ Develop ${DV[selExportVert].n} first`)} style={{width:'100%',background:hasDeal?'#14532d':wontBuy||hostile?'rgba(0,0,0,.5)':canSell?'#1d4ed8':'rgba(0,0,0,.4)',border:`1px solid ${hasDeal?'#4ade80':wontBuy?'#1f2937':hostile?'#7f1d1d':canSell?'#3b82f6':'#374151'}`,color:hasDeal?'#4ade80':wontBuy?'#4b5563':hostile?'#ef4444':canSell?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>{hasDeal?'Active':wontBuy?'Domestic producer':hostile?'Hostile':canSell?`Offer L${defLevels[selExportVert]||0}${advantage2>0?' ✦':''}`:'Develop first'}</button>}
+                    {selExportVert&&<button onClick={()=>hasDeal?showToast('Deal active'):wontBuy?showToast(`${buyer.n} builds ${DV[selExportVert].n} domestically`):hostile?showToast(`${buyer.n} relations too hostile (${Math.round(bRel)}) — build influence first`):canSell?dispatch({type:'sellDefTech',payload:{nation:buyer.id,vertical:selExportVert}}):showToast(`⚠ Develop ${DV[selExportVert].n} first`)} style={{width:'100%',background:hasDeal?'#14532d':wontBuy||hostile?'rgba(0,0,0,.5)':canSell?'#1d4ed8':'rgba(0,0,0,.4)',border:`1px solid ${hasDeal?'#4ade80':wontBuy?'#1f2937':hostile?'#7f1d1d':canSell?'#3b82f6':'#374151'}`,color:hasDeal?'#4ade80':wontBuy?'#4b5563':hostile?'#ef4444':canSell?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>{hasDeal?'Active':wontBuy?'Domestic producer':hostile?'Hostile':canSell?`Offer L${defLevels[selExportVert]||0}${advantage2>0?' ✦':''}`:'Develop first'}</button>}
                     {selExportVert&&canSell&&!hasDeal&&(()=>{const ch=[];if((sphere[buyer.region]?.player||0)>60)ch.push('sphere ×1.18');if(embassies.has(buyer.id))ch.push('attaché ×1.10');if(blocTrade.eu>=2&&BLOC_TRADE.eu.members.includes(buyer.id))ch.push('EU ×1.15');if(advantage2>0)ch.push(`lead +${(advantage2*13)}%`);return ch.length?<div style={{fontSize:'8px',color:'#60a5fa',marginTop:'3px'}}>{ch.join(' · ')}</div>:null;})()}
                   </div>);
                 })}
@@ -1776,8 +1446,8 @@ function WorldLeadersInner({resumeSignal}){
               return <div style={{display:'grid',gap:'6px'}}>{rows.map(r=><div key={r.pid} style={{padding:'7px',background:'#111827',border:'1px solid #1f2937',borderRadius:'6px'}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'3px'}}><span style={{fontSize:'11px',fontWeight:700,color:'#e5e7eb'}}>{r.meta.i} {r.meta.n}</span><span style={{fontSize:'10px',color:'#9ca3af'}}>{r.st}/{r.own} stationed · <b style={{color:r.res>0?'#4ade80':'#6b7280'}}>{r.res} in reserve</b></span></div>
                 <div style={{display:'flex',flexWrap:'wrap',gap:'4px',alignItems:'center'}}>
-                  {r.where.map(([rid,n])=><span key={rid} style={{fontSize:'9px',padding:'2px 6px',background:'#0d1117',border:'1px solid #374151',borderRadius:'4px',color:'#d1d5db'}}>{REGIONS[rid]?.n} ×{n} <span style={{color:'#60a5fa'}}>{({deter:'🛡️',escort:'🚢',isr:'👁️',exercise:'🤝',humanitarian:'🆘'})[forcePosture[rid]||'deter']}</span> <button onClick={()=>recallUnit(rid,r.pid)} style={{marginLeft:'3px',background:'transparent',border:'none',color:'#ef4444',fontSize:'10px',cursor:'pointer'}}>recall</button></span>)}
-                  {r.res>0&&<span style={{display:'inline-flex',gap:'3px',alignItems:'center'}}><select id={`oob_${r.pid}`} defaultValue="" style={{background:'#0d1117',color:'#d1d5db',border:'1px solid #374151',borderRadius:'4px',fontSize:'9px',padding:'2px'}}><option value="" disabled>station in…</option>{Object.entries(REGIONS).map(([rid,rg])=><option key={rid} value={rid}>{rg.n}</option>)}</select><button onClick={()=>{const sel=document.getElementById(`oob_${r.pid}`);const rid=sel?.value;if(!rid){showToast('Pick a region');return;}deployUnit(rid,r.pid);}} style={{background:'#1d4ed8',border:'none',color:'white',padding:'2px 8px',borderRadius:'4px',fontSize:'9px',fontWeight:700}}>+ Station</button></span>}
+                  {r.where.map(([rid,n])=><span key={rid} style={{fontSize:'9px',padding:'2px 6px',background:'#0d1117',border:'1px solid #374151',borderRadius:'4px',color:'#d1d5db'}}>{REGIONS[rid]?.n} ×{n} <span style={{color:'#60a5fa'}}>{({deter:'🛡️',escort:'🚢',isr:'👁️',exercise:'🤝',humanitarian:'🆘'})[forcePosture[rid]||'deter']}</span> <button onClick={()=>dispatch({type:'recallUnit',payload:{region:rid,unit:r.pid}})} style={{marginLeft:'3px',background:'transparent',border:'none',color:'#ef4444',fontSize:'10px',cursor:'pointer'}}>recall</button></span>)}
+                  {r.res>0&&<span style={{display:'inline-flex',gap:'3px',alignItems:'center'}}><select id={`oob_${r.pid}`} defaultValue="" style={{background:'#0d1117',color:'#d1d5db',border:'1px solid #374151',borderRadius:'4px',fontSize:'9px',padding:'2px'}}><option value="" disabled>station in…</option>{Object.entries(REGIONS).map(([rid,rg])=><option key={rid} value={rid}>{rg.n}</option>)}</select><button onClick={()=>{const sel=document.getElementById(`oob_${r.pid}`);const rid=sel?.value;if(!rid){showToast('Pick a region');return;}dispatch({type:'deployUnit',payload:{region:rid,unit:r.pid}});}} style={{background:'#1d4ed8',border:'none',color:'white',padding:'2px 8px',borderRadius:'4px',fontSize:'9px',fontWeight:700}}>+ Station</button></span>}
                 </div></div>)}</div>;})())}
 
             {Object.keys(blackPrograms).length>0&&(
@@ -1945,7 +1615,7 @@ function WorldLeadersInner({resumeSignal}){
                   {qm<1&&<div style={{fontSize:'9px',color:'#f0c040',marginBottom:'5px'}}>⚠ {Math.round(qm*100)}% effectiveness — chain: {def.chain.join(', ')}</div>}
                   {disc>0&&<div style={{fontSize:'9px',color:'#4ade80',marginBottom:'5px'}}>🔬 DARPA discount: -{Math.round(disc*100)}%</div>}
                   <div style={{display:'flex',justifyContent:'space-between',fontSize:'10px',color:'#6b7280',marginBottom:'6px'}}><span>Cost: ${cost.toLocaleString()}M{(RD_MODS[country?.id]?.cheap||[]).includes(vert)&&<span style={{color:'#4ade80'}}> · national focus −25%</span>}{(RD_MODS[country?.id]?.exp||[]).includes(vert)&&!(country?.id==='japan'&&activePolicies.has('jp_normalization'))&&<span style={{color:'#f0c040'}}> · constrained +40%</span>}</span><span>{Math.round(nextLvl.mo*(1+(1-qm)*0.5))}mo</span></div>
-                  {!isRes&&lvl<7&&<button onClick={e=>{e.stopPropagation();investDefense(vert);}} style={{width:'100%',background:'#1d4ed8',border:'none',color:'white',padding:'6px',borderRadius:'4px',fontSize:'11px',fontWeight:600}}>Invest ${cost.toLocaleString()}M → L{lvl+1}</button>}
+                  {!isRes&&lvl<7&&<button onClick={e=>{e.stopPropagation();dispatch({type:'investDefense',payload:{vertical:vert}});}} style={{width:'100%',background:'#1d4ed8',border:'none',color:'white',padding:'6px',borderRadius:'4px',fontSize:'11px',fontWeight:600}}>Invest ${cost.toLocaleString()}M → L{lvl+1}</button>}
                   {lvl<7&&<div style={{marginTop:'6px',fontSize:'9px',color:'#6b7280'}}>You({lvl}) | {excGlobal.slice(0,3).map(([n,nv])=>`${n}(${Math.round(nv[vert]||0)})`).join(' | ')}</div>}
                 </div>}
                 {isSel&&lvl>=7&&<div style={{marginTop:'6px',fontSize:'11px',color:'#4ade80',textAlign:'center',padding:'4px'}}>✓ Maximum level achieved</div>}
@@ -2036,7 +1706,7 @@ function WorldLeadersInner({resumeSignal}){
                       </div>
                       <div style={{fontSize:'8px',color:'#9ca3af',marginTop:'4px'}}>Demonstration: their top region −25, world −15 rel, tension 95. Employment: region cleared, but 36mo pariah (no arms deals, blocs frozen, −25 stability) — and if they hold parity, mutual destruction.</div>
                     </div>;})()}
-                  {!ally&&(()=>{const home=NATIONS[rid]?.region;const w=wSum(forceDeployments[home]||{});const saps=Object.values(blackPrograms).reduce((a,b)=>a+(+b||0),0);const rcd=actionCooldowns[`regime_${rid}`]||0;const ready=saps>=1&&w>=3;return <button onClick={()=>regimeChange(rid)} style={{width:'100%',marginBottom:'4px',background:rcd>0?'rgba(0,0,0,.35)':ready?'rgba(244,114,182,.08)':'rgba(0,0,0,.35)',border:`1px solid ${rcd>0?'#374151':ready?'#f472b6':'#374151'}`,color:rcd>0?'#4b5563':ready?'#f472b6':'#6b7280',padding:'4px',borderRadius:'4px',fontSize:'9px',fontWeight:700}}>{rcd>0?`🎯 Regime change · regrouping ${rcd}mo`:`🎯 Regime change · $6B · SAP + ISR 10 + weight 3 in ${REGIONS[home]?.n} + 2× overmatch`}</button>;})()}
+                  {!ally&&(()=>{const home=NATIONS[rid]?.region;const w=wSum(forceDeployments[home]||{});const saps=Object.values(blackPrograms).reduce((a,b)=>a+(+b||0),0);const rcd=actionCooldowns[`regime_${rid}`]||0;const ready=saps>=1&&w>=3;return <button onClick={()=>dispatch({type:'regimeChange',payload:{nation:rid}})} style={{width:'100%',marginBottom:'4px',background:rcd>0?'rgba(0,0,0,.35)':ready?'rgba(244,114,182,.08)':'rgba(0,0,0,.35)',border:`1px solid ${rcd>0?'#374151':ready?'#f472b6':'#374151'}`,color:rcd>0?'#4b5563':ready?'#f472b6':'#6b7280',padding:'4px',borderRadius:'4px',fontSize:'9px',fontWeight:700}}>{rcd>0?`🎯 Regime change · regrouping ${rcd}mo`:`🎯 Regime change · $6B · SAP + ISR 10 + weight 3 in ${REGIONS[home]?.n} + 2× overmatch`}</button>;})()}
                   {ten>=20&&<button onClick={()=>{if(bcd>0){showToast(`Back-channel exhausted — ${bcd}mo`);return;}if((sR.current?.treasury||0)<250){showToast('⚠ Need $250M');return;}setStats(p=>({...p,treasury:p.treasury-250}));setRivalTension(p=>({...p,[rid]:Math.max(0,(p[rid]||0)-8)}));cdR.current={...cdR.current,[`bc_${rid}`]:12};setActionCooldowns(p=>({...p,[`bc_${rid}`]:12}));showToast(`🕊 Back-channel with ${rname} — tension −8`);}} style={{width:'100%',background:bcd>0?'rgba(0,0,0,.35)':'rgba(96,165,250,.08)',border:`1px solid ${bcd>0?'#374151':'#60a5fa'}`,color:bcd>0?'#4b5563':'#60a5fa',padding:'4px',borderRadius:'4px',fontSize:'9px',fontWeight:700}}>{bcd>0?`🕊 Back-channel · ${bcd}mo`:'🕊 Back-channel · $250M · tension −8'}</button>}
                 </div>);})}
             </div>
@@ -2104,14 +1774,14 @@ function WorldLeadersInner({resumeSignal}){
                   <div style={{padding:'8px',background:'#111827',border:'1px solid #1f2937',borderRadius:'6px'}}>
                     <div style={{display:'flex',justifyContent:'space-between',marginBottom:'4px'}}><span style={{fontSize:'11px',fontWeight:700,color:'#f9fafb'}}>{nat.flag} {nat.n} — Regime Change</span><span style={{fontSize:'10px',fontWeight:700,color:ok?'#f472b6':'#6b7280'}}>success {Math.round(chance*100)}%</span></div>
                     <div style={{fontSize:'9px',marginBottom:'5px'}}>{reqs.map(([l,o])=><div key={l} style={{color:o?'#4ade80':'#ef4444'}}>{o?'✓':'✗'} {l}</div>)}</div>
-                    <button onClick={()=>regimeChange(nid)} style={{width:'100%',background:rcd>0?'rgba(0,0,0,.35)':ok?'rgba(244,114,182,.12)':'rgba(0,0,0,.35)',border:`1px solid ${rcd>0?'#374151':ok?'#f472b6':'#374151'}`,color:rcd>0?'#4b5563':ok?'#f472b6':'#4b5563',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{rcd>0?`🎯 Regrouping — ${rcd}mo`:`🎯 Launch decapitation raid — topple ${nat.n} · $6B`}</button>
+                    <button onClick={()=>dispatch({type:'regimeChange',payload:{nation:nid}})} style={{width:'100%',background:rcd>0?'rgba(0,0,0,.35)':ok?'rgba(244,114,182,.12)':'rgba(0,0,0,.35)',border:`1px solid ${rcd>0?'#374151':ok?'#f472b6':'#374151'}`,color:rcd>0?'#4b5563':ok?'#f472b6':'#4b5563',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{rcd>0?`🎯 Regrouping — ${rcd}mo`:`🎯 Launch decapitation raid — topple ${nat.n} · $6B`}</button>
                     <div style={{fontSize:'8px',color:'#6b7280',marginTop:'4px'}}>Success: their home sphere −40, everywhere −10, programs set back, an aligned government at +60 · other rivals +15 tension · world −20 · stability −5. Failure: relations −40, tension +20, stability −6, 24mo regroup.</div>
                     {conc&&(()=>{const [ck,cp]=conc;const iv=cp.intervention;const st=stewardship[ck];const nw=navalWeight(forceDeployments[cp.region]);const icd=actionCooldowns[`interv_${ck}`]||0;const ireqs=[[`Military ≥${iv.req.military} (${Math.round(stats?.military||0)})`,(stats?.military||0)>=iv.req.military],[`Naval weight ≥${iv.req.naval} in ${REGIONS[cp.region]?.n} (${nw.toFixed(1)})`,nw>=iv.req.naval],[`ISR ≥${iv.req.isr} (${isrSc})`,isrSc>=iv.req.isr],[`$${iv.cost}M`,(stats?.treasury||0)>=iv.cost]];const iok=ireqs.every(r=>r[1]);
                       return <div style={{marginTop:'8px',paddingTop:'8px',borderTop:'1px solid #1f2937'}}>
                         <div style={{fontSize:'11px',fontWeight:700,color:'#f0c040'}}>⚔️ {iv.n} — seize the oil ministry {st?<span style={{color:'#4ade80'}}>· ACTIVE (month {st.mo})</span>:null}</div>
                         <div style={{fontSize:'9px',color:'#6b7280',margin:'3px 0'}}>{iv.d}</div>
                         {!st&&<div style={{fontSize:'9px',marginBottom:'5px'}}>{ireqs.map(([l,o])=><div key={l} style={{color:o?'#4ade80':'#ef4444'}}>{o?'✓':'✗'} {l}</div>)}</div>}
-                        {!st&&<button onClick={()=>launchIntervention(ck)} style={{width:'100%',background:icd>0?'rgba(0,0,0,.35)':iok?'rgba(240,192,64,.1)':'rgba(0,0,0,.35)',border:`1px solid ${icd>0?'#374151':iok?'#f0c040':'#374151'}`,color:icd>0?'#4b5563':iok?'#f0c040':'#4b5563',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{icd>0?`⚔️ Regrouping — ${icd}mo`:`⚔️ Launch ${iv.n} · $${iv.cost}M`}</button>}
+                        {!st&&<button onClick={()=>dispatch({type:'launchIntervention',payload:{concession:ck}})} style={{width:'100%',background:icd>0?'rgba(0,0,0,.35)':iok?'rgba(240,192,64,.1)':'rgba(0,0,0,.35)',border:`1px solid ${icd>0?'#374151':iok?'#f0c040':'#374151'}`,color:icd>0?'#4b5563':iok?'#f0c040':'#4b5563',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{icd>0?`⚔️ Regrouping — ${icd}mo`:`⚔️ Launch ${iv.n} · $${iv.cost}M`}</button>}
                         {st&&<div style={{fontSize:'9px',color:'#9ca3af'}}>Manage production tiers and handover on the Energy tab.</div>}
                       </div>;})()}
                   </div>
@@ -2150,7 +1820,7 @@ function WorldLeadersInner({resumeSignal}){
                   <div style={{fontSize:'10px',color:'#9ca3af',marginBottom:'5px'}}>{op.desc}</div>
                   <div style={{fontSize:'10px',color:'#6b7280',marginBottom:'5px'}}>Success: {sr}% · Discovery: {dr}% · {op.mo}mo</div>
                   {activeOp?<div style={{fontSize:'10px',color:'#a78bfa',padding:'4px',background:'rgba(167,139,250,.08)',borderRadius:'3px',textAlign:'center'}}>Active — {activeOp.monthsLeft}mo</div>
-                  :<div style={{display:'flex',gap:'5px'}}><button onClick={()=>{if(!selIntelTarget){showToast('⚠ Select a target nation first');return;}runIntelOp(op.id,selIntelTarget);}} style={{flex:1,background:'rgba(167,139,250,.1)',border:'1px solid #a78bfa',color:'#a78bfa',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>Launch Op</button>{op.type==='covert'&&selIntelTarget&&(()=>{const ck=`${op.id}@${selIntelTarget}`;const on=continuousOps[ck];return <button onClick={()=>{setContinuousOps(p=>{const n2={...p};if(n2[ck]){delete n2[ck];showToast(`${op.n} standing program ended`);}else{n2[ck]=true;showToast(`♻️ ${op.n} now continuous vs ${selIntelTarget} — auto-relaunches (~1.6× cost)`);}contOpsR.current=n2;return n2;});}} title="Run continuously" style={{background:on?'rgba(74,222,128,.15)':'transparent',border:`1px solid ${on?'#4ade80':'#374151'}`,color:on?'#4ade80':'#6b7280',padding:'5px 9px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{on?'♻️ On':'♻️'}</button>;})()}</div>}
+                  :<div style={{display:'flex',gap:'5px'}}><button onClick={()=>{if(!selIntelTarget){showToast('⚠ Select a target nation first');return;}dispatch({type:'runIntelOp',payload:{op:op.id,nation:selIntelTarget}});}} style={{flex:1,background:'rgba(167,139,250,.1)',border:'1px solid #a78bfa',color:'#a78bfa',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>Launch Op</button>{op.type==='covert'&&selIntelTarget&&(()=>{const ck=`${op.id}@${selIntelTarget}`;const on=continuousOps[ck];return <button onClick={()=>{setContinuousOps(p=>{const n2={...p};if(n2[ck]){delete n2[ck];showToast(`${op.n} standing program ended`);}else{n2[ck]=true;showToast(`♻️ ${op.n} now continuous vs ${selIntelTarget} — auto-relaunches (~1.6× cost)`);}contOpsR.current=n2;return n2;});}} title="Run continuously" style={{background:on?'rgba(74,222,128,.15)':'transparent',border:`1px solid ${on?'#4ade80':'#374151'}`,color:on?'#4ade80':'#6b7280',padding:'5px 9px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{on?'♻️ On':'♻️'}</button>;})()}</div>}
                 </div>);})}
               </div>
             </div>
@@ -2203,7 +1873,7 @@ function WorldLeadersInner({resumeSignal}){
                       </div>
                       {pactC<1&&(()=>{const best=nearPact;const ok=best&&best[1]>=60;const needEmb=best&&!embassies.has(best[0]);const cost=800+(needEmb?300:0);return <div style={{marginTop:'4px'}}>
                         <div style={{fontSize:'9px',color:'#f0c040',marginBottom:'3px'}}>T3 needs one EU defense pact — best candidate: {NATIONS[best?.[0]]?.n} at {Math.round(best?.[1]||0)} {ok?'':'(pact unlocks at +60)'}</div>
-                        <button onClick={()=>{if(!ok){showToast(`⚠ ${NATIONS[best?.[0]]?.n} needs +60 relations first`);return;}if((sR.current?.treasury||0)<cost){showToast(`⚠ Need $${cost}M`);return;}if(needEmb){setStats(p=>({...p,treasury:p.treasury-300}));const n2=new Set(embR.current);n2.add(best[0]);embR.current=n2;setEmbassies(n2);}diplomaticAction(best[0],'pact');}} style={{width:'100%',background:ok?'#4c1d95':'rgba(0,0,0,.35)',border:`1px solid ${ok?'#a78bfa':'#374151'}`,color:ok?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>🛡️ Sign EU defense pact with {NATIONS[best?.[0]]?.n} · ${cost}M{needEmb?' (incl. embassy)':''}</button>
+                        <button onClick={()=>{if(!ok){showToast(`⚠ ${NATIONS[best?.[0]]?.n} needs +60 relations first`);return;}if((sR.current?.treasury||0)<cost){showToast(`⚠ Need $${cost}M`);return;}if(needEmb){setStats(p=>({...p,treasury:p.treasury-300}));const n2=new Set(embR.current);n2.add(best[0]);embR.current=n2;setEmbassies(n2);}dispatch({type:'defensePact',payload:{nation:best[0]}});}} style={{width:'100%',background:ok?'#4c1d95':'rgba(0,0,0,.35)',border:`1px solid ${ok?'#a78bfa':'#374151'}`,color:ok?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>🛡️ Sign EU defense pact with {NATIONS[best?.[0]]?.n} · ${cost}M{needEmb?' (incl. embassy)':''}</button>
                       </div>;})()}
                     </div>;})()}
                     {tier<3&&<button onClick={()=>{if(lock){showToast(`${bm.n} frozen — ${lock}mo remaining`);return;}if(!canUp){showToast(next&&!next[1]?`Requirements not met: ${next[0]}`:'Exclusive: exit the rival pole\'s Tier 3 first');return;}setBlocTrade(p=>{const nb={...p,[bk]:tier+1};btR.current=nb;return nb;});showToast(`${bm.i} ${bm.n} — Tier ${tier+1} concluded`);setLog(p=>[{msg:`${bm.i} ${bm.n} T${tier+1}`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);}} style={{flex:1,background:canUp?'#1e3a8a':'rgba(0,0,0,.35)',border:`1px solid ${canUp?'#3b82f6':'#374151'}`,color:canUp?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{tier===0?'Join':'Deepen'} → T{tier+1}</button>}
@@ -2233,8 +1903,8 @@ function WorldLeadersInner({resumeSignal}){
                     <div style={{display:'flex',flexWrap:'wrap',gap:'4px',marginBottom:'8px'}}>
                       <button onClick={()=>{if(!missing.length){showToast('Embassies already everywhere in this bloc');return;}const cost=missing.length*300;if((sR.current?.treasury||0)<cost){showToast(`⚠ ${missing.length} embassies need $${cost}M`);return;}setStats(p=>({...p,treasury:p.treasury-cost}));setEmbassies(prev=>{const n2=new Set(prev);missing.forEach(m=>n2.add(m));embR.current=n2;return n2;});showToast(`🏛️ ${missing.length} embassies opened across ${gn}`);}} style={{background:'#0d1117',border:'1px solid #374151',color:'#9ca3af',padding:'4px 8px',borderRadius:'4px',fontSize:'9px'}}>🏛️ Embassies in all ({missing.length} × $300M)</button>
                       {[['trade','🏪'],['intel','🕵️'],['culture','🎭']].map(([mk,mi])=><button key={mk} onClick={()=>{const has=ms.filter(m=>embassies.has(m));if(!has.length){showToast('No embassies in this bloc yet');return;}setEmbassyMissions(p=>{const n2={...p};has.forEach(m=>{n2[m]=mk;});embMisR.current=n2;return n2;});showToast(`${mi} All ${gn} embassies set to ${mk} mission`);}} style={{background:'#0d1117',border:'1px solid #374151',color:'#9ca3af',padding:'4px 8px',borderRadius:'4px',fontSize:'9px'}}>{mi} All missions → {mk}</button>)}
-                      <button onClick={()=>{let n=0;ms.forEach(m=>{if((actionCooldowns[`visit_${m}`]||0)===0&&(sR.current?.treasury||0)>=150){diplomaticAction(m,'visit');n++;}});showToast(n?`🤝 ${n} state visits across ${gn}`:'No visits available (cooldowns/treasury)');}} style={{background:'#0d1117',border:'1px solid #374151',color:'#9ca3af',padding:'4px 8px',borderRadius:'4px',fontSize:'9px'}}>🤝 Visit all off-cooldown</button>
-                      <button onClick={()=>{let n=0;ms.forEach(m=>{if(!tradeAgreements.has(m)&&(nationRelations[m]||0)>=30){diplomaticAction(m,'trade');n++;}});showToast(n?`📜 ${n} trade agreements signed`:'No member at +30 without an agreement');}} style={{background:'#0d1117',border:'1px solid #374151',color:'#9ca3af',padding:'4px 8px',borderRadius:'4px',fontSize:'9px'}}>📜 Trade agreements with all eligible</button>
+                      <button onClick={()=>{let n=0;ms.forEach(m=>{if((actionCooldowns[`visit_${m}`]||0)===0&&(sR.current?.treasury||0)>=150){dispatch({type:'stateVisit',payload:{nation:m}});n++;}});showToast(n?`🤝 ${n} state visits across ${gn}`:'No visits available (cooldowns/treasury)');}} style={{background:'#0d1117',border:'1px solid #374151',color:'#9ca3af',padding:'4px 8px',borderRadius:'4px',fontSize:'9px'}}>🤝 Visit all off-cooldown</button>
+                      <button onClick={()=>{let n=0;ms.forEach(m=>{if(!tradeAgreements.has(m)&&(nationRelations[m]||0)>=30){dispatch({type:'tradeAgreement',payload:{nation:m}});n++;}});showToast(n?`📜 ${n} trade agreements signed`:'No member at +30 without an agreement');}} style={{background:'#0d1117',border:'1px solid #374151',color:'#9ca3af',padding:'4px 8px',borderRadius:'4px',fontSize:'9px'}}>📜 Trade agreements with all eligible</button>
                       <button onClick={()=>{setInfluenceAlloc(p=>{const n2={...p};ms.forEach(m=>{n2[m]=50;});iaR.current=n2;return n2;});if((influenceBudget||0)<2){setInfluenceBudget(2);ibR.current=2;}showToast(`🗳️ Influence spread evenly across ${gn}`);}} style={{background:'#0d1117',border:'1px solid #374151',color:'#9ca3af',padding:'4px 8px',borderRadius:'4px',fontSize:'9px'}}>🗳️ Even influence</button>
                       <button onClick={()=>{setInfluenceAlloc(p=>{const n2={...p};ms.forEach(m=>{delete n2[m];});iaR.current=n2;return n2;});showToast(`🗳️ Influence to ${gn} cleared`);}} style={{background:'#0d1117',border:'1px solid #374151',color:'#6b7280',padding:'4px 8px',borderRadius:'4px',fontSize:'9px'}}>✖ Clear</button>
                     </div>
@@ -2246,13 +1916,13 @@ function WorldLeadersInner({resumeSignal}){
                         </div>
                         <input type="range" min="0" max="100" step="10" value={w} onChange={e=>setInfluenceAlloc(p=>{const n2={...p,[m]:parseInt(e.target.value)};iaR.current=n2;return n2;})} style={{width:'100%',accentColor:'#3b82f6',margin:'3px 0'}}/>
                         <div style={{display:'flex',flexWrap:'wrap',gap:'3px'}}>
-                          <button onClick={()=>{if(hasEmb){setEmbassies(prev=>{const n2=new Set(prev);n2.delete(m);embR.current=n2;return n2;});showToast(`Embassy in ${t.n} closed`);}else establishEmbassy(m);}} style={{background:hasEmb?'rgba(74,222,128,.12)':'transparent',border:`1px solid ${hasEmb?'#4ade80':lock>0?'#7f1d1d':'#374151'}`,color:hasEmb?'#4ade80':lock>0?'#ef4444':'#9ca3af',padding:'2px 7px',borderRadius:'3px',fontSize:'9px',fontWeight:700}}>{hasEmb?(embassyMissions[m]?{trade:'🏪',intel:'🕵️',culture:'🎭'}[embassyMissions[m]]+' Embassy':'🏛️ Embassy'):lock>0?`PNG ${lock}mo`:'+ Embassy $300M'}</button>
+                          <button onClick={()=>{if(hasEmb){setEmbassies(prev=>{const n2=new Set(prev);n2.delete(m);embR.current=n2;return n2;});showToast(`Embassy in ${t.n} closed`);}else dispatch({type:'establishEmbassy',payload:{nation:m}});}} style={{background:hasEmb?'rgba(74,222,128,.12)':'transparent',border:`1px solid ${hasEmb?'#4ade80':lock>0?'#7f1d1d':'#374151'}`,color:hasEmb?'#4ade80':lock>0?'#ef4444':'#9ca3af',padding:'2px 7px',borderRadius:'3px',fontSize:'9px',fontWeight:700}}>{hasEmb?(embassyMissions[m]?{trade:'🏪',intel:'🕵️',culture:'🎭'}[embassyMissions[m]]+' Embassy':'🏛️ Embassy'):lock>0?`PNG ${lock}mo`:'+ Embassy $300M'}</button>
                           {hasEmb&&<span style={{display:'inline-flex',gap:'2px'}}>{[['trade','🏪'],['intel','🕵️'],['culture','🎭']].map(([mk,mi])=><button key={mk} onClick={()=>{setEmbassyMissions(p=>{const n2={...p,[m]:mk};embMisR.current=n2;return n2;});}} style={{background:embassyMissions[m]===mk?'#1e3a8a':'transparent',border:`1px solid ${embassyMissions[m]===mk?'#3b82f6':'#374151'}`,color:'#9ca3af',padding:'1px 5px',borderRadius:'3px',fontSize:'9px'}}>{mi}</button>)}</span>}
-                          <button onClick={()=>diplomaticAction(m,'visit')} style={{background:'transparent',border:`1px solid ${vcd>0?'#374151':'#3b82f6'}`,color:vcd>0?'#4b5563':'#93c5fd',padding:'2px 7px',borderRadius:'3px',fontSize:'9px'}}>{vcd>0?`Visit ${vcd}mo`:'🤝 State Visit'}</button>
-                          <button onClick={()=>diplomaticAction(m,'aid')} style={{background:'transparent',border:`1px solid ${acd>0?'#374151':'#3b82f6'}`,color:acd>0?'#4b5563':'#93c5fd',padding:'2px 7px',borderRadius:'3px',fontSize:'9px'}}>{acd>0?`Aid ${acd}mo`:'💵 Aid'}</button>
-                          <button onClick={()=>diplomaticAction(m,'trade')} style={{background:ta?'rgba(74,222,128,.12)':'transparent',border:`1px solid ${ta?'#4ade80':rel>=30?'#3b82f6':'#374151'}`,color:ta?'#4ade80':rel>=30?'#93c5fd':'#4b5563',padding:'2px 7px',borderRadius:'3px',fontSize:'9px'}}>{ta?'📜 Trade ✓':'📜 Trade'}</button>
-                          <button onClick={()=>diplomaticAction(m,'pact')} style={{background:pact?'rgba(74,222,128,.12)':'transparent',border:`1px solid ${pact?'#4ade80':rel>=60?'#a78bfa':'#374151'}`,color:pact?'#4ade80':rel>=60?'#c4b5fd':'#4b5563',padding:'2px 7px',borderRadius:'3px',fontSize:'9px'}}>{pact?'🛡️ Pact ✓':'🛡️ Pact'}</button>
-                          {rel<20&&<button onClick={()=>regimeChange(m)} style={{background:'transparent',border:'1px solid #831843',color:'#f472b6',padding:'2px 7px',borderRadius:'3px',fontSize:'9px'}}>🎯 Regime</button>}
+                          <button onClick={()=>dispatch({type:'stateVisit',payload:{nation:m}})} style={{background:'transparent',border:`1px solid ${vcd>0?'#374151':'#3b82f6'}`,color:vcd>0?'#4b5563':'#93c5fd',padding:'2px 7px',borderRadius:'3px',fontSize:'9px'}}>{vcd>0?`Visit ${vcd}mo`:'🤝 State Visit'}</button>
+                          <button onClick={()=>dispatch({type:'foreignAid',payload:{nation:m}})} style={{background:'transparent',border:`1px solid ${acd>0?'#374151':'#3b82f6'}`,color:acd>0?'#4b5563':'#93c5fd',padding:'2px 7px',borderRadius:'3px',fontSize:'9px'}}>{acd>0?`Aid ${acd}mo`:'💵 Aid'}</button>
+                          <button onClick={()=>dispatch({type:'tradeAgreement',payload:{nation:m}})} style={{background:ta?'rgba(74,222,128,.12)':'transparent',border:`1px solid ${ta?'#4ade80':rel>=30?'#3b82f6':'#374151'}`,color:ta?'#4ade80':rel>=30?'#93c5fd':'#4b5563',padding:'2px 7px',borderRadius:'3px',fontSize:'9px'}}>{ta?'📜 Trade ✓':'📜 Trade'}</button>
+                          <button onClick={()=>dispatch({type:'defensePact',payload:{nation:m}})} style={{background:pact?'rgba(74,222,128,.12)':'transparent',border:`1px solid ${pact?'#4ade80':rel>=60?'#a78bfa':'#374151'}`,color:pact?'#4ade80':rel>=60?'#c4b5fd':'#4b5563',padding:'2px 7px',borderRadius:'3px',fontSize:'9px'}}>{pact?'🛡️ Pact ✓':'🛡️ Pact'}</button>
+                          {rel<20&&<button onClick={()=>dispatch({type:'regimeChange',payload:{nation:m}})} style={{background:'transparent',border:'1px solid #831843',color:'#f472b6',padding:'2px 7px',borderRadius:'3px',fontSize:'9px'}}>🎯 Regime</button>}
                         </div>
                       </div>;})}</div>
                   </div>}
