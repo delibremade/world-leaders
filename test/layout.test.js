@@ -97,6 +97,40 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
   });
 }
 
+// E5b: Arsenal vertical. Six sub-tabs fit both widths, no sideways scroll, every row and button is a 44px target,
+// and every Part 1-6 mechanic (programs, procurement, supply, allied access, exports, deterrence) is on one of them.
+for (const [W, H] of [[390, 844], [1280, 800]]) {
+  test(`${W}px: Arsenal vertical, six sub-tabs inside the screen; every Part 1-6 mechanic reachable`, async () => {
+    const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
+    try {
+      await page.evaluate(() => { const h = window.__wl; h.fund(60000); h.field('b21', 1); h.field('f47', 1); h.platforms({ ssbn_fleet: 1 }); });
+      await go(page, 'arsenal');
+      const segs = await page.evaluate(() => [...document.querySelectorAll('[data-segbar=arsenal] [data-seg]')].map((b) => { const r = b.getBoundingClientRect(); return { id: b.dataset.seg, w: r.width, h: r.height, r: r.right }; }));
+      assert.deepEqual(segs.map((x) => x.id), ['programs', 'procurement', 'supply', 'partnerships', 'exports', 'deterrence']);
+      for (const x of segs) assert.ok(x.h >= 44 && x.w >= 44 && x.r <= W + 0.5, `segment ${JSON.stringify(x)}`);
+      const want = {
+        programs: [/Pipeline/, /SAP office|Establish SAP Office/, /B-21/, /F-47/, /CCA/, /SR-72/, /SSN\(X\)/, /F-35/, /Tranche #|Produce/, /Prototype|R&D/],
+        procurement: [/Force structure/, /Acquisition policy/, /Surge/, /Platforms/, /Build \$/, /R&D readiness/],
+        supply: [/Mineral supply/, /Open Resources/, /Programs: inputs and coverage/, /Platforms: inputs and coverage/],
+        partnerships: [/Security compliance/, /Counter-intelligence/, /F-47/, /B-21/, /CCA/],
+        exports: [/Export marketplace/, /Buyers/, /Your exportable platforms/, /Material Science/],
+        deterrence: [/Nuclear triad/, /Deployed military power/, /MAD parity/, /Nuclear register/, /SSBN fleet/],
+      };
+      for (const [id, res] of Object.entries(want)) {
+        await seg(page, id);
+        if (id === 'exports') { await page.evaluate(() => [...document.querySelectorAll('[data-arsenal] button')].find((b) => /Material Science/.test(b.textContent)).click()); await settle(page, 150); }
+        const txt = await page.evaluate(() => document.querySelector('[data-arsenal]').innerText);
+        for (const re of res) assert.match(txt, new RegExp(re.source, 'i'), `${id}: ${re}`);
+        const o = await overflow(page, W);
+        assert.ok(o.scrollWidth <= W, `${id}: scrollWidth ${o.scrollWidth}`); assert.deepEqual(o.bad, [], `${id}: elements past the right edge`);
+        const small = await page.evaluate(() => [...document.querySelectorAll('[data-arsenal] .wl-r, [data-arsenal] .wl-p-head, [data-arsenal] .wl-btn')].filter((e) => e.getBoundingClientRect().height < 43.5).map((e) => (e.className || e.tagName) + ':' + e.textContent.slice(0, 20)));
+        assert.deepEqual(small, [], `${id}: targets under 44px`);
+      }
+      assert.deepEqual(errors, []);
+    } finally { await ctx.close(); }
+  });
+}
+
 test('390px: Forces why-popover on retention and the confirm sheet for Tier 1 selection stay on screen', async () => {
   const { ctx, page, errors } = await openGame(browser, { width: 390 });
   try {

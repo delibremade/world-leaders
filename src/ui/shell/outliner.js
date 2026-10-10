@@ -32,16 +32,16 @@ export function buildOutliner(v) {
   }
   for (const [t, m] of Object.entries(v.investigations || {})) push({ id: `inv_${t}`, group: 'ops', icon: '🔍', title: `Brief: ${ISSUES[t]?.title || t}`, sub: 'Investigation', months: m, jump: { tab: 'intel', issue: t } });
 
-  for (const [pid, d] of Object.entries(v.platformDev || {})) { const p = PLATFORMS[pid]; push({ id: `dev_${pid}`, group: 'builds', icon: p?.i || '🛠️', title: `Develop ${p?.n || pid}`, sub: 'Platform development', months: d?.mo, pct: p?.dev?.mo ? 1 - (d?.mo || 0) / p.dev.mo : null, jump: { tab: 'defense' } }); }
-  if (v.blackResearch) { const bp = BLACK_PROGRAMS[v.blackResearch.id]; push({ id: 'sap', group: 'builds', icon: '🕶️', title: `SAP: ${bp?.n || v.blackResearch.id}`, sub: 'Special access program', pct: v.blackResearch.mo ? (v.blackResearch.prog || 0) / v.blackResearch.mo : null, months: v.blackResearch.mo ? Math.max(0, v.blackResearch.mo - (v.blackResearch.prog || 0)) : undefined, jump: { tab: 'defense' } }); }
-  for (const [id, d] of Object.entries(v.arsenal?.dev || {})) { const bp = BLACK_PROGRAMS[id]; push({ id: `proto_${id}`, group: 'builds', icon: bp?.i || '🛩️', title: `Prototype: ${bp?.n || id}`, sub: d.slipped ? 'Slipped once' : 'Prototype line', pct: d.prog / d.mo, months: d.mo - d.prog, jump: { tab: 'defense' } }); }
+  for (const [pid, d] of Object.entries(v.platformDev || {})) { const p = PLATFORMS[pid]; push({ id: `dev_${pid}`, group: 'builds', icon: p?.i || '🛠️', title: `Develop ${p?.n || pid}`, sub: 'Platform development', months: d?.mo, pct: p?.dev?.mo ? 1 - (d?.mo || 0) / p.dev.mo : null, jump: { tab: 'arsenal', sub: 'procurement' } }); }
+  if (v.blackResearch) { const bp = BLACK_PROGRAMS[v.blackResearch.id]; push({ id: 'sap', group: 'builds', icon: '🕶️', title: `SAP: ${bp?.n || v.blackResearch.id}`, sub: 'Special access program', pct: v.blackResearch.mo ? (v.blackResearch.prog || 0) / v.blackResearch.mo : null, months: v.blackResearch.mo ? Math.max(0, v.blackResearch.mo - (v.blackResearch.prog || 0)) : undefined, jump: { tab: 'arsenal', sub: 'programs' } }); }
+  for (const [id, d] of Object.entries(v.arsenal?.dev || {})) { const bp = BLACK_PROGRAMS[id]; push({ id: `proto_${id}`, group: 'builds', icon: bp?.i || '🛩️', title: `Prototype: ${bp?.n || id}`, sub: d.slipped ? 'Slipped once' : 'Prototype line', pct: d.prog / d.mo, months: d.mo - d.prog, jump: { tab: 'arsenal', sub: 'programs' } }); }
   for (const d of v.deployments || []) if (d.status === 'active') push({ id: d.id, group: 'builds', icon: '📋', title: d.policyName, sub: 'Policy deployment', months: Math.max(0, (d.timeMonths || 0) - (d.monthsElapsed || 0)), pct: d.timeMonths ? d.monthsElapsed / d.timeMonths : null, jump: { tab: 'intel', issue: d.issueType } });
 
   for (const [vert, ml] of Object.entries(v.defResearch || {})) if (ml > 0) push({ id: `rd_${vert}`, group: 'research', icon: DV[vert]?.i || '🔬', title: `${DV[vert]?.n || vert} L${(v.defLevels?.[vert] || 0) + 1}`, sub: 'R&D in progress', months: ml, jump: { tab: 'technology' } });
 
   const timer = (id, icon, title, months, sub, jump, sev) => months > 0 && push({ id, group: 'timers', icon, title, sub, months, jump, sev });
   timer('grace', '🛡', 'Grace period', v.gracePeriod, 'Rivals hold back', { tab: 'sitroom' });
-  timer('pariah', '☢️', 'Pariah status', v.pariah, 'Arms markets closed', { tab: 'defense' }, 'alert');
+  timer('pariah', '☢️', 'Pariah status', v.pariah, 'Arms markets closed', { tab: 'arsenal', sub: 'exports' }, 'alert');
   timer('heg', '👑', 'Hegemony hold', v.hegHold > 0 ? 24 - v.hegHold : 0, `${v.hegHold}/24 months held`, { tab: 'overview' });
   if (v.embargoedBy) timer('embby', '⛽', `Embargoed by ${nat(v.embargoedBy.by)}`, v.embargoedBy.mo, 'Import contracts pay more', { tab: 'energy', nation: v.embargoedBy.by }, 'alert');
   for (const [n, m] of Object.entries(v.expelled || {})) timer(`exp_${n}`, '✈️', `Expulsion · ${nat(n)}`, m, 'Their station is closed', { tab: 'intel', nation: n });

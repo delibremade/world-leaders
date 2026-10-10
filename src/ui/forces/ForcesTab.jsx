@@ -10,16 +10,14 @@ import { REGIONS, POSTURE_LABELS } from '../../data/regions.js';
 import { BRANCHES, crewOf, FORCE_RULES } from '../../data/forces.js';
 import { isrScore, triadLegs } from '../../sim/formulas.js';
 import { forceView } from '../../sim/forces.js';
+import { f0, f1, f2, tone, WhyV } from '../shell/fmt.jsx';
 
 export const FORCES_SUBS = [
   { id: 'manpower', label: 'Manpower' }, { id: 'quality', label: 'Quality' }, { id: 'training', label: 'Training' },
   { id: 'equipment', label: 'Equipment' }, { id: 'specialized', label: 'Special' },
 ];
 const R = FORCE_RULES;
-const f0 = (x) => x.toFixed(0), f1 = (x) => x.toFixed(1), f2 = (x) => x.toFixed(2);
-const tone = (v, lo, hi) => (v < lo ? 'alert' : v < hi ? 'warn' : 'good');
 const BRANCH_N = Object.fromEntries(BRANCHES);
-const WhyV = ({ title, terms, total, children, ...rest }) => <Why title={title} terms={terms} total={total} className="wl-wy" fmt={(v) => v.toFixed(1)} {...rest}>{children}</Why>;
 
 function Manpower({ fv, v, dispatch }) {
   const pay = fv.pay;
@@ -115,7 +113,7 @@ function Equipment({ fv, v, dispatch, toast }) {
     {BRANCHES.map(([bid, bn]) => {
       const mine = ids.filter((pid) => crewOf(pid).b === bid);
       return <Panel key={bid} id={`inv_${bid}`} title={`${bn} inventory`} figure={mine.reduce((a, pid) => a + own(pid), 0)}>
-        {mine.length === 0 && <div className="wl-note">Nothing fielded. Build in the Defense tab.</div>}
+        {mine.length === 0 && <div className="wl-note">Nothing fielded. Build in the Arsenal tab.</div>}
         {mine.map((pid) => {
           const m = meta(pid); const n = own(pid); const w = where(pid); const st = w.reduce((a, [, k]) => a + k, 0); const dep = DEPLOYABLE.includes(pid); const c = crewOf(pid);
           return <Row key={pid} data-unit={pid} title={`${m.i} ${m.n}`} sub={`${gen(pid)} · ${c.n * n} crew sets · ${dep ? `${st}/${n} stationed, ${n - st} in reserve` : 'national asset, applies automatically'}`}
