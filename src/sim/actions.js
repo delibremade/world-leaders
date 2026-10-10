@@ -8,8 +8,9 @@ import { PA, ISSUES, SOCIAL_PROGRAMS, SECTOR_LABELS, IP_POLICY_LABELS } from '..
 import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, INTEL_POSTURE_LABELS } from '../data/intel.js';
 import { BLOC_TRADE, CURRENCY_LABELS } from '../data/trade.js';
 import { RES_META, CONCESSIONS } from '../data/energy.js';
-import { panamaPriorityBlock, sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRunCost, recapCost, getQualMult } from './formulas.js';
-import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups, opOddsTerms } from './selectors.js';
+import { panamaPriorityBlock, sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRunCost, trancheCost, devCost, recapCost, getQualMult } from './formulas.js';
+import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups, opOddsTerms, programStage, programBlock } from './selectors.js';
+import { catalogEntry } from '../data/platforms.js';
 import { rng } from './rng.js';
 
 // ── Toy-engine action vocabulary (scaffold for the pure tick(state, actions, rng) API in tick.js). Not used by the v57 UI.
@@ -545,10 +546,19 @@ function recapitalizeForces(g,S,fx){const cost=recapCost(g.stats?.treasury);
 function japanNormalization(g,S,fx){if((g.stats?.treasury||0)<500){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-500,stability:Math.max(0,p.stability-6)}));S.setActiveEffects(p=>[...p,{id:`jpn_${fx.now()}`,source:'jp_normalization',stat:'stability',d:-0.05,monthsLeft:12,totalMonths:12}]);S.setActivePolicies(p=>{const n2=new Set(p);n2.add('jp_normalization');g.activePolicies=n2;return n2;});fx.toast('🇯🇵 Defense Normalization enacted — weapons R&D penalty lifted');S.setLog(p=>[{msg:'🇯🇵 Constitutional reinterpretation: Defense Normalization',yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
 function establishSapOffice(g,S,fx){if((g.stats?.treasury||0)<1500){fx.toast('⚠ SAP office requires $1,500M');return;}S.setStats(p=>({...p,treasury:p.treasury-1500}));S.setSapOffice(true);g.sapOffice=true;fx.toast('🔒 Special Access Program office established — black projects unlocked');S.setLog(p=>[{msg:'🔒 SAP office established',yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
 function sapTranche(g,S,fx,bid){
-  const bp=BLACK_PROGRAMS[bid];const n=+g.blackPrograms[bid]||1;const runCost=sapRunCost(bp,n);const indOk=(g.defLevels.materials||0)>=4;
-  if(!indOk){fx.toast('⚠ Production run needs Material Science L4+ (industrial base)');return;}if((g.stats?.treasury||0)<runCost){fx.toast(`⚠ Need $${runCost}M for a production run`);return;}S.setStats(p=>({...p,treasury:p.treasury-runCost,military:Math.min(100,p.military+bp.mil*(Math.sqrt(n+1)-Math.sqrt(n)))}));g.blackPrograms={...g.blackPrograms,[bid]:n+1};S.setBlackPrograms({...g.blackPrograms});fx.toast(`${bp.i} ${bp.n} unit #${n+1} delivered — production line hot`);S.setLog(p=>[{msg:`${bp.i} ${bp.n} #${n+1} produced`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+  // E3 (#15): lines in service at the 2024 start produce from unit #1 with no industrial-base gate; v57 lines need a fielded program and Materials L4.
+  const bp=BLACK_PROGRAMS[bid];if(!bp)return;const block=programBlock(g,bid,'produce');if(block){fx.toast(`⚠ ${block}`);return;}
+  const n=+g.blackPrograms[bid]||0;const runCost=trancheCost(bp,n,programStage(g,bid),catalogEntry(g.country?.id,bid)?.buy);
+  S.setStats(p=>({...p,treasury:p.treasury-runCost,military:Math.min(100,p.military+(n>0?bp.mil*(Math.sqrt(n+1)-Math.sqrt(n)):0))}));g.blackPrograms={...g.blackPrograms,[bid]:n+1};S.setBlackPrograms({...g.blackPrograms});fx.toast(`${bp.i} ${bp.n} unit #${n+1} delivered — production line hot`);S.setLog(p=>[{msg:`${bp.i} ${bp.n} #${n+1} produced`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
 }
 function sapInitiate(g,S,fx,bid){
+  // E3 (#15): only your own catalog; prototype-stage programs run as parallel lines at their remaining cost (China may fund J-36 and J-50).
+  const e=catalogEntry(g.country?.id,bid);if(!BLACK_PROGRAMS[bid]||!e){fx.toast('⚠ Not in your national catalog');return;}
+  if(e.start==='proto'){const block=programBlock(g,bid,'fund');if(block){fx.toast(`⚠ ${block}`);return;}const bp=BLACK_PROGRAMS[bid];const dc=devCost(bp,'proto');
+    S.setStats(p=>({...p,treasury:p.treasury-dc.cost}));g.arsenal={...g.arsenal,dev:{...g.arsenal?.dev,[bid]:{prog:0,mo:dc.mo}}};S.setArsenal(g.arsenal);
+    fx.toast(`🛩️ ${bp.n} prototype line funded — $${dc.cost.toLocaleString()}M, ${dc.mo}mo to LRIP`);S.setLog(p=>[{msg:`🛩️ ${bp.n} prototype funded`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);return;}
+  if((+g.blackPrograms?.[bid]||0)>0||e.start==='lrip'||e.start==='full'){fx.toast(`⚠ ${BLACK_PROGRAMS[bid].n} is already in production`);return;}
+  if(!g.sapOffice){fx.toast('⚠ Establish a SAP office first');return;}
   const bp=BLACK_PROGRAMS[bid];const blackResearch=g.blackResearch;const busy=blackResearch&&!(blackResearch?.id===bid);const reqMet=meetsReq(bp.req,g.defLevels);
   if(busy){fx.toast('⚠ SAP office already running a program');return;}if(!reqMet){fx.toast('⚠ R&D requirements not met');return;}if((g.stats?.treasury||0)<bp.cost){fx.toast('⚠ Insufficient black budget');return;}S.setStats(p=>({...p,treasury:p.treasury-bp.cost}));S.setBlackResearch({id:bid,prog:0,mo:bp.mo});g.blackResearch={id:bid,prog:0,mo:bp.mo};fx.toast(`🔒 ${bp.n} program initiated — $${bp.cost.toLocaleString()}M, ${bp.mo}mo`);
 }
