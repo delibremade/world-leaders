@@ -1,12 +1,17 @@
 [
   {
-    "name": "e9-pane-economy-390",
-    "file": "reports/screens/e9-pane-economy-390.png",
+    "name": "e2-world-card-390",
+    "file": "reports/screens/e2-world-card-390.png",
     "errors": []
   },
   {
-    "name": "e9-pane-defense-390",
-    "file": "reports/screens/e9-pane-defense-390.png",
+    "name": "e2-flashpoint-card-390",
+    "file": "reports/screens/e2-flashpoint-card-390.png",
+    "errors": []
+  },
+  {
+    "name": "e2-outliner-390",
+    "file": "reports/screens/e2-outliner-390.png",
     "errors": []
   }
 ]

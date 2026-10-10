@@ -54,6 +54,30 @@ for (const [tag, setup] of [['390', async () => {}], ['1280', desk]]) {
   SCENARIOS[`p3d-overview-${tag}`] = async (page) => { await setup(page); await inGame(page); await page.evaluate(() => { const h = window.__wl; h.setTension('russia', 82); h.deploy('ME', 'carrier', 2); h.event('hormuz_closure', 3); }); await settle(page, 4500); await pause(page); await page.evaluate(() => document.querySelector('[data-tab=economy]').click()); await settle(page, 300); await page.evaluate(() => document.querySelector('[data-tab=overview]').click()); await settle(page, 600); };
   for (const m of ['sphere', 'tension', 'trade', 'energy', 'military', 'intel']) SCENARIOS[`p3d-map-${m}-${tag}`] = async (page) => { await setup(page); await inGame(page); await page.evaluate(() => { const h = window.__wl; h.setTension('russia', 82); h.setTension('china', 55); h.deploy('ME', 'carrier', 2); h.event('hormuz_closure', 3); }); await settle(page, 4500); await pause(page); await mode(page, m); };
 }
+// E3 (#15): a China campaign's catalog (J-20 produced at start, J-36 and J-50 funded in parallel).
+const startNation = async (page, id) => { await page.evaluate((id) => [...document.querySelectorAll('.cc')].find((c) => c.textContent.includes(id))?.click(), id); await settle(page, 400); await page.locator('text=Military Superpower').first().click(); await settle(page, 400); };
+const catalogShot = async (page, prog) => { await page.evaluate(() => document.querySelector('[data-tab=defense]').click()); await settle(page, 500); await page.evaluate((p) => document.querySelector(p ? `[data-program=${p}]` : '[data-catalog]').scrollIntoView({ block: 'start' }), prog); await settle(page, 400); };
+SCENARIOS['e3-china-catalog-390'] = async (page) => {
+  await startNation(page, 'China'); await pause(page);
+  await page.evaluate(() => { const h = window.__wl; h.fund(60000); h.levels({ aircraft: 3, propulsion: 3, computers: 3 }); }); await settle(page, 300);
+  await page.evaluate(() => document.querySelector('[data-tab=defense]').click()); await settle(page, 400);
+  const press = (prog, re) => page.evaluate(([p, r]) => [...document.querySelectorAll(p ? `[data-program=${p}] button` : "button")].find((b) => new RegExp(r).test(b.textContent))?.click(), [prog, re]);
+  await press('j20', 'Produce'); await settle(page, 200); await press('j20', 'Tranche'); await settle(page, 200);
+  await press('', 'Establish SAP Office'); await settle(page, 300);
+  await press('j36', 'Fund prototype'); await settle(page, 200); await press('j50', 'Fund prototype'); await settle(page, 200);
+  await settle(page, 4500); await catalogShot(page, 'j36');
+};
+// E7 (#19): Norway's F-47 partnership: gates before joining, then Buyer -> Partner after supplying rare earths.
+const norwayAccess = async (page, join) => {
+  await startNation(page, 'Norway'); await pause(page);
+  await page.evaluate(() => { const h = window.__wl; h.fund(30000); h.rel('usa', 78); }); await settle(page, 300);
+  await page.evaluate(() => document.querySelector('[data-tab=defense]').click()); await settle(page, 400);
+  const press = (re) => page.evaluate((r) => [...document.querySelectorAll('[data-access=f47] button')].find((b) => new RegExp(r).test(b.textContent))?.click(), re);
+  if (join) { await press('Join as Buyer'); await settle(page, 200); await page.evaluate(() => window.__wl.extract('rareEarth', 1)); await settle(page, 300); await press('Join as Partner'); await settle(page, 4500); }
+  await page.evaluate(() => document.querySelector('[data-partnerships]').scrollIntoView({ block: 'start' })); await settle(page, 400);
+};
+SCENARIOS['e7-norway-gates-390'] = (page) => norwayAccess(page, false);
+SCENARIOS['e7-norway-partner-390'] = (page) => norwayAccess(page, true);
 // E9 (#23): the issue loop on the Intel tab at 390px: the list, a ready brief (with its card), a running deployment.
 // One engine month per call with a render between (a tight loop would tick on stale refs).
 const adv = async (page, n) => { for (let i = 0; i < n; i++) { await page.evaluate(() => window.__wl.month()); await settle(page, 200); } };
