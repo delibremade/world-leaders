@@ -16,17 +16,28 @@ const VIEWPORT = { width: 390, height: 844 };
 const settle = (page, ms = 250) => page.waitForTimeout(ms);
 const click = async (page, text, nth = 0) => { await page.locator(`button:has-text("${text}")`).nth(nth).click(); await settle(page); };
 const startUSA = async (page) => { await page.locator('.cc').first().click(); await settle(page, 400); };
+const inGame = async (page) => { await startUSA(page); await page.locator('text=Military Superpower').first().click(); await settle(page, 400); await page.waitForFunction(() => window.__wlMap, null, { timeout: 15000 }).catch(() => {}); await settle(page, 400); };
+const pause = async (page) => { await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent === '⏸')?.click()); await settle(page, 200); };
+const showMap = async (page) => { await page.evaluate(() => document.querySelector('[data-map]')?.scrollIntoView({ block: 'start' })); await settle(page, 400); };
 const months = async (page, n) => { await page.evaluate((n) => { for (let i = 0; i < n; i++) window.__wl?.month?.(); }, n); await settle(page, 400); };
 
 // scenario -> async (page) => void, run after the title screen is up with window.__WL_TEST = true.
 export const SCENARIOS = {
   'p3a-title': async () => {},
   'p3a-hud': async (page) => { await startUSA(page); await page.locator('text=Choose Your National Doctrine').waitFor(); await click(page, 'Military Superpower').catch(() => page.locator('text=Military Superpower').first().click()); await settle(page, 400); },
+  // P3b: the PixiJS map in each mode, a tapped region, and a disrupted chokepoint + flashpoint via the test hook.
+  // DOM-level clicks: the v57 column scrolls inside overflow:hidden, which defeats Playwright's actionability scroll.
+  ...Object.fromEntries(['sphere', 'tension', 'trade', 'energy', 'military', 'intel'].map((mode) => [`p3b-map-${mode}`, async (page) => {
+    await inGame(page); await page.evaluate(() => { const h = window.__wl; h.setTension('russia', 82); h.setTension('china', 55); h.deploy('ME', 'carrier', 2); h.event('hormuz_closure', 3); });
+    await settle(page, 4500); await pause(page);
+    await page.evaluate((mode) => document.querySelector(`[data-map-mode-btn=${mode}]`).click(), mode); await settle(page, 600); await showMap(page);
+  }])),
+  'p3b-map-tap': async (page) => { await inGame(page); await pause(page); await showMap(page); const box = await page.locator('[data-map] canvas').boundingBox(); await page.mouse.click(box.x + box.width * 0.62, box.y + box.height * 0.42); await settle(page, 600); await showMap(page); },
 };
 
 export async function run(names) {
   const js = await bundle(BUNDLES.app);
-  const html = shell(js);
+  const html = shell(js).replace('<script>', '<script>window.__WL_TEST=true;</script><script>'); // init scripts do not reach setContent pages
   mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const results = [];
@@ -36,7 +47,6 @@ export async function run(names) {
       const ctx = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
       const page = await ctx.newPage();
       const errors = []; page.on('pageerror', (e) => errors.push(String(e)));
-      await page.addInitScript(() => { window.__WL_TEST = true; });
       await page.setContent(html, { waitUntil: 'load' });
       await settle(page, 300);
       await fn(page);

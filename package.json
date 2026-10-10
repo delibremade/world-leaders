@@ -1,6 +1,6 @@
 {
   "name": "world-leaders",
-  "version": "0.62.0",
+  "version": "0.63.0",
   "private": true,
   "type": "module",
   "description": "World Leaders: Tropico-inspired grand-strategy nation simulator. Pure headless sim engine + React UI.",
@@ -16,6 +16,8 @@
     "node": ">=20"
   },
   "dependencies": {
+    "pixi-viewport": "6.0.3",
+    "pixi.js": "8.21.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "recharts": "2.15.4"
