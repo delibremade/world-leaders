@@ -48,3 +48,5 @@ export const sapRate=(n)=>n<3?0.35:n<6?0.30:0.25;
 export const sapRunCost=(bp,n)=>Math.round(bp.cost*sapRate(n));
 // Force recapitalization price: 8% of treasury, clamped to $1.5B..$8B.
 export const recapCost=(treasury)=>Math.max(1500,Math.min(8000,Math.round((treasury||0)*0.08)));
+// A rival's strategic weight (aircraft / missiles / naval at L5+), 0..3. Parity with your triad = MAD.
+export const strategicWeight=(gl)=>((gl.aircraft||0)>=5?1:0)+((gl.missiles||0)>=5?1:0)+((gl.naval||0)>=5?1:0);

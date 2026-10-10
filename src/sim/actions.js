@@ -3,10 +3,10 @@ import { REGIONS, POSTURE_LABELS } from '../data/regions.js';
 import { DOCTRINES } from '../data/world.js';
 import { PLATFORMS, BLACK_PROGRAMS, DV } from '../data/platforms.js';
 import { PA, ISSUES, SOCIAL_PROGRAMS, SECTOR_LABELS, IP_POLICY_LABELS } from '../data/economy.js';
-import { INTEL_OPS } from '../data/intel.js';
+import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, INTEL_POSTURE_LABELS } from '../data/intel.js';
 import { BLOC_TRADE } from '../data/trade.js';
 import { CONCESSIONS } from '../data/energy.js';
-import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, kineticDamage, meetsReq, procurementCost, sapRunCost, recapCost, getQualMult } from './formulas.js';
+import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRunCost, recapCost, getQualMult } from './formulas.js';
 import { rng } from './rng.js';
 
 // ── Toy-engine action vocabulary (scaffold for the pure tick(state, actions, rng) API in tick.js). Not used by the v57 UI.
@@ -548,6 +548,41 @@ function retireImported(g,S,fx,pid){const p=PLATFORMS[pid];S.setPlatformsImporte
 function cutExportDeal(g,S,fx,k){const nd={...g.defExports};delete nd[k];S.setDefExports(nd);fx.toast('Deal terminated');}
 function setIpPolicy(g,S,fx,k){const lab=IP_POLICY_LABELS[k];S.setIpPolicy(k);g.ipPolicy=k;fx.toast(`IP policy: ${lab.replace(/[^ -~]/g,'').trim()}`);}
 
+// Intel tab: final options (nuclear demonstration / employment), infrastructure, agency and proxy budgets, response
+// doctrine, covert programs, standing operations.
+function nuclearDemonstration(g,S,fx,rid){
+  const rname=cap(rid);const country=g.country;const tlF=triadLegs(g.platforms,g.blackPrograms);const topRg=Object.entries(g.sphere).map(([r2,s2])=>[r2,s2.competitors?.[rid]||0]).sort((a,b)=>b[1]-a[1])[0];const dcd=g.actionCooldowns[`demo_${rid}`]||0;
+  if(tlF<1){fx.toast('⚠ No strategic leg to demonstrate with');return;}if(dcd>0){fx.toast(`Demonstration on cooldown — ${dcd}mo`);return;}if((g.stats?.treasury||0)<1500){fx.toast('⚠ Need $1,500M');return;}
+  S.setStats(p=>({...p,treasury:p.treasury-1500,stability:p.stability-5}));if(topRg&&topRg[1]>0)S.setSphere(p=>({...p,[topRg[0]]:{...p[topRg[0]],competitors:{...p[topRg[0]].competitors,[rid]:Math.max(0,(p[topRg[0]].competitors?.[rid]||0)-25)}}}));
+  S.setNationRelations(p=>{const n2={...p};DIP_TARGETS.forEach(t=>{n2[t.id]=Math.max(-100,(n2[t.id]||0)-15);});return n2;});
+  S.setRivalTension(p=>({...p,[rid]:95}));g.rivalTension={...g.rivalTension,[rid]:95};g.actionCooldowns={...g.actionCooldowns,[`demo_${rid}`]:12};S.setActionCooldowns(p=>({...p,[`demo_${rid}`]:12}));
+  recordNuke(g,S,fx,{actor:country?.id,target:rid,region:topRg?.[0],type:'demonstration'});S.setNationRelations(p=>({...p,[rid]:Math.max(-100,(p[rid]||0)-40)}));
+  fx.toast(`☢ Demonstration strike — ${rname} watched the sky burn. Their ${REGIONS[topRg?.[0]]?.n||'position'} collapses −25; the world recoils −15`);S.setLog(p=>[{msg:`☢ Demonstration strike vs ${rname}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+}
+function nuclearEmployment(g,S,fx,rid){
+  const rname=cap(rid);const country=g.country;const tlF=triadLegs(g.platforms,g.blackPrograms);const rivalStrat=strategicWeight(g.globalDef[rid]||{});const topRg=Object.entries(g.sphere).map(([r2,s2])=>[r2,s2.competitors?.[rid]||0]).sort((a,b)=>b[1]-a[1])[0];
+  if(tlF<2){fx.toast('⚠ Employment requires 2+ strategic legs');return;}if((g.stats?.treasury||0)<3000){fx.toast('⚠ Need $3,000M');return;}
+  if(rivalStrat>=tlF){S.setGameOver(`☢️ NUCLEAR EXCHANGE. ${rname} held strategic parity. Your tactical employment was answered in kind within the hour. There is no second move.`);return;}
+  S.setStats(p=>({...p,treasury:p.treasury-3000,stability:p.stability-25}));
+  if(topRg)S.setSphere(p=>({...p,[topRg[0]]:{...p[topRg[0]],player:Math.min(100,(p[topRg[0]].player||0)+20),competitors:{...p[topRg[0]].competitors,[rid]:0}}}));
+  S.setNationRelations(p=>{const n2={...p};DIP_TARGETS.forEach(t=>{n2[t.id]=Math.max(-100,(n2[t.id]||0)-60);});return n2;});
+  S.setBlocTrade(p=>{const nb={eu:0,cn:0,opec:0};g.blocTrade=nb;return nb;});S.setBlocLock(p=>{const nl={eu:36,cn:36,opec:36};g.blocLock=nl;return nl;});
+  g.pariah=36;S.setPariah(36);S.setRivalTension(p=>{const n2={...p};Object.keys(n2).forEach(k=>{n2[k]=Math.min(99,(n2[k]||0)+20);});n2[rid]=92;return n2;});g.rivalTension={...g.rivalTension,[rid]:92};
+  g.worldEvent={id:'nuclear_taboo',mo:24};S.setWorldEvent({id:'nuclear_taboo',mo:24});
+  recordNuke(g,S,fx,{actor:country?.id,target:rid,region:topRg?.[0],type:'employment'});S.setNationRelations(p=>({...p,[rid]:-100}));
+  fx.toast(`☢️ TACTICAL EMPLOYMENT — ${REGIONS[topRg?.[0]]?.n||'the region'} is yours. You are a pariah for 36 months.`);S.setLog(p=>[{msg:`☢️ Tactical nuclear employment vs ${rname}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+}
+function buildIntelInfra(g,S,fx,fid){
+  const f=INTEL_INFRA[fid];const ct=g.intelInfra[fid]||0;const reqsMet=meetsReq(f.req,g.defLevels);const atMax=ct>=f.max;
+  if(atMax)return;if(!reqsMet){fx.toast('⚠ R&D requirements not met');return;}if((g.stats?.treasury||0)<f.cost){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-f.cost}));S.setIntelInfra(p=>({...p,[fid]:(p[fid]||0)+1}));fx.toast(`${f.i} ${f.n} operational — $${f.maint}M/mo upkeep`);S.setLog(p=>[{msg:`${f.i} ${f.n} built`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+}
+function setIntelBudget(g,S,fx,v){S.setIntelBudget(v);fx.toast(`Agency budget: L${v} — $${v*40}M/mo`);}
+function setProxyBudget(g,S,fx,v){S.setProxyBudget(v);fx.toast(v===0?'Proxy funding paused':`Proxy pool: $${v*80}M/mo`);}
+function setProxyAlloc(g,S,fx,rid,w){S.setProxyAlloc(p=>({...p,[rid]:w}));}
+function setIntelPosture(g,S,fx,k){const lab=INTEL_POSTURE_LABELS[k];S.setIntelPosture(k);g.intelPosture=k;fx.toast(`Response doctrine: ${lab}`);}
+function toggleCovertProgram(g,S,fx,cpId){const cp=COVERT_PROGRAMS[cpId];S.setCovertPrograms(prev=>{const n2=new Set(prev);if(n2.has(cpId)){n2.delete(cpId);fx.toast(`${cp.i} ${cp.n} defunded`);}else{n2.add(cpId);fx.toast(`${cp.i} ${cp.n} funded — $${cp.cost}M/mo`);}g.covertPrograms=n2;return n2;});}
+function toggleContinuousOp(g,S,fx,opId,target){const op=INTEL_OPS.find(o=>o.id===opId);const ck=`${op.id}@${target}`;S.setContinuousOps(p=>{const n2={...p};if(n2[ck]){delete n2[ck];fx.toast(`${op.n} standing program ended`);}else{n2[ck]=true;fx.toast(`♻️ ${op.n} now continuous vs ${target} — auto-relaunches (~1.6× cost)`);}g.continuousOps=n2;return n2;});}
+
 // type -> (g, S, fx, payload). Return values are UI hints only (true = the verb went through).
 export const VERBS={
   // issues, policies, decisions
@@ -633,6 +668,16 @@ export const VERBS={
   retireImported:(g,S,fx,{platform})=>retireImported(g,S,fx,platform),
   cutExportDeal:(g,S,fx,{deal})=>cutExportDeal(g,S,fx,deal),
   setIpPolicy:(g,S,fx,{policy})=>setIpPolicy(g,S,fx,policy),
+  // intel
+  nuclearDemonstration:(g,S,fx,{nation})=>nuclearDemonstration(g,S,fx,nation),
+  nuclearEmployment:(g,S,fx,{nation})=>nuclearEmployment(g,S,fx,nation),
+  buildIntelInfra:(g,S,fx,{facility})=>buildIntelInfra(g,S,fx,facility),
+  setIntelBudget:(g,S,fx,{level})=>setIntelBudget(g,S,fx,level),
+  setProxyBudget:(g,S,fx,{level})=>setProxyBudget(g,S,fx,level),
+  setProxyAlloc:(g,S,fx,{region,weight})=>setProxyAlloc(g,S,fx,region,weight),
+  setIntelPosture:(g,S,fx,{posture})=>setIntelPosture(g,S,fx,posture),
+  toggleCovertProgram:(g,S,fx,{program})=>toggleCovertProgram(g,S,fx,program),
+  toggleContinuousOp:(g,S,fx,{op,nation})=>toggleContinuousOp(g,S,fx,op,nation),
 };
 
 export function applyVerb(g,S,fx,action){

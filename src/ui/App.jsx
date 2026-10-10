@@ -6,11 +6,11 @@ import { REGIONS, COMP_COLORS, REGION_GEO, FLASHPOINTS, REGION_BONUS, POSTURE_LA
 import { PLATFORMS, BLACK_PROGRAMS, DV } from '../data/platforms.js';
 import { SOCIAL_PROGRAMS, PA, ISSUES, BASE_SECTOR, SECTOR_GAINS, SECTOR_DECAY, SECTOR_LABELS, IP_POLICY_LABELS } from '../data/economy.js';
 import { DOCTRINES, COMP_RESPONSES, WORLD_EVENTS, DECISIONS } from '../data/world.js';
-import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, CRISIS_FRIENDLY, CRISIS_HOSTILE, CRISIS_STOLEN } from '../data/intel.js';
+import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, CRISIS_FRIENDLY, CRISIS_HOSTILE, CRISIS_STOLEN, INTEL_POSTURE_LABELS } from '../data/intel.js';
 import { BLOC_TRADE } from '../data/trade.js';
 import { CHOKEPOINTS, IMPORT_ROUTES } from '../data/chokepoints.js';
 import { RES_META, CONCESSIONS } from '../data/energy.js';
-import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, kineticDamage, meetsReq, procurementCost, sapRate, sapRunCost, recapCost, calcSCost, getEnergyTier, getQualMult, getRefineMult, getDefLeverage } from '../sim/formulas.js';
+import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRate, sapRunCost, recapCost, calcSCost, getEnergyTier, getQualMult, getRefineMult, getDefLeverage } from '../sim/formulas.js';
 import { naturalDrift } from '../sim/economy.js';
 import { rng } from '../sim/rng.js';
 import { runMonth } from '../sim/tick.js';
@@ -1665,34 +1665,20 @@ function WorldLeadersInner({resumeSignal}){
                   <div style={{height:'3px',background:'#1f2937',borderRadius:'2px',marginBottom:'4px'}}><div style={{height:'100%',width:`${ten}%`,background:tc,borderRadius:'2px',transition:'width .5s'}}/></div>
                   <div style={{fontSize:'9px',lineHeight:'1.5',marginBottom:ten>=20?'5px':'0'}}>{body}</div>
                   {!ally&&ten>=85&&(()=>{const tlF=triadLegs(platforms,blackPrograms);
-                    const gl=globalDef[rid]||{};const rivalStrat=((gl.aircraft||0)>=5?1:0)+((gl.missiles||0)>=5?1:0)+((gl.naval||0)>=5?1:0);
+                    const gl=globalDef[rid]||{};const rivalStrat=strategicWeight(gl);
                     const topRg=Object.entries(sphere).map(([r2,s2])=>[r2,s2.competitors?.[rid]||0]).sort((a,b)=>b[1]-a[1])[0];const dcd=actionCooldowns[`demo_${rid}`]||0;
                     return <div style={{marginBottom:'5px',padding:'6px',background:'rgba(244,114,182,.05)',border:'1px solid #831843',borderRadius:'5px'}}>
                       <div style={{fontSize:'9px',color:'#f472b6',fontWeight:700,marginBottom:'4px'}}>☢ FINAL OPTIONS · triad {tlF}/4 vs their strategic weight {rivalStrat}/3</div>
                       <div style={{display:'flex',gap:'4px'}}>
-                        <button onClick={()=>{if(tlF<1){showToast('⚠ No strategic leg to demonstrate with');return;}if(dcd>0){showToast(`Demonstration on cooldown — ${dcd}mo`);return;}if((sR.current?.treasury||0)<1500){showToast('⚠ Need $1,500M');return;}
-                          setStats(p=>({...p,treasury:p.treasury-1500,stability:p.stability-5}));if(topRg&&topRg[1]>0)setSphere(p=>({...p,[topRg[0]]:{...p[topRg[0]],competitors:{...p[topRg[0]].competitors,[rid]:Math.max(0,(p[topRg[0]].competitors?.[rid]||0)-25)}}}));
-                          setNationRelations(p=>{const n2={...p};DIP_TARGETS.forEach(t=>{n2[t.id]=Math.max(-100,(n2[t.id]||0)-15);});return n2;});
-                          setRivalTension(p=>({...p,[rid]:95}));tenR.current={...tenR.current,[rid]:95};cdR.current={...cdR.current,[`demo_${rid}`]:12};setActionCooldowns(p=>({...p,[`demo_${rid}`]:12}));
-                          recordNuke({actor:country?.id,target:rid,region:topRg?.[0],type:'demonstration'});setNationRelations(p=>({...p,[rid]:Math.max(-100,(p[rid]||0)-40)}));
-                          showToast(`☢ Demonstration strike — ${rname} watched the sky burn. Their ${REGIONS[topRg?.[0]]?.n||'position'} collapses −25; the world recoils −15`);setLog(p=>[{msg:`☢ Demonstration strike vs ${rname}`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);}}
+                        <button onClick={()=>dispatch({type:'nuclearDemonstration',payload:{nation:rid}})}
                           style={{flex:1,background:'rgba(240,192,64,.08)',border:'1px solid #f0c040',color:'#f0c040',padding:'5px',borderRadius:'4px',fontSize:'9px',fontWeight:700}}>{dcd>0?`Demo ${dcd}mo`:'☢ Demonstration · $1.5B'}</button>
-                        <button onClick={()=>{if(tlF<2){showToast('⚠ Employment requires 2+ strategic legs');return;}if((sR.current?.treasury||0)<3000){showToast('⚠ Need $3,000M');return;}
-                          if(rivalStrat>=tlF){setGameOver(`☢️ NUCLEAR EXCHANGE. ${rname} held strategic parity. Your tactical employment was answered in kind within the hour. There is no second move.`);return;}
-                          setStats(p=>({...p,treasury:p.treasury-3000,stability:p.stability-25}));
-                          if(topRg)setSphere(p=>({...p,[topRg[0]]:{...p[topRg[0]],player:Math.min(100,(p[topRg[0]].player||0)+20),competitors:{...p[topRg[0]].competitors,[rid]:0}}}));
-                          setNationRelations(p=>{const n2={...p};DIP_TARGETS.forEach(t=>{n2[t.id]=Math.max(-100,(n2[t.id]||0)-60);});return n2;});
-                          setBlocTrade(p=>{const nb={eu:0,cn:0,opec:0};btR.current=nb;return nb;});setBlocLock(p=>{const nl={eu:36,cn:36,opec:36};bLockR.current=nl;return nl;});
-                          pariahR.current=36;setPariah(36);setRivalTension(p=>{const n2={...p};Object.keys(n2).forEach(k=>{n2[k]=Math.min(99,(n2[k]||0)+20);});n2[rid]=92;return n2;});tenR.current={...tenR.current,[rid]:92};
-                          wEvR.current={id:'nuclear_taboo',mo:24};setWorldEvent({id:'nuclear_taboo',mo:24});
-                          recordNuke({actor:country?.id,target:rid,region:topRg?.[0],type:'employment'});setNationRelations(p=>({...p,[rid]:-100}));
-                          showToast(`☢️ TACTICAL EMPLOYMENT — ${REGIONS[topRg?.[0]]?.n||'the region'} is yours. You are a pariah for 36 months.`);setLog(p=>[{msg:`☢️ Tactical nuclear employment vs ${rname}`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);}}
+                        <button onClick={()=>dispatch({type:'nuclearEmployment',payload:{nation:rid}})}
                           style={{flex:1,background:'rgba(239,68,68,.1)',border:'1px solid #ef4444',color:'#ef4444',padding:'5px',borderRadius:'4px',fontSize:'9px',fontWeight:700}}>☢️ Employ · $3B {rivalStrat>=tlF?'· PARITY = MAD':''}</button>
                       </div>
                       <div style={{fontSize:'8px',color:'#9ca3af',marginTop:'4px'}}>Demonstration: their top region −25, world −15 rel, tension 95. Employment: region cleared, but 36mo pariah (no arms deals, blocs frozen, −25 stability) — and if they hold parity, mutual destruction.</div>
                     </div>;})()}
                   {!ally&&(()=>{const home=NATIONS[rid]?.region;const w=wSum(forceDeployments[home]||{});const saps=Object.values(blackPrograms).reduce((a,b)=>a+(+b||0),0);const rcd=actionCooldowns[`regime_${rid}`]||0;const ready=saps>=1&&w>=3;return <button onClick={()=>dispatch({type:'regimeChange',payload:{nation:rid}})} style={{width:'100%',marginBottom:'4px',background:rcd>0?'rgba(0,0,0,.35)':ready?'rgba(244,114,182,.08)':'rgba(0,0,0,.35)',border:`1px solid ${rcd>0?'#374151':ready?'#f472b6':'#374151'}`,color:rcd>0?'#4b5563':ready?'#f472b6':'#6b7280',padding:'4px',borderRadius:'4px',fontSize:'9px',fontWeight:700}}>{rcd>0?`🎯 Regime change · regrouping ${rcd}mo`:`🎯 Regime change · $6B · SAP + ISR 10 + weight 3 in ${REGIONS[home]?.n} + 2× overmatch`}</button>;})()}
-                  {ten>=20&&<button onClick={()=>{if(bcd>0){showToast(`Back-channel exhausted — ${bcd}mo`);return;}if((sR.current?.treasury||0)<250){showToast('⚠ Need $250M');return;}setStats(p=>({...p,treasury:p.treasury-250}));setRivalTension(p=>({...p,[rid]:Math.max(0,(p[rid]||0)-8)}));cdR.current={...cdR.current,[`bc_${rid}`]:12};setActionCooldowns(p=>({...p,[`bc_${rid}`]:12}));showToast(`🕊 Back-channel with ${rname} — tension −8`);}} style={{width:'100%',background:bcd>0?'rgba(0,0,0,.35)':'rgba(96,165,250,.08)',border:`1px solid ${bcd>0?'#374151':'#60a5fa'}`,color:bcd>0?'#4b5563':'#60a5fa',padding:'4px',borderRadius:'4px',fontSize:'9px',fontWeight:700}}>{bcd>0?`🕊 Back-channel · ${bcd}mo`:'🕊 Back-channel · $250M · tension −8'}</button>}
+                  {ten>=20&&<button onClick={()=>dispatch({type:'backChannel',payload:{nation:rid,from:'dossier'}})} style={{width:'100%',background:bcd>0?'rgba(0,0,0,.35)':'rgba(96,165,250,.08)',border:`1px solid ${bcd>0?'#374151':'#60a5fa'}`,color:bcd>0?'#4b5563':'#60a5fa',padding:'4px',borderRadius:'4px',fontSize:'9px',fontWeight:700}}>{bcd>0?`🕊 Back-channel · ${bcd}mo`:'🕊 Back-channel · $250M · tension −8'}</button>}
                 </div>);})}
             </div>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'7px'}}>
@@ -1702,7 +1688,7 @@ function WorldLeadersInner({resumeSignal}){
             <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'7px'}}>
               {Object.entries(INTEL_INFRA).map(([fid,f])=>{
                 const ct=intelInfra[fid]||0;
-                const reqsMet=Object.entries(f.req).every(([v,rq])=>(defLevels[v]||0)>=rq);
+                const reqsMet=meetsReq(f.req,defLevels);
                 const atMax=ct>=f.max;
                 return(<div key={fid} style={{background:ct>0?'rgba(167,139,250,.05)':'#0d1117',border:`1px solid ${ct>0?'#a78bfa':'#1f2937'}`,borderRadius:'7px',padding:'10px',opacity:reqsMet?1:0.55}}>
                   <div style={{display:'flex',justifyContent:'space-between',marginBottom:'3px'}}>
@@ -1711,7 +1697,7 @@ function WorldLeadersInner({resumeSignal}){
                   </div>
                   <div style={{fontSize:'9px',color:'#6b7280',marginBottom:'3px'}}>{f.d}</div>
                   {Object.keys(f.req).length>0&&<div style={{fontSize:'9px',marginBottom:'5px'}}>Req: {Object.entries(f.req).map(([v,rq])=><span key={v} style={{color:(defLevels[v]||0)>=rq?'#4ade80':'#ef4444',marginRight:'5px'}}>{DV[v]?.n} L{rq}{(defLevels[v]||0)>=rq?' ✓':''}</span>)}</div>}
-                  <button onClick={()=>{if(atMax)return;if(!reqsMet){showToast('⚠ R&D requirements not met');return;}if((sR.current?.treasury||0)<f.cost){showToast('⚠ Insufficient treasury');return;}setStats(p=>({...p,treasury:p.treasury-f.cost}));setIntelInfra(p=>({...p,[fid]:(p[fid]||0)+1}));showToast(`${f.i} ${f.n} operational — $${f.maint}M/mo upkeep`);setLog(p=>[{msg:`${f.i} ${f.n} built`,yr:dateR.current.yr,mo:dateR.current.mo},...p.slice(0,19)]);}} style={{width:'100%',background:atMax?'rgba(0,0,0,.3)':reqsMet?'#4c1d95':'rgba(0,0,0,.4)',border:`1px solid ${atMax?'#374151':reqsMet?'#a78bfa':'#374151'}`,color:atMax?'#4b5563':reqsMet?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{atMax?'✓ At capacity':`Build $${f.cost}M · $${f.maint}M/mo`}</button>
+                  <button onClick={()=>dispatch({type:'buildIntelInfra',payload:{facility:fid}})} style={{width:'100%',background:atMax?'rgba(0,0,0,.3)':reqsMet?'#4c1d95':'rgba(0,0,0,.4)',border:`1px solid ${atMax?'#374151':reqsMet?'#a78bfa':'#374151'}`,color:atMax?'#4b5563':reqsMet?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{atMax?'✓ At capacity':`Build $${f.cost}M · $${f.maint}M/mo`}</button>
                 </div>);})}
             </div>
             {Object.keys(moles).length>0&&<div style={{padding:'7px 9px',background:'rgba(167,139,250,.06)',border:'1px solid #a78bfa55',borderRadius:'6px',marginTop:'7px'}}><span style={{fontSize:'10px',color:'#a78bfa',fontWeight:700}}>🪤 Active penetrations:</span>{Object.entries(moles).map(([t,m])=><span key={t} style={{fontSize:'10px',color:'#9ca3af',marginLeft:'7px'}}>{t} · {m}mo left (pushback ×0.5, R&D frozen)</span>)}</div>}
@@ -1722,7 +1708,7 @@ function WorldLeadersInner({resumeSignal}){
                 <div style={{marginBottom:'10px',padding:'9px',background:'#111827',borderRadius:'6px',border:'1px solid #374151'}}>
                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:'6px'}}><span style={{fontSize:'11px',color:'#9ca3af'}}>Agency Budget Level</span><span style={{fontSize:'12px',fontWeight:700,color:'#a78bfa'}}>L{intelBudget} — ${intelBudget*200}M/yr</span></div>
                 <div style={{fontSize:'10px',color:'#a78bfa',marginBottom:'4px'}}>L{intelBudget} — ${intelBudget*40}M/mo operating budget · +{(intelBudget-1)*4}% op success · +{intelBudget*5}% interception</div>
-                <div style={{display:'flex',gap:'5px'}}>{[1,2,3,4,5].map(v=><button key={v} onClick={()=>{setIntelBudget(v);showToast(`Agency budget: L${v} — $${v*40}M/mo`);}} style={{flex:1,background:intelBudget>=v?'#4c1d95':'transparent',border:`1px solid ${intelBudget>=v?'#a78bfa':'#374151'}`,color:intelBudget>=v?'white':'#6b7280',padding:'4px 0',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{v}</button>)}</div>
+                <div style={{display:'flex',gap:'5px'}}>{[1,2,3,4,5].map(v=><button key={v} onClick={()=>dispatch({type:'setIntelBudget',payload:{level:v}})} style={{flex:1,background:intelBudget>=v?'#4c1d95':'transparent',border:`1px solid ${intelBudget>=v?'#a78bfa':'#374151'}`,color:intelBudget>=v?'white':'#6b7280',padding:'4px 0',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{v}</button>)}</div>
                 <div style={{display:'flex',justifyContent:'space-between',fontSize:'10px',color:'#6b7280',marginTop:'4px'}}><span>Success +{((intelBudget-1)*4).toFixed(0)}%</span><span>Discovery -{((intelBudget-1)*4).toFixed(0)}%</span></div>
               </div>
               <div style={{marginBottom:'12px'}}>
@@ -1731,7 +1717,7 @@ function WorldLeadersInner({resumeSignal}){
                   <span style={{fontSize:'10px',color:proxyBudget>0?'#4ade80':'#6b7280'}}>Pool: ${proxyBudget*80}M/mo</span>
                 </div>
                 <div style={{fontSize:'10px',color:'#6b7280',marginBottom:'7px'}}>Fund deniable proxies and front groups, weighted by region. Each region's share converts directly to your sphere there and erodes the local rival.</div>
-                <div style={{display:'flex',gap:'4px',marginBottom:'9px'}}>{[0,1,2,3,4,5].map(v=><button key={v} onClick={()=>{setProxyBudget(v);showToast(v===0?'Proxy funding paused':`Proxy pool: $${v*80}M/mo`);}} style={{flex:1,background:proxyBudget>=v&&v>0?'#7c2d12':proxyBudget===0&&v===0?'#374151':'transparent',border:`1px solid ${proxyBudget>=v&&v>0?'#ea580c':'#374151'}`,color:proxyBudget>=v?'white':'#6b7280',padding:'4px 0',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{v===0?'Off':`$${v*80}M`}</button>)}</div>
+                <div style={{display:'flex',gap:'4px',marginBottom:'9px'}}>{[0,1,2,3,4,5].map(v=><button key={v} onClick={()=>dispatch({type:'setProxyBudget',payload:{level:v}})} style={{flex:1,background:proxyBudget>=v&&v>0?'#7c2d12':proxyBudget===0&&v===0?'#374151':'transparent',border:`1px solid ${proxyBudget>=v&&v>0?'#ea580c':'#374151'}`,color:proxyBudget>=v?'white':'#6b7280',padding:'4px 0',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{v===0?'Off':`$${v*80}M`}</button>)}</div>
                 {(()=>{const totW=Object.keys(REGIONS).reduce((a,r)=>a+(proxyAlloc[r]||0),0);return <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'6px'}}>
                   {Object.entries(REGIONS).map(([rid,reg])=>{const w=proxyAlloc[rid]||0;const pv=Math.round(sphere[rid]?.player||0);const share=totW>0&&proxyBudget>0?Math.round(proxyBudget*80*(w/totW)):0;return(
                     <div key={rid} style={{background:'#0d1117',border:`1px solid ${w>0?'#7c2d12':'#1f2937'}`,borderRadius:'6px',padding:'8px'}}>
@@ -1739,7 +1725,7 @@ function WorldLeadersInner({resumeSignal}){
                         <span style={{fontSize:'10px',fontWeight:700,color:'#f9fafb'}}>{reg.n}</span>
                         <span style={{fontSize:'9px',color:'#60a5fa'}}>you {pv}%</span>
                       </div>
-                      <input type="range" min="0" max="100" step="10" value={w} onChange={e=>setProxyAlloc(p=>({...p,[rid]:+e.target.value}))} style={{width:'100%',accentColor:'#ea580c',height:'3px'}}/>
+                      <input type="range" min="0" max="100" step="10" value={w} onChange={e=>dispatch({type:'setProxyAlloc',payload:{region:rid,weight:+e.target.value}})} style={{width:'100%',accentColor:'#ea580c',height:'3px'}}/>
                       <div style={{fontSize:'9px',color:share>0?'#fb923c':'#6b7280',marginTop:'3px'}}>{share>0?`$${share}M/mo → +sphere`:'unfunded'}</div>
                     </div>);})}
                 </div>;})()}
@@ -1781,13 +1767,13 @@ function WorldLeadersInner({resumeSignal}){
                   <span style={{fontSize:'10px',color:'#a78bfa'}}>Interception: {Math.min(92,Math.round((0.25+(defLevels.cyber||0)*0.06+intelBudget*0.05+(intelOps.some(o=>o.opId==='counter_int')?0.25:0)+(covertPrograms.has('counter_intel_grid')?0.25:0)+Math.min(0.10,(platforms.satellite_net||0)*0.02)+(ipPolicy==='protect'?0.12:ipPolicy==='license'?-0.08:0))*100))}%</span>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'5px'}}>
-                  {[['quiet','🕳️ Quiet','Flip their officer (30%) or feed disinfo — invisible leverage'],['expose','🗞️ Expose','Public attribution: +stability, their sphere −2, tension +8'],['expel','✈️ Expel','Their station blind vs you 24mo, tension +5']].map(([k,lab,sub])=>(
-                    <button key={k} onClick={()=>{setIntelPosture(k);postR.current=k;showToast(`Response doctrine: ${lab}`);}} style={{background:intelPosture===k?'#4c1d95':'transparent',border:`1px solid ${intelPosture===k?'#a78bfa':'#374151'}`,color:intelPosture===k?'white':'#9ca3af',padding:'6px 4px',borderRadius:'5px',fontSize:'10px',fontWeight:700}}>{lab}<div style={{fontSize:'8px',fontWeight:400,marginTop:'2px',color:intelPosture===k?'#c4b5fd':'#6b7280'}}>{sub}</div></button>))}
+                  {[['quiet',INTEL_POSTURE_LABELS.quiet,'Flip their officer (30%) or feed disinfo — invisible leverage'],['expose',INTEL_POSTURE_LABELS.expose,'Public attribution: +stability, their sphere −2, tension +8'],['expel',INTEL_POSTURE_LABELS.expel,'Their station blind vs you 24mo, tension +5']].map(([k,lab,sub])=>(
+                    <button key={k} onClick={()=>dispatch({type:'setIntelPosture',payload:{posture:k}})} style={{background:intelPosture===k?'#4c1d95':'transparent',border:`1px solid ${intelPosture===k?'#a78bfa':'#374151'}`,color:intelPosture===k?'white':'#9ca3af',padding:'6px 4px',borderRadius:'5px',fontSize:'10px',fontWeight:700}}>{lab}<div style={{fontSize:'8px',fontWeight:400,marginTop:'2px',color:intelPosture===k?'#c4b5fd':'#6b7280'}}>{sub}</div></button>))}
                 </div>
               </div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'6px'}}>
                   {Object.entries(COVERT_PROGRAMS).map(([cpId,cp])=>{const on=covertPrograms.has(cpId);return(
-                    <div key={cpId} onClick={()=>{setCovertPrograms(prev=>{const n2=new Set(prev);if(n2.has(cpId)){n2.delete(cpId);showToast(`${cp.i} ${cp.n} defunded`);}else{n2.add(cpId);showToast(`${cp.i} ${cp.n} funded — $${cp.cost}M/mo`);}covR.current=n2;return n2;});}} style={{background:on?'rgba(167,139,250,.07)':'#0d1117',border:`1px solid ${on?'#a78bfa':'#1f2937'}`,borderRadius:'6px',padding:'8px',cursor:'pointer'}}>
+                    <div key={cpId} onClick={()=>dispatch({type:'toggleCovertProgram',payload:{program:cpId}})} style={{background:on?'rgba(167,139,250,.07)':'#0d1117',border:`1px solid ${on?'#a78bfa':'#1f2937'}`,borderRadius:'6px',padding:'8px',cursor:'pointer'}}>
                       <div style={{fontSize:'11px',fontWeight:700,color:on?'#a78bfa':'#f9fafb',marginBottom:'2px'}}>{cp.i} {cp.n}</div>
                       <div style={{fontSize:'9px',color:'#6b7280',marginBottom:'3px'}}>{cp.d}</div>
                       <div style={{fontSize:'10px',fontWeight:700,color:on?'#a78bfa':'#9ca3af'}}>{on?'FUNDED':'OFF'} · ${cp.cost}M/mo</div>
@@ -1805,7 +1791,7 @@ function WorldLeadersInner({resumeSignal}){
                   <div style={{fontSize:'10px',color:'#9ca3af',marginBottom:'5px'}}>{op.desc}</div>
                   <div style={{fontSize:'10px',color:'#6b7280',marginBottom:'5px'}}>Success: {sr}% · Discovery: {dr}% · {op.mo}mo</div>
                   {activeOp?<div style={{fontSize:'10px',color:'#a78bfa',padding:'4px',background:'rgba(167,139,250,.08)',borderRadius:'3px',textAlign:'center'}}>Active — {activeOp.monthsLeft}mo</div>
-                  :<div style={{display:'flex',gap:'5px'}}><button onClick={()=>{if(!selIntelTarget){showToast('⚠ Select a target nation first');return;}dispatch({type:'runIntelOp',payload:{op:op.id,nation:selIntelTarget}});}} style={{flex:1,background:'rgba(167,139,250,.1)',border:'1px solid #a78bfa',color:'#a78bfa',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>Launch Op</button>{op.type==='covert'&&selIntelTarget&&(()=>{const ck=`${op.id}@${selIntelTarget}`;const on=continuousOps[ck];return <button onClick={()=>{setContinuousOps(p=>{const n2={...p};if(n2[ck]){delete n2[ck];showToast(`${op.n} standing program ended`);}else{n2[ck]=true;showToast(`♻️ ${op.n} now continuous vs ${selIntelTarget} — auto-relaunches (~1.6× cost)`);}contOpsR.current=n2;return n2;});}} title="Run continuously" style={{background:on?'rgba(74,222,128,.15)':'transparent',border:`1px solid ${on?'#4ade80':'#374151'}`,color:on?'#4ade80':'#6b7280',padding:'5px 9px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{on?'♻️ On':'♻️'}</button>;})()}</div>}
+                  :<div style={{display:'flex',gap:'5px'}}><button onClick={()=>{if(!selIntelTarget){showToast('⚠ Select a target nation first');return;}dispatch({type:'runIntelOp',payload:{op:op.id,nation:selIntelTarget}});}} style={{flex:1,background:'rgba(167,139,250,.1)',border:'1px solid #a78bfa',color:'#a78bfa',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>Launch Op</button>{op.type==='covert'&&selIntelTarget&&(()=>{const ck=`${op.id}@${selIntelTarget}`;const on=continuousOps[ck];return <button onClick={()=>dispatch({type:'toggleContinuousOp',payload:{op:op.id,nation:selIntelTarget}})} title="Run continuously" style={{background:on?'rgba(74,222,128,.15)':'transparent',border:`1px solid ${on?'#4ade80':'#374151'}`,color:on?'#4ade80':'#6b7280',padding:'5px 9px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{on?'♻️ On':'♻️'}</button>;})()}</div>}
                 </div>);})}
               </div>
             </div>
