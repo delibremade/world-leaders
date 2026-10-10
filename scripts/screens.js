@@ -67,17 +67,38 @@ SCENARIOS['e3-china-catalog-390'] = async (page) => {
   await press('j36', 'Fund prototype'); await settle(page, 200); await press('j50', 'Fund prototype'); await settle(page, 200);
   await settle(page, 4500); await catalogShot(page, 'j36');
 };
-// E7 (#19): Norway's F-47 partnership: gates before joining, then Buyer -> Partner after supplying rare earths.
+// E7 (#19): Norway's F-47 partnership: gates before joining, then Buyer -> Partner after supplying rare earths (E4: a recycling line).
 const norwayAccess = async (page, join) => {
   await startNation(page, 'Norway'); await pause(page);
   await page.evaluate(() => { const h = window.__wl; h.fund(30000); h.rel('usa', 78); }); await settle(page, 300);
   await page.evaluate(() => document.querySelector('[data-tab=defense]').click()); await settle(page, 400);
   const press = (re) => page.evaluate((r) => [...document.querySelectorAll('[data-access=f47] button')].find((b) => new RegExp(r).test(b.textContent))?.click(), re);
-  if (join) { await press('Join as Buyer'); await settle(page, 200); await page.evaluate(() => window.__wl.extract('rareEarth', 1)); await settle(page, 300); await press('Join as Partner'); await settle(page, 4500); }
+  if (join) { await press('Join as Buyer'); await settle(page, 200); await page.evaluate(() => window.__wl.minerals({ recycle: ['rareEarth'] })); await settle(page, 300); await press('Join as Partner'); await settle(page, 4500); }
   await page.evaluate(() => document.querySelector('[data-partnerships]').scrollIntoView({ block: 'start' })); await settle(page, 400);
 };
 SCENARIOS['e7-norway-gates-390'] = (page) => norwayAccess(page, false);
 SCENARIOS['e7-norway-partner-390'] = (page) => norwayAccess(page, true);
+// E4 (#16): the minerals view under Chinese export controls (gallium row open), and an F-35 tranche slowed by the shortfall.
+const IDS = ['rareEarth', 'gallium', 'germanium', 'graphite', 'lithium', 'cobalt', 'nickel', 'tungsten', 'titanium', 'enrichment'];
+const chinaControls = async (page) => {
+  await inGame(page); await pause(page);
+  await page.evaluate((ids) => { const h = window.__wl; h.fund(60000); for (const m of ids) h.mineral(m, { stock: 0 }); h.setTension('china', 90); }, IDS); await settle(page, 300);
+  await page.evaluate(() => window.__wl.month()); await settle(page, 400);
+};
+SCENARIOS['e4-minerals-390'] = async (page) => {
+  await chinaControls(page);
+  await page.evaluate(() => document.querySelector('[data-tab=resources]').click()); await settle(page, 400);
+  await page.evaluate(() => document.querySelector('[data-mineral=gallium] [data-mineral-head]').click()); await settle(page, 300);
+  await page.evaluate(() => [...document.querySelectorAll('[data-mineral=gallium] button')].find((b) => /Build plant/.test(b.textContent)).click()); await settle(page, 300);
+  await page.evaluate(() => document.querySelector('[data-minerals]').scrollIntoView({ block: 'start' })); await settle(page, 400);
+};
+SCENARIOS['e4-slowdown-390'] = async (page) => {
+  await chinaControls(page);
+  await page.evaluate((ids) => { for (const m of ids) window.__wl.mineral(m, { stock: 0 }); }, IDS); await settle(page, 300);
+  await page.evaluate(() => document.querySelector('[data-tab=defense]').click()); await settle(page, 400);
+  await page.evaluate(() => [...document.querySelectorAll('[data-program=f35] button')].find((b) => /Tranche|Produce/.test(b.textContent)).click()); await settle(page, 400);
+  await page.evaluate(() => document.querySelector('[data-program=f35]').scrollIntoView({ block: 'center' })); await settle(page, 400);
+};
 // E9 (#23): the issue loop on the Intel tab at 390px: the list, a ready brief (with its card), a running deployment.
 // One engine month per call with a render between (a tight loop would tick on stale refs).
 const adv = async (page, n) => { for (let i = 0; i < n; i++) { await page.evaluate(() => window.__wl.month()); await settle(page, 200); } };

@@ -43,6 +43,21 @@ test('390px: HUD speed control and all three figures are fully on screen; nav re
   } finally { await ctx.close(); }
 });
 
+test('390px: Resources minerals view with every row open stays inside the screen (E4, #16)', async () => {
+  const { ctx, page, errors } = await openGame(browser, { width: 390 });
+  try {
+    await go(page, 'resources');
+    const ids = await page.evaluate(() => [...document.querySelectorAll('[data-mineral]')].map((r) => r.dataset.mineral));
+    assert.equal(ids.length, 10);
+    for (const id of ids) {
+      await page.evaluate((id) => document.querySelector(`[data-mineral=${id}] [data-mineral-head]`).click(), id); await settle(page, 120);
+      const o = await overflow(page, 390);
+      assert.ok(o.scrollWidth <= 390, `${id}: scrollWidth ${o.scrollWidth}`); assert.deepEqual(o.bad, [], `${id}: elements past the right edge`);
+    }
+    assert.deepEqual(errors, []);
+  } finally { await ctx.close(); }
+});
+
 test('390px: six map-mode chips fit inside the map card, equal width, none clipped', async () => {
   const { ctx, page } = await openGame(browser, { width: 390 });
   try {
