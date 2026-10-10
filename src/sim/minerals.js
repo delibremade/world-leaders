@@ -90,6 +90,9 @@ export function rivalSupplyFactor(g, n) {
   return 1 - R.controls.rivalCut * worst;
 }
 
+// Monthly cost of holding export controls on a mineral you process ($M).
+export const controlCost = (mm, m) => Math.round(mm.own[m].cap * MINERALS[m].price * R.controls.exportCost);
+
 // Monthly cost lines of the chain ($M, positive = cost), shared by the month and the Resources tab.
 export function mineralCosts(g) {
   const mm = M(g); const by = {};
@@ -97,7 +100,7 @@ export function mineralCosts(g) {
   for (const m of MINERAL_IDS) {
     add(m, (mm.built[m] || 0) * R.plant.upkeep);
     if (mm.recycle.includes(m)) add(m, R.recycle.cost);
-    if (mm.controls.includes(m)) add(m, Math.round(mm.own[m].cap * MINERALS[m].price * R.controls.exportCost));
+    if (mm.controls.includes(m)) add(m, controlCost(mm, m));
   }
   for (const d of mm.deals) if (!controlling(g, d.n, d.m)) add(d.m, d.price);
   return { by, pact: mm.pact ? R.pact.cost : 0, total: Object.values(by).reduce((a, b) => a + b, 0) + (mm.pact ? R.pact.cost : 0) };
@@ -246,7 +249,7 @@ export function mineralView(g) {
       .sort((a, b) => b.cap - a.cap);
     return { id: m, ...MINERALS[m], ...o, flow: f[m], upkeep: c.by[m] || 0, plants: mm.plants.filter((x) => x.m === m), built: mm.built[m] || 0,
       deals: mm.deals.filter((d) => d.m === m).map((d) => ({ ...d, name: NATIONS[d.n]?.n, paused: controlling(g, d.n, m) })),
-      recycling: mm.recycle.includes(m), releasing: mm.release.includes(m), controlled: mm.controls.includes(m),
+      controlCost: controlCost(mm, m), recycling: mm.recycle.includes(m), releasing: mm.release.includes(m), controlled: mm.controls.includes(m),
       controlledBy: Object.entries(mm.against || {}).filter(([, ms]) => ms.includes(m)).map(([n]) => NATIONS[n]?.n || n),
       partners: partners.filter((x) => !x.controls).slice(0, 2), canControl: o.cap > 0 };
   });
