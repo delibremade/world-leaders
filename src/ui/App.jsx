@@ -3,7 +3,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "rec
 import { MONTHS, GOOD, SC, ss, sc } from '../data/stats.js';
 import { NATIONS, COUNTRIES, BUYERS, DIP_TARGETS, INTEL_TARGETS, NATION_BLOC, NATION_TRAITS, INTEL_AGENCIES, GDB, RD_MODS } from '../data/nations.js';
 import { REGIONS, COMP_COLORS, REGION_GEO, FLASHPOINTS, REGION_BONUS, POSTURE_LABELS } from '../data/regions.js';
-import { PLATFORMS, BLACK_PROGRAMS, DV } from '../data/platforms.js';
+import { PLATFORMS, BLACK_PROGRAMS, DV, DEPLOYABLE } from '../data/platforms.js';
 import { SOCIAL_PROGRAMS, PA, ISSUES, BASE_SECTOR, SECTOR_GAINS, SECTOR_DECAY, SECTOR_LABELS, IP_POLICY_LABELS } from '../data/economy.js';
 import { DOCTRINES, COMP_RESPONSES, WORLD_EVENTS, DECISIONS } from '../data/world.js';
 import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, CRISIS_FRIENDLY, CRISIS_HOSTILE, CRISIS_STOLEN, INTEL_POSTURE_LABELS } from '../data/intel.js';
@@ -1287,7 +1287,7 @@ function WorldLeadersInner({resumeSignal}){
                 </div>
               </div>);})()}
             {panelBox('oob','🗺️ Order of Battle · every theater asset, where it is, what it is doing','#1e3a5f',(()=>{
-              const T=['carrier_group','sub_fleet','fighter_wing','drone_swarm','fa_xx','mq25','frigate','zumwalt','b21','sr72','ssnx'];const rows=T.map(pid=>{const meta=PLATFORMS[pid]||BLACK_PROGRAMS[pid];const own=BLACK_PROGRAMS[pid]?(+blackPrograms[pid]||0):((platforms[pid]||0)+(platformsImported[pid]||0));if(!own)return null;const where=Object.entries(forceDeployments).filter(([,o])=>(o?.[pid]||0)>0).map(([rid,o])=>[rid,o[pid]]);const st=where.reduce((a,[,n])=>a+n,0);return {pid,meta,own,where,st,res:own-st};}).filter(Boolean);
+              const T=DEPLOYABLE;const rows=T.map(pid=>{const meta=PLATFORMS[pid]||BLACK_PROGRAMS[pid];const own=BLACK_PROGRAMS[pid]?(+blackPrograms[pid]||0):((platforms[pid]||0)+(platformsImported[pid]||0));if(!own)return null;const where=Object.entries(forceDeployments).filter(([,o])=>(o?.[pid]||0)>0).map(([rid,o])=>[rid,o[pid]]);const st=where.reduce((a,[,n])=>a+n,0);return {pid,meta,own,where,st,res:own-st};}).filter(Boolean);
               if(!rows.length)return <div style={{fontSize:'10px',color:'#6b7280'}}>No theater assets yet — build carriers, wings, hulls or field a SAP below.</div>;
               return <div style={{display:'grid',gap:'6px'}}>{rows.map(r=><div key={r.pid} style={{padding:'7px',background:'#111827',border:'1px solid #1f2937',borderRadius:'6px'}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'3px'}}><span style={{fontSize:'11px',fontWeight:700,color:'#e5e7eb'}}>{r.meta.i} {r.meta.n}</span><span style={{fontSize:'10px',color:'#9ca3af'}}>{r.st}/{r.own} stationed · <b style={{color:r.res>0?'#4ade80':'#6b7280'}}>{r.res} in reserve</b></span></div>
@@ -1393,7 +1393,7 @@ function WorldLeadersInner({resumeSignal}){
                     <div style={{fontSize:'10px',color:'#6b7280',marginBottom:'4px'}}>Req: {Object.entries(p.req).map(([v,rq])=><span key={v} style={{color:(defLevels[v]||0)>=rq?'#4ade80':'#ef4444',marginRight:'5px'}}>{DV[v]?.n} L{rq}{(defLevels[v]||0)>=rq?'✓':` (you: ${defLevels[v]||0})`}</span>)}</div>
                     <div style={{fontSize:'10px',color:'#9ca3af',marginBottom:'6px'}}>+{(p.mil*eff).toFixed(1)} military each{eff>1?` (${Math.round((eff-1)*100)}% tech bonus)`:''} · ${p.maint}M/mo maint</div>
                     {p.d&&<div style={{fontSize:'9px',color:'#60a5fa',marginBottom:'4px'}}>{p.d}</div>}
-                    <div style={{fontSize:'8px',letterSpacing:'1px',marginBottom:'4px',color:['carrier_group','sub_fleet','fighter_wing','drone_swarm','fa_xx','mq25','frigate','zumwalt','b21','sr72','ssnx'].includes(pid)?'#f0c040':'#6b7280'}}>{['carrier_group','sub_fleet','fighter_wing','drone_swarm','fa_xx','mq25','frigate','zumwalt','b21','sr72','ssnx'].includes(pid)?'THEATER ASSET — station it in a region to act':'NATIONAL ASSET — effect applies automatically'}</div>
+                    <div style={{fontSize:'8px',letterSpacing:'1px',marginBottom:'4px',color:DEPLOYABLE.includes(pid)?'#f0c040':'#6b7280'}}>{DEPLOYABLE.includes(pid)?'THEATER ASSET — station it in a region to act':'NATIONAL ASSET — effect applies automatically'}</div>
                     {p.triad&&<div style={{fontSize:'9px',color:'#ef4444',marginBottom:'4px',letterSpacing:'1px'}}>☢ STRATEGIC — cannot be purchased abroad; domestic program only</div>}
                     <div style={{display:'flex',gap:'5px',flexWrap:'wrap'}}>
                       {p.dev&&!developed.has(pid)&&(()=>{const pd=platformDev[pid];if(pd)return <div style={{flex:1,fontSize:'10px',color:'#3b82f6',fontWeight:700,padding:'5px',background:'#0d1117',border:'1px solid #1e3a8a',borderRadius:'4px'}}>🔬 Developing — {pd.mo}mo</div>;return <button onClick={()=>dispatch({type:'developPlatform',payload:{platform:pid}})} style={{flex:1,background:reqsMet?'#1e3a8a':'rgba(0,0,0,.4)',border:`1px solid ${reqsMet?'#3b82f6':'#374151'}`,color:reqsMet?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>🔬 Develop ${p.dev.cost}M · {p.dev.mo}mo</button>;})()}
@@ -1538,7 +1538,7 @@ function WorldLeadersInner({resumeSignal}){
                       </div>
                       <div style={{fontSize:'8px',color:'#9ca3af',marginTop:'4px'}}>Demonstration: their top region −25, world −15 rel, tension 95. Employment: region cleared, but 36mo pariah (no arms deals, blocs frozen, −25 stability) — and if they hold parity, mutual destruction.</div>
                     </div>;})()}
-                  {!ally&&(()=>{const home=NATIONS[rid]?.region;const w=wSum(forceDeployments[home]||{});const saps=Object.values(blackPrograms).reduce((a,b)=>a+(+b||0),0);const rcd=actionCooldowns[`regime_${rid}`]||0;const ready=saps>=1&&w>=3;return <button onClick={()=>dispatch({type:'regimeChange',payload:{nation:rid}})} style={{width:'100%',marginBottom:'4px',background:rcd>0?'rgba(0,0,0,.35)':ready?'rgba(244,114,182,.08)':'rgba(0,0,0,.35)',border:`1px solid ${rcd>0?'#374151':ready?'#f472b6':'#374151'}`,color:rcd>0?'#4b5563':ready?'#f472b6':'#6b7280',padding:'4px',borderRadius:'4px',fontSize:'9px',fontWeight:700}}>{rcd>0?`🎯 Regime change · regrouping ${rcd}mo`:`🎯 Regime change · $6B · SAP + ISR 10 + weight 3 in ${REGIONS[home]?.n} + 2× overmatch`}</button>;})()}
+                  {!ally&&(()=>{const home=NATIONS[rid]?.region;const w=wSum(forceDeployments[home]||{},blackPrograms);const saps=Object.values(blackPrograms).reduce((a,b)=>a+(+b||0),0);const rcd=actionCooldowns[`regime_${rid}`]||0;const ready=saps>=1&&w>=3;return <button onClick={()=>dispatch({type:'regimeChange',payload:{nation:rid}})} style={{width:'100%',marginBottom:'4px',background:rcd>0?'rgba(0,0,0,.35)':ready?'rgba(244,114,182,.08)':'rgba(0,0,0,.35)',border:`1px solid ${rcd>0?'#374151':ready?'#f472b6':'#374151'}`,color:rcd>0?'#4b5563':ready?'#f472b6':'#6b7280',padding:'4px',borderRadius:'4px',fontSize:'9px',fontWeight:700}}>{rcd>0?`🎯 Regime change · regrouping ${rcd}mo`:`🎯 Regime change · $6B · SAP + ISR 10 + weight 3 in ${REGIONS[home]?.n} + 2× overmatch`}</button>;})()}
                   {ten>=20&&<button onClick={()=>dispatch({type:'backChannel',payload:{nation:rid,from:'dossier'}})} style={{width:'100%',background:bcd>0?'rgba(0,0,0,.35)':'rgba(96,165,250,.08)',border:`1px solid ${bcd>0?'#374151':'#60a5fa'}`,color:bcd>0?'#4b5563':'#60a5fa',padding:'4px',borderRadius:'4px',fontSize:'9px',fontWeight:700}}>{bcd>0?`🕊 Back-channel · ${bcd}mo`:'🕊 Back-channel · $250M · tension −8'}</button>}
                 </div>);})}
             </div>
@@ -1594,7 +1594,7 @@ function WorldLeadersInner({resumeSignal}){
               {panelBox('t1ops','🎯 Tier-1 Operations · JSOC · decapitation, regime change, ministry seizure','#831843',(()=>{
                 const cands=Object.keys(NATIONS).filter(n=>n!==country?.id).sort((a,b)=>(isAllyOf(country?.id,a)?1:0)-(isAllyOf(country?.id,b)?1:0)||((rivalTension[b]||0)-(rivalTension[a]||0))||((nationRelations[a]||0)-(nationRelations[b]||0)));
                 const nid=t1Target&&cands.includes(t1Target)?t1Target:cands[0];const nat=NATIONS[nid];if(!nat)return <div style={{fontSize:'10px',color:'#6b7280'}}>No viable targets — everyone is allied or friendly.</div>;
-                const home=nat.region;const w=wSum(forceDeployments[home]||{});const saps=Object.values(blackPrograms).reduce((a,b)=>a+(+b||0),0);
+                const home=nat.region;const w=wSum(forceDeployments[home]||{},blackPrograms);const saps=Object.values(blackPrograms).reduce((a,b)=>a+(+b||0),0);
                 const isrSc=isrScore(platforms,defLevels,intelInfra,blackPrograms);
                 const gl=globalDef[nid];const their=gl?40+Object.values(gl).reduce((a,b)=>a+(b||0),0)*2:(NATION_BLOC[nid]==='east'?45:30);const mine=(stats?.military||0)+isrSc*2+saps*10+w*5;const ratio=mine/their;
                 const rcd=actionCooldowns[`regime_${nid}`]||0;const chance=Math.min(0.9,0.3+Math.max(0,ratio-2)*0.2+(embassies.has(nid)?0.1:0)+(embassyMissions[nid]==='intel'?0.1:0));
@@ -1846,18 +1846,17 @@ function WorldLeadersInner({resumeSignal}){
                   </div>
                 </div>;})()}
                 {(()=>{
-                  const DEPLOYABLE=['carrier_group','sub_fleet','fighter_wing','drone_swarm','fa_xx','mq25','frigate','zumwalt'];
-                  const owned=pid=>(platforms[pid]||0)+(platformsImported[pid]||0);
+                                    const owned=pid=>(platforms[pid]||0)+(platformsImported[pid]||0);
                   const deployedOf=pid=>Object.values(forceDeployments).reduce((a,r)=>a+((r&&r[pid])||0),0);
                   const hereObj=forceDeployments[selectedRegion]||{};
                   const hereTot=sumDep(hereObj);
-                  const poolTot=DEPLOYABLE.reduce((a,p)=>a+owned(p),0)+['b21','sr72','ssnx'].reduce((a,b)=>a+(+blackPrograms[b]||0),0);
+                  const poolTot=DEPLOYABLE.reduce((a,p)=>a+(BLACK_PROGRAMS[p]?(+blackPrograms[p]||0):owned(p)),0);
                   const availTot=poolTot-Object.values(forceDeployments).reduce((a,r)=>a+sumDep(r),0);
                   return <div style={{marginBottom:'8px',padding:'8px',background:'#0d1117',borderRadius:'6px',border:`1px solid ${hereTot>0?'#1d4ed8':'#1f2937'}`}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5px'}}>
                     <span style={{fontSize:'11px',color:hereTot>0?'#60a5fa':'#9ca3af',fontWeight:600}}>⚓ Forward Deployment — {hereTot} stationed · {Math.max(0,availTot)} available fleet-wide</span>
                   </div>
-                  {[...DEPLOYABLE.map(pid=>({pid,meta:PLATFORMS[pid],own:owned(pid)})),...['b21','sr72','ssnx'].filter(b=>blackPrograms[b]).map(b=>({pid:b,meta:BLACK_PROGRAMS[b],own:+blackPrograms[b]||1}))].map(({pid,meta:p,own})=>{if(own<=0)return null;const hereN=hereObj[pid]||0;const avail=own-deployedOf(pid);return(
+                  {DEPLOYABLE.map(pid=>BLACK_PROGRAMS[pid]?{pid,meta:BLACK_PROGRAMS[pid],own:+blackPrograms[pid]||0}:{pid,meta:PLATFORMS[pid],own:owned(pid)}).map(({pid,meta:p,own})=>{if(own<=0)return null;const hereN=hereObj[pid]||0;const avail=own-deployedOf(pid);return(
                     <div key={pid} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 6px',background:'#111827',borderRadius:'4px',marginBottom:'3px'}}>
                       <span style={{fontSize:'10px',color:'#9ca3af'}}>{p.i} {p.n} <span style={{color:'#4b5563'}}>· {hereN} here / {avail} free / {own} owned</span></span>
                       <div style={{display:'flex',gap:'4px'}}>
@@ -1865,7 +1864,7 @@ function WorldLeadersInner({resumeSignal}){
                         <button onClick={()=>dispatch({type:'adjustDeployment',payload:{region:selectedRegion,unit:pid,delta:-1}})} style={{background:'transparent',border:'1px solid #374151',color:'#9ca3af',padding:'2px 9px',borderRadius:'4px',fontSize:'11px'}}>−</button>
                       </div>
                     </div>);})}
-                  <div style={{fontSize:'10px',color:'#6b7280',marginTop:'3px'}}>+0.12 sphere/mo each · suppression weight: B-21/SSN(X) ×2, SR-72 ×0.6 · top rival −{(wSum(hereObj)*0.08).toFixed(2)}/mo · halves rival pushback · unlocks Intervene & Kinetic Strike · $4M/unit/mo basing</div>
+                  <div style={{fontSize:'10px',color:'#6b7280',marginTop:'3px'}}>+0.12 sphere/mo each · suppression weight: B-21/SSN(X) ×2, SR-72 ×0.6, F-47 ×1 (+up to 50% with CCA wings) · top rival −{(wSum(hereObj,blackPrograms)*0.08).toFixed(2)}/mo · halves rival pushback · unlocks Intervene & Kinetic Strike · $4M/unit/mo basing</div>
                   {hereTot>0&&(()=>{const cur=forcePosture[selectedRegion]||'deter';const cpHere=Object.entries(CHOKEPOINTS).find(([,cp])=>cp.region===selectedRegion);const nw=navalWeight(hereObj);
                     const P=[['deter',POSTURE_LABELS.deter,'+0.12/unit · suppresses top hostile'],['escort',POSTURE_LABELS.escort,cpHere?`Keeps ${cpHere[1].n} open for you (naval 2+, have ${nw}) · +tension`:'No chokepoint here — presence only'],['isr',POSTURE_LABELS.isr,'+25% op success in-region · rival pressure −30% · half suppression'],['exercise',POSTURE_LABELS.exercise,'Allies here +0.5 rel/mo · coalition ×2 · +0.06/unit'],['humanitarian',POSTURE_LABELS.humanitarian,'During crises: +1 rel/mo region-wide, +0.2/unit · $30M/unit/mo']];
                     return <div style={{marginTop:'7px'}}><div style={{fontSize:'9px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'4px'}}>Posture · what your {hereTot} unit{hereTot>1?'s':''} here are actually doing</div>
@@ -1885,7 +1884,7 @@ function WorldLeadersInner({resumeSignal}){
                     const hereObj2=forceDeployments[selectedRegion]||{};const dep=Object.values(hereObj2).reduce((a,b)=>a+(b||0),0)*0.12+((forceDeployments[selectedRegion]?.sr72||0)>0?0.04:0);
                     const pact2=[...defensePacts].some(nid=>DIP_TARGETS.find(d=>d.id===nid)?.region===selectedRegion)?0.06:0;
                     const allies=DIP_TARGETS.filter(d=>d.region===selectedRegion&&(nationRelations[d.id]||0)>60).length*0.04;
-                    const supp=wSum(hereObj2)*0.08;
+                    const supp=wSum(hereObj2,blackPrograms)*0.08;
                     const rows=[['🗳️ Influence',infl],['🕵️ Proxy ops',prox],['🪖 Deployments',dep],['🛡️ Pact anchor',pact2],['🤝 Allied trickle',allies]].filter(([,v])=>v>0.001);
                     return <div style={{marginBottom:'8px',padding:'8px',background:'#0d1117',border:'1px solid #1f2937',borderRadius:'6px'}}>
                       <div style={{fontSize:'9px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'5px'}}>Sphere flows here · per month</div>

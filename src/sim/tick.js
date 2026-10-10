@@ -242,7 +242,7 @@ function economy(g,S,fx,m){
       const pv=sph.player||0;let gain=0;
       if(projRate>0&&pv>25&&pv<60)gain+=projRate;
       const dep=sumDep(g.forceDeployments?.[rid]);
-      const wdep=wSum(g.forceDeployments?.[rid]);
+      const wdep=wSum(g.forceDeployments?.[rid],g.blackPrograms);
       if((g.forceDeployments?.[rid]?.sr72||0)>0&&pv<95)gain+=0.04; // SR-72 on station: persistent regional reconnaissance
       const post=g.forcePosture[rid]||'deter';
       const perUnit=post==='deter'?0.12:post==='humanitarian'?((g.flashpoint?.rid===rid||(g.worldEvent&&WORLD_EVENTS[g.worldEvent.id]?.choke&&CHOKEPOINTS[WORLD_EVENTS[g.worldEvent.id].choke]?.region===rid))?0.2:0.04):0.06;
@@ -520,7 +520,7 @@ function pressure(g,S,fx,m){
       const scale=Math.min(1.6,1+0.2*(rids.length-1))*((g.rivalTension[compId]||0)>=40?1.25:1)*Math.max(0.4,1-0.3*isrDamp)*(g.embargoes.has(compId)?0.75:1);
       S.setStats(p=>{const ns2={...p};Object.entries(resp.effect||{}).forEach(([k,v])=>{if(k in ns2&&typeof v==='number')ns2[k]+=((k==='stability'||k==='inflation')?v*shockMult:v)*detM*scale;});return ns2;});
       rids.forEach(rid=>{
-        const wHere=wSum(g.forceDeployments?.[rid]);
+        const wHere=wSum(g.forceDeployments?.[rid],g.blackPrograms);
         const detS=Math.min(nm,milM)*(wHere>0?0.5:1)*moleM;
         const ps=sphCopy[rid]?.player||0;
         if(sphCopy[rid]){sphCopy[rid]={...sphCopy[rid],player:Math.max(0,ps-6*detS),competitors:{...sphCopy[rid].competitors,[compId]:Math.min(90,(sphCopy[rid].competitors?.[compId]||0)+8*detS)}};}

@@ -1,7 +1,7 @@
 import { NATIONS, BUYERS, DIP_TARGETS, NATION_BLOC, RD_MODS } from '../data/nations.js';
 import { REGIONS, POSTURE_LABELS } from '../data/regions.js';
 import { DOCTRINES } from '../data/world.js';
-import { PLATFORMS, BLACK_PROGRAMS, DV } from '../data/platforms.js';
+import { PLATFORMS, BLACK_PROGRAMS, DV, DEPLOYABLE } from '../data/platforms.js';
 import { PA, ISSUES, SOCIAL_PROGRAMS, SECTOR_LABELS, IP_POLICY_LABELS } from '../data/economy.js';
 import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, INTEL_POSTURE_LABELS } from '../data/intel.js';
 import { BLOC_TRADE, CURRENCY_LABELS } from '../data/trade.js';
@@ -59,6 +59,7 @@ function deployPolicy(g,S,fx,issueType,optId){
 const ownedUnits=(g,pid)=>BLACK_PROGRAMS[pid]?(+g.blackPrograms?.[pid]||0):((g.platforms[pid]||0)+(g.platformsImported[pid]||0));
 const deployedTotal=(g,pid)=>Object.values(g.forceDeployments||{}).reduce((a,o)=>a+(o?.[pid]||0),0);
 function deployUnit(g,S,fx,rid,pid){
+  if(!DEPLOYABLE.includes(pid)){fx.toast(`⚠ ${(PLATFORMS[pid]||BLACK_PROGRAMS[pid])?.n||pid} cannot be stationed${BLACK_PROGRAMS[pid]?.attachesTo?' — it attaches to '+BLACK_PROGRAMS[BLACK_PROGRAMS[pid].attachesTo].n+' wings':''}`);return false;}
   const avail=ownedUnits(g,pid)-deployedTotal(g,pid);const nm=(PLATFORMS[pid]||BLACK_PROGRAMS[pid])?.n||pid;
   if(avail<=0){fx.toast(`⚠ No free ${nm} — build more or recall from other regions`);return false;}
   S.setForceDeployments(pr=>{const n2={...pr,[rid]:{...(pr[rid]||{}),[pid]:((pr[rid]||{})[pid]||0)+1}};g.forceDeployments=n2;return n2;});
@@ -95,7 +96,7 @@ function launchIntervention(g,S,fx,ck){
 }
 function regimeChange(g,S,fx,nid){
   const s=g.stats;const c=g.country;if(!s||!c||nid===c.id)return;const ally=isAllyOf(c.id,nid);
-  const home=NATIONS[nid]?.region;const dep=g.forceDeployments?.[home]||{};const w=wSum(dep);
+  const home=NATIONS[nid]?.region;const dep=g.forceDeployments?.[home]||{};const w=wSum(dep,g.blackPrograms);
   const isr=isrScore(g.platforms,g.defLevels,g.intelInfra,g.blackPrograms);
   const saps=Object.values(g.blackPrograms||{}).reduce((a,b)=>a+(+b||0),0);
   const gl=g.globalDef[nid];const their=gl?40+Object.values(gl).reduce((a,b)=>a+(b||0),0)*2:(NATION_BLOC[nid]==='east'?45:30);
