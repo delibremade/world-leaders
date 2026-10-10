@@ -131,6 +131,7 @@ test('#6 map + deploy updates live forceDeployments in the same month and cannot
 
 test('#6 map - recall and the blockade naval-weight read see the live deployment', () => {
   const h = reactLike(); h.g.platforms = { ...h.g.platforms, carrier_group: 2, sub_fleet: 2 };
+  h.g.forces = { ...h.g.forces, crews: { ...h.g.forces.crews, sea: 12 } }; // #20 (E8): stationing needs trained crews
   for (const u of ['carrier_group', 'carrier_group', 'sub_fleet', 'sub_fleet']) h.run('adjustDeployment', { region: RID, unit: u, delta: 1 });
   assert.equal(navalWeight(h.g.forceDeployments[RID]), 4);
   h.run('adjustDeployment', { region: RID, unit: 'sub_fleet', delta: -1 });

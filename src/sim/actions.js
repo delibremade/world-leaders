@@ -8,11 +8,13 @@ import { PA, ISSUES, SOCIAL_PROGRAMS, SECTOR_LABELS, IP_POLICY_LABELS } from '..
 import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, INTEL_POSTURE_LABELS } from '../data/intel.js';
 import { BLOC_TRADE, CURRENCY_LABELS } from '../data/trade.js';
 import { RES_META, CONCESSIONS } from '../data/energy.js';
-import { panamaPriorityBlock, sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRunCost, trancheCost, devCost, recapCost, getQualMult } from './formulas.js';
+import { panamaPriorityBlock, sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRunCost, trancheCost, devCost, recapCost, getQualMult, tier1Odds, exportEdge } from './formulas.js';
 import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups, opOddsTerms, programStage, programBlock, playerEntry, myAccess, accessGates, memberGates, shareCost, orderPrice, productionOpen } from './selectors.js';
 import { ALLIED_PROGRAMS, TIERS, TIER_ORDER, ACCESS_RULES } from '../data/alliance.js';
 import { rng } from './rng.js';
 import { startTranche, MINERAL_VERBS } from './minerals.js';
+import { crewBlock, FORCE_VERBS } from './forces.js';
+import { FORCE_RULES } from '../data/forces.js';
 
 // ── Toy-engine action vocabulary (scaffold for the pure tick(state, actions, rng) API in tick.js). Not used by the v57 UI.
 export const ACTION_TYPES = new Set([
@@ -66,6 +68,7 @@ function deployUnit(g,S,fx,rid,pid){
   if(!DEPLOYABLE.includes(pid)){fx.toast(`⚠ ${(PLATFORMS[pid]||BLACK_PROGRAMS[pid])?.n||pid} cannot be stationed${BLACK_PROGRAMS[pid]?.attachesTo?' — it attaches to '+BLACK_PROGRAMS[BLACK_PROGRAMS[pid].attachesTo].n+' wings':''}`);return false;}
   const avail=ownedUnits(g,pid)-deployedTotal(g,pid);const nm=(PLATFORMS[pid]||BLACK_PROGRAMS[pid])?.n||pid;
   if(avail<=0){fx.toast(`⚠ No free ${nm} — build more or recall from other regions`);return false;}
+  const crew=crewBlock(g,pid);if(crew){fx.toast(`⚠ ${crew}`);return false;} // E8 (#20): crews gate stationing
   S.setForceDeployments(pr=>{const n2={...pr,[rid]:{...(pr[rid]||{}),[pid]:((pr[rid]||{})[pid]||0)+1}};g.forceDeployments=n2;return n2;});
   fx.toast(`🪖 ${nm} stationed in ${REGIONS[rid]?.n}`);return true;
 }
@@ -100,11 +103,8 @@ function launchIntervention(g,S,fx,ck){
 }
 function regimeChange(g,S,fx,nid){
   const s=g.stats;const c=g.country;if(!s||!c||nid===c.id)return;const ally=isAllyOf(c.id,nid);
-  const home=NATIONS[nid]?.region;const dep=g.forceDeployments?.[home]||{};const w=wSum(dep,g.blackPrograms);
-  const isr=isrScore(g.platforms,g.defLevels,g.intelInfra,g.blackPrograms);
-  const saps=Object.values(g.blackPrograms||{}).reduce((a,b)=>a+(+b||0),0);
-  const gl=g.globalDef[nid];const their=gl?40+Object.values(gl).reduce((a,b)=>a+(b||0),0)*2:(NATION_BLOC[nid]==='east'?45:30);
-  const mine=(s.military||0)+isr*2+saps*10+w*5;const ratio=mine/their;
+  // E8 (#20): overmatch and odds from tier1Odds (formulas.js), shared with the Tier-1 card; Tier-1 SOF strength adds to both.
+  const {home,w,isr,saps,gl,mine,their,ratio,chance}=tier1Odds(g,nid);
   const cd=g.actionCooldowns[`regime_${nid}`]||0;
   if(cd>0){fx.toast(`Forces regrouping — ${cd}mo`);return;}
   if(saps<1){fx.toast('⚠ Regime change needs a fielded Special Access Program — the extreme asset');return;}
@@ -113,7 +113,6 @@ function regimeChange(g,S,fx,nid){
   if(ratio<2){fx.toast(`⚠ Overmatch insufficient — ${ratio.toFixed(2)}× (need 2×). Yours ${Math.round(mine)} vs theirs ${Math.round(their)}`);return;}
   if(s.treasury<6000){fx.toast('⚠ $6,000M required');return;}
   S.setStats(p=>({...p,treasury:p.treasury-6000}));g.actionCooldowns={...g.actionCooldowns,[`regime_${nid}`]:24};S.setActionCooldowns(p=>({...p,[`regime_${nid}`]:24}));
-  const chance=Math.min(0.9,0.3+(ratio-2)*0.2+(g.embassies.has(nid)?0.1:0)+(g.embassyMissions[nid]==='intel'?0.1:0));
   const nm=NATIONS[nid]?.n||nid;
   if(rng()<chance){
     S.setSphere(p=>{const n2={...p};Object.keys(n2).forEach(rid=>{const v=n2[rid].competitors?.[nid]||0;if(v>0)n2[rid]={...n2[rid],competitors:{...n2[rid].competitors,[nid]:Math.max(0,v-(rid===home?40:10))}};});if(!gl&&n2[home])n2[home]={...n2[home],player:Math.min(100,(n2[home].player||0)+30)};return n2;});
@@ -233,7 +232,7 @@ function sellDefTech(g,S,fx,buyerId,vert){
   const buyerInSphere=g.dominance.regions?.has(buyer.region)?1.18:1;
   const demandM=g.demand[vert]??1; // world market at signing — prices lock into the contract
   const attache=g.embassies.has(buyerId)?1.10:1; // defense attaché brokering // exports flow through territory you dominate
-  const revenue=Math.round(buyer.budget*(0.20+Math.max(0.10,advantage*0.13))*(fielded?1.25:1)*relMult*buyerInSphere*attache*demandM);
+  const revenue=Math.round(buyer.budget*(0.20+Math.max(0.10,advantage*0.13))*(fielded?1.25:1)*relMult*buyerInSphere*attache*demandM*exportEdge(g.forces)); // E8: force quality
   S.setDefExports(p=>({...p,[key]:{buyerId,vert,level:playerLvl,relationship:Math.round(rel),revenue}}));
   S.setSphere(p=>{const ns={...p};const r=buyer.region;if(ns[r])ns[r]={...ns[r],player:Math.min(100,(ns[r].player||0)+15)};return ns;});
   // Arms sales deepen ties with the buyer (+8 relations)
@@ -622,13 +621,16 @@ function expelPartner(g,S,fx,pid,nid){
   setAccess(g,S,pid,nid,null);bumpRel(g,S,{[nid]:-ACCESS_RULES.expelRel});
   fx.toast(`✖ ${NATIONS[nid].n} expelled from ${BLACK_PROGRAMS[pid].n}`);accLog(g,S,`✖ ${NATIONS[nid].n} expelled from ${BLACK_PROGRAMS[pid].n}`);
 }
-function setPersonnelPay(g,S,fx,pay){S.setPersonnelPay(pay);}
+function setPersonnelPay(g,S,fx,pay){const p=Math.max(0,Math.min(FORCE_RULES.payMax,Math.round(+pay||0)));g.personnelPay=p;S.setPersonnelPay(p);}
 function setProcurement(g,S,fx,mode){S.setProcureMode(mode);}
 function developPlatform(g,S,fx,pid){const p=PLATFORMS[pid];const reqsMet=meetsReq(p.req,g.defLevels);
   if(!reqsMet){fx.toast('⚠ Research requirements not met');return;}if((g.stats?.treasury||0)<p.dev.cost){fx.toast(`⚠ Program needs $${p.dev.cost}M`);return;}S.setStats(pr=>({...pr,treasury:pr.treasury-p.dev.cost}));S.setPlatformDev(pr=>{const n2={...pr,[pid]:{mo:p.dev.mo}};g.platformDev=n2;return n2;});fx.toast(`🔬 ${p.n} program launched — ${p.dev.mo}mo to first article`);S.setLog(pr=>[{msg:`🔬 ${p.n} development started`,yr:g.date.yr,mo:g.date.mo},...pr.slice(0,19)]);
 }
 function buildPlatform(g,S,fx,pid){const p=PLATFORMS[pid];const reqsMet=meetsReq(p.req,g.defLevels);const procCost=procurementCost(p,g.procureMode);
-  if(!reqsMet){fx.toast('⚠ Research requirements not met');return;}if((g.stats?.treasury||0)<procCost){fx.toast('⚠ Insufficient treasury');return;}S.setStats(pr=>({...pr,treasury:pr.treasury-procCost}));S.setPlatforms(pr=>({...pr,[pid]:(pr[pid]||0)+1}));S.setLog(pr=>[{msg:`${p.i} ${p.n} deployed — $${procCost}M`,yr:g.date.yr,mo:g.date.mo},...pr.slice(0,19)]);fx.toast(`${p.i} ${p.n} deployed`);
+  if(!reqsMet){fx.toast('⚠ Research requirements not met');return;}if((g.stats?.treasury||0)<procCost){fx.toast('⚠ Insufficient treasury');return;}S.setStats(pr=>({...pr,treasury:pr.treasury-procCost}));
+  // E8 (#20) closes E4's gap: a build draws its mineral inputs; a shortfall queues it (paid now, delivered as minerals arrive).
+  if(!startTranche(g,S,fx,pid)){S.setLog(pr=>[{msg:`⏳ ${p.n} waiting on minerals`,yr:g.date.yr,mo:g.date.mo},...pr.slice(0,19)]);return;}
+  S.setPlatforms(pr=>({...pr,[pid]:(pr[pid]||0)+1}));S.setLog(pr=>[{msg:`${p.i} ${p.n} deployed — $${procCost}M`,yr:g.date.yr,mo:g.date.mo},...pr.slice(0,19)]);fx.toast(`${p.i} ${p.n} deployed`);
 }
 function importPlatform(g,S,fx,pid){const p=PLATFORMS[pid];
   const impCost=Math.round(p.cost*1.8);if((g.stats?.treasury||0)<impCost){fx.toast('⚠ Insufficient treasury');return;}S.setStats(pr=>({...pr,treasury:pr.treasury-impCost}));S.setPlatformsImported(pr=>({...pr,[pid]:(pr[pid]||0)+1}));S.setLog(pr=>[{msg:`🌐 ${p.n} purchased abroad — $${impCost}M`,yr:g.date.yr,mo:g.date.mo},...pr.slice(0,19)]);fx.toast(`🌐 ${p.n} imported (90% effectiveness, +25% maintenance)`);
@@ -849,6 +851,7 @@ export const VERBS={
   toggleImportContract:(g,S,fx,{resource})=>toggleImportContract(g,S,fx,resource),
   // minerals and processing (E4, #16)
   ...MINERAL_VERBS,
+  ...FORCE_VERBS,
   setCurrencyPosture:(g,S,fx,{posture})=>setCurrencyPosture(g,S,fx,posture),
 };
 

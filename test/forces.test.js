@@ -144,13 +144,14 @@ test('SOF: Tier 2 pipeline, then Tier 1 selection draws on Tier 2; selection is 
   assert.equal(h.g.forces.sof.pipes.length, 1);
   months(h, SOF_RULES.t2Mo);
   assert.equal(h.g.forces.sof.t2, t2 + 1);
-  const odds0 = tier1Odds(h.g, 'cuba').mine;
+  const mil = h.g.stats.military; const odds0 = tier1Odds(h.g, 'cuba');
   h.run('selectTier1', {});
   assert.equal(h.g.forces.sof.t2, t2, 'a candidate leaves Tier 2 for selection');
   const mo = h.g.forces.sof.pipes[0].mo; assert.ok(mo >= SOF_RULES.t1MoMin && mo <= SOF_RULES.t1MoMax);
   months(h, mo);
   assert.equal(h.g.forces.sof.t1, t1 + 1);
-  assert.ok(tier1Odds(h.g, 'cuba').mine > odds0, 'Tier 1 strength raises overmatch');
+  h.g.stats = { ...h.g.stats, military: mil }; const odds1 = tier1Odds(h.g, 'cuba');
+  assert.ok(odds1.t1 > odds0.t1 && odds1.mine > odds0.mine, 'Tier 1 strength raises overmatch');
   const dull = headless('usa'); rich(dull.g); setF(dull.g, { quality: 10 }); dull.run('selectTier1', {});
   const sharp = headless('usa'); rich(sharp.g); setF(sharp.g, { quality: 95 }); sharp.run('selectTier1', {});
   assert.ok(dull.g.forces.sof.pipes[0].mo > sharp.g.forces.sof.pipes[0].mo);

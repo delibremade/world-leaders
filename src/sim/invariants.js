@@ -1,5 +1,6 @@
 import { MONTHLY_SYSTEMS } from './systems.js';
-import { BLACK_PROGRAMS } from '../data/platforms.js';
+import { BLACK_PROGRAMS, PLATFORMS } from '../data/platforms.js';
+import { BRANCH_IDS, TRAINING, SOF_RULES, FORCE_RULES } from '../data/forces.js';
 import { NATIONS } from '../data/nations.js';
 import { ALLIED_PROGRAMS, TIERS, ACCESS_RULES } from '../data/alliance.js';
 import { MINERALS, MINERAL_IDS, MINERAL_RULES as MR } from '../data/minerals.js';
@@ -71,7 +72,15 @@ export const V57_INVARIANTS = [
   ['mineral plants and offtake deals name real minerals and partners with integer months > 0', (g) => !g.minerals || (g.minerals.plants.every((p) => MINERALS[p.m] && Number.isInteger(p.mo) && p.mo > 0) && g.minerals.deals.every((d) => MINERALS[d.m] && NATIONS[d.n] && d.n !== pid(g) && Number.isInteger(d.mo) && d.mo > 0 && d.units > 0 && d.price >= 0))],
   ['export controls only on minerals the player processes', (g) => !g.minerals || g.minerals.controls.every((m) => (g.minerals.own[m]?.cap || 0) > 0)],
   ['AI export controls never keyed by the player', (g) => !g.minerals || !(pid(g) in (g.minerals.against || {}))],
-  ['queued tranches are known programs with 0 < left <= need', (g) => !g.minerals || g.minerals.queue.every((q) => BLACK_PROGRAMS[q.id] && Object.keys(q.left).length > 0 && Object.entries(q.left).every(([m, u]) => finite(u) && u > 0 && u <= (q.need?.[m] || 0) + 1e-9))],
+  ['queued tranches are known programs or platforms with 0 < left <= need', (g) => !g.minerals || g.minerals.queue.every((q) => (BLACK_PROGRAMS[q.id] || PLATFORMS[q.id]) && Object.keys(q.left).length > 0 && Object.entries(q.left).every(([m, u]) => finite(u) && u > 0 && u <= (q.need?.[m] || 0) + 1e-9))],
+  // Troops, training, quality, SOF (E8, #20)
+  ['force strength (active, reserve) and retention in [0,100]', (g) => !g.forces || ['active', 'reserve', 'retention'].every((k) => in01(g.forces[k]))],
+  ['force quality in [0,100]', (g) => !g.forces || in01(g.forces.quality)],
+  ['readiness per branch in [0,100]', (g) => !g.forces || BRANCH_IDS.every((b) => in01(g.forces.readiness?.[b]))],
+  ['crews non-negative and <= the trained pool (active x crewPer)', (g) => !g.forces || BRANCH_IDS.every((b) => { const c = g.forces.crews?.[b]; return finite(c) && c >= 0 && c <= g.forces.active * FORCE_RULES.crewPer[b] + 1e-9; })],
+  ['crew pipeline and SOF pipelines: known branch/tier with integer months > 0', (g) => !g.forces || (g.forces.pipe.every((p) => BRANCH_IDS.includes(p.b) && Number.isInteger(p.mo) && p.mo > 0) && g.forces.sof.pipes.length <= SOF_RULES.maxPipes && g.forces.sof.pipes.every((p) => (p.t === 1 || p.t === 2) && Number.isInteger(p.mo) && p.mo > 0))],
+  ['SOF tiers are integers within their ceilings; training level is known', (g) => !g.forces || (['t1', 't2'].every((k) => Number.isInteger(g.forces.sof[k]) && g.forces.sof[k] >= 0 && g.forces.sof[k] <= SOF_RULES.max[k]) && !!TRAINING[g.forces.train])],
+  ['personnel pay >= 0 and finite', (g) => g.personnelPay == null || (finite(g.personnelPay) && g.personnelPay >= 0)],
   // Issues (E9, #23)
   ['issues are live, unique by type, with a positive ttl once ticked', (g) => { const l = g.issues || []; return new Set(l.map((i) => i.type)).size === l.length && l.every((i) => ['unexamined', 'investigating', 'briefed', 'deployed'].includes(i.status) && ((i.status !== 'unexamined' && i.status !== 'briefed') || i.ttl == null || (Number.isInteger(i.ttl) && i.ttl > 0))); }],
 ];

@@ -44,7 +44,7 @@ export const FORCE_RULES = {
   // Readiness rises at most riseMo/month toward the training target (pipeline months), decays decayMo/month when above it.
   riseMo: 1.5, decayMo: 1, exercise: { target: 10, rise: 0.5 },
   // Crews: pool = active x CREW_PER[branch]; pipeline months per branch; spare crews trained beyond owned units.
-  crewPer: { land: 0.6, air: 0.5, sea: 0.4 }, pipeMo: { land: 9, air: 18, sea: 24 }, spare: { land: 4, air: 4, sea: 2 },
+  crewPer: { land: 0.6, air: 0.5, sea: 0.4 }, pipeMo: { land: 6, air: 12, sea: 15 }, spare: { land: 6, air: 6, sea: 6 },
   crewAttrition: 0.01,
 };
 
