@@ -2,7 +2,8 @@ import { DIP_TARGETS } from '../data/nations.js';
 import { BLOC_GROUPS } from '../data/trade.js';
 import { WORLD_EVENTS } from '../data/world.js';
 import { INTEL_OPS } from '../data/intel.js';
-import { isrScore, panamaPriorityBlock } from './formulas.js';
+import { isrScore, panamaPriorityBlock, meetsReq, trancheCost, devCost } from './formulas.js';
+import { BLACK_PROGRAMS, nationCatalog, catalogEntry } from '../data/platforms.js';
 import { WORLD_RULES } from '../data/events.js';
 import { worldOptions, flashpointOptions } from './events.js';
 
@@ -103,3 +104,43 @@ export const openEventCards=(g)=>({
 });
 export const eventOptions=(g,kind)=>kind==='flashpoint'?flashpointOptions(g):worldOptions(g);
 export { panamaPriorityBlock };
+
+// ── Nation catalogs (E3, #15). One stage rule for the verbs, the tick and the Defense tab.
+// Stage of a program for the player: owned or in-service lines are LRIP until six units (full rate if the catalog starts it there);
+// a prototype line is Prototype; the SAP R&D slot shows R&D for its first half and Prototype for the second.
+export function programStage(g,id){
+  const e=catalogEntry(g.country?.id,id);const n=+g.blackPrograms?.[id]||0;const start=e?.start;
+  if(n>0||start==='lrip'||start==='full')return start==='full'||n>=6?'full':'lrip';
+  if(g.arsenal?.dev?.[id])return 'proto';
+  if(g.blackResearch?.id===id)return g.blackResearch.prog<g.blackResearch.mo/2&&start!=='proto'?'rd':'proto';
+  return start||null;
+}
+// Why a catalog action is blocked right now (null = allowed). kind: produce | fund | initiate.
+export function programBlock(g,id,kind){
+  const bp=BLACK_PROGRAMS[id];const e=catalogEntry(g.country?.id,id);const n=+g.blackPrograms?.[id]||0;const stage=programStage(g,id);const t=g.stats?.treasury||0;
+  if(kind==='produce'){
+    if(!(n>0||(e&&(stage==='lrip'||stage==='full'))))return `${bp?.n||id} is not in production`;
+    const inService=e&&(e.start==='lrip'||e.start==='full');
+    if(!inService&&(g.defLevels.materials||0)<4)return 'Production run needs Material Science L4+ (industrial base)';
+    const c=trancheCost(bp,n,stage,e?.buy);return t<c?`Need $${c}M for a production run`:null;
+  }
+  if(!e)return 'Not in your national catalog';
+  if(e.start==='lrip'||e.start==='full'||n>0)return `${bp.n} is already in production`;
+  if(!g.sapOffice)return 'Establish a SAP office first';
+  if(g.arsenal?.dev?.[id]||g.blackResearch?.id===id)return `${bp.n} already funded`;
+  if(kind==='initiate'&&g.blackResearch)return 'SAP office already running a program';
+  if(!meetsReq(bp.req,g.defLevels))return 'R&D requirements not met';
+  return t<devCost(bp,e.start).cost?'Insufficient black budget':null;
+}
+// The player's catalog as rows for the Defense tab: stage, units, months left, next action and its price or block.
+export function programView(g){
+  return nationCatalog(g.country?.id).map(e=>{
+    const bp=BLACK_PROGRAMS[e.id];const n=+g.blackPrograms?.[e.id]||0;const stage=programStage(g,e.id);
+    const d=g.arsenal?.dev?.[e.id];const r=g.blackResearch?.id===e.id?g.blackResearch:null;
+    const monthsLeft=d?d.mo-d.prog:r?r.mo-r.prog:null;
+    const action=stage==='lrip'||stage==='full'?'produce':d||r?'wait':e.start==='proto'?'fund':'initiate';
+    const cost=action==='produce'?trancheCost(bp,n,stage,e.buy):action==='wait'?null:devCost(bp,e.start).cost;
+    const months=action==='fund'||action==='initiate'?devCost(bp,e.start).mo:null;
+    return {id:e.id,bp,slot:bp.slot,start:e.start,status_source:e.status_source,buy:!!e.buy,n,stage,monthsLeft,action,cost,months,block:action==='wait'?null:programBlock(g,e.id,action)};
+  });
+}

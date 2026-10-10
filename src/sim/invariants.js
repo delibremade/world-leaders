@@ -1,4 +1,5 @@
 import { MONTHLY_SYSTEMS } from './systems.js';
+import { BLACK_PROGRAMS } from '../data/platforms.js';
 
 const in01 = (v) => Number.isFinite(v) && v >= 0 && v <= 100;
 
@@ -54,5 +55,9 @@ export const V57_INVARIANTS = [
   ['an answered world event has its in-effect row', (g) => !g.worldEvent?.ans || (g.evState?.fx || []).some((r) => r.ev === g.worldEvent.id && r.kind === 'world')],
   ['a live flashpoint has months left', (g) => !g.flashpoint || (Number.isInteger(g.flashpoint.t) && g.flashpoint.t > 0)],
   ['queued follow-ups name real events', (g) => (g.evState?.q || []).every((q) => typeof q.id === 'string' && Number.isFinite(q.at))],
+  // Nation catalogs (E3, #15)
+  ['prototype lines are known programs with integer 0 <= prog < mo', (g) => Object.entries(g.arsenal?.dev || {}).every(([id, d]) => BLACK_PROGRAMS[id] && Number.isInteger(d.prog) && Number.isInteger(d.mo) && d.prog >= 0 && d.prog < d.mo)],
+  ['owned programs are known ids with non-negative integer counts', (g) => Object.entries(g.blackPrograms || {}).every(([id, n]) => BLACK_PROGRAMS[id] && Number.isInteger(+n) && +n >= 0)],
+  ['a program is never both in prototype and owned', (g) => Object.keys(g.arsenal?.dev || {}).every((id) => !((+g.blackPrograms?.[id] || 0) > 0))],
 ];
 export const checkV57 = (g) => V57_INVARIANTS.filter(([, ok]) => !ok(g)).map(([n]) => n);
