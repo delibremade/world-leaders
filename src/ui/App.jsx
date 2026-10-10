@@ -20,6 +20,7 @@ import { VERSION, BUILD_STAMP } from './version.js';
 import { MapView } from './map/MapView.jsx';
 import { Hud } from './shell/Hud.jsx';
 import { BottomNav } from './shell/BottomNav.jsx';
+import { Help } from './shell/Help.jsx';
 import { Sheet } from './shell/Sheet.jsx';
 import { NationSheet } from './shell/NationSheet.jsx';
 import { nationName } from './shell/nation-verbs.js';
@@ -28,6 +29,7 @@ import { buildOutliner } from './shell/outliner.js';
 import { EventCards } from './shell/EventCards.jsx';
 import { SHELL_CSS } from './shell/styles.js';
 const TABS=['overview','sitroom','economy','energy','resources','defense','intel','technology','trade'];
+const HELP_TIPS=[['🔍','Investigate issues ($300M, 2 months) for intelligence briefs'],['📋','Deploy briefs — effects apply over time, tracked live'],['🌍','Click map regions to deploy influence actions'],['⚔️','Defense advantage multiplies trade deal outcomes'],['💡','Click any Vital stat to see drivers and interventions'],['🕵️','Defense tab → Intelligence to run covert operations']];
 const TAB_SHORT={overview:'Overview',sitroom:'Sit Room',economy:'Economy',energy:'Energy',resources:'Resources',defense:'Defense',intel:'Intel',technology:'Tech',trade:'Trade'};
 const TABM={overview:{i:'🌍',l:'Overview'},economy:{i:'💰',l:'Economy'},energy:{i:'⚡',l:'Energy'},resources:{i:'⛏️',l:'Resources'},sitroom:{i:'🎖️',l:'Situation Room'},defense:{i:'🛡️',l:'Defense'},intel:{i:'🕵️',l:'Intel'},technology:{i:'💻',l:'Technology'},trade:{i:'🤝',l:'Trade'}};
 function genModelData(sk,cv,opt,drift){return Array.from({length:21},(_,m)=>{const np=cv+drift*m;const pct=Math.min(m/Math.max(opt.tm,1),1);const eff=(opt.fx||[]).find(e=>e.s===sk)?.d||0;const wp=cv+drift*Math.min(m,opt.tm*.5)+eff*pct*(opt.conf/100);return{m,'No Policy':+np.toFixed(2),'With Policy':+wp.toFixed(2)};});}
@@ -633,6 +635,7 @@ function WorldLeadersInner({resumeSignal}){
         .region-path:hover{filter:brightness(1.35) drop-shadow(0 0 6px rgba(120,170,255,.35))}
         @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
         /* P3b phone fallback until P3c's shell: stack the v57 columns under 900px so the map gets the full width */
+        .wl-map-card{order:-1}.wl-right-idle{display:none!important}
         @media (max-width:899px){.wl-body{flex-direction:column!important;overflow:auto!important}.wl-vitals{width:100%!important;order:2;border-right:none!important;border-top:1px solid #1f2937;overflow:visible!important}.wl-overview{flex-direction:column!important;overflow:visible!important;flex:none!important}.wl-overview>div{overflow:visible!important;flex:none!important}.wl-right{width:100%!important;border-left:none!important;border-top:1px solid #1f2937}}
       `}</style>
 
@@ -736,13 +739,19 @@ function WorldLeadersInner({resumeSignal}){
               </div>))}
             </div>
             {/* SVG WORLD MAP */}
-            <div style={{background:'#0a0f1a',borderRadius:'10px',border:'1px solid #1f2937',padding:'12px'}}>
-              <div style={{fontSize:'11px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'}}>World Map · tap a region for actions</div>
+            <div className="wl-map-card" style={{background:'#0a0f1a',borderRadius:'10px',border:'1px solid #1f2937',padding:'12px'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',marginBottom:'8px'}}><div style={{fontSize:'11px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px'}}>World Map · tap a region</div><Help items={HELP_TIPS}/></div>
               <MapView mode={mapMode} onModeChange={setMapMode} onRegionTap={rid=>setSelectedRegion(selectedRegion===rid?null:rid)}
                 view={{country,sphere,selectedRegion,forceDeployments,flashpoint,sphereTrend,intelOps,defExports,doctrine,nationRelations,embassies,defensePacts,chokeStatus,rivalTension,blockades,tradeAgreements,importContracts,embargoes,embargoedBy,forcePosture,sanctions,moles,expelled:expelR.current,concessions}}/>
 
             </div>
 
+            {/* Risk signals: moved out of the right column so the map owns the main column on desktop */}
+              {stats&&<div style={{background:'#0d1117',border:'1px solid #1f2937',borderRadius:'10px',padding:'12px'}}>
+                <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',marginBottom:'8px'}}>Risk Signals</div>
+                {[[stats.gdpGrowth<0,'gdpGrowth','⚠ Negative GDP — debt and unemployment compounding'],[stats.debtGdp>120,'debtGdp',`⚠ Debt ${stats.debtGdp.toFixed(0)}% — credit access at risk`],[stats.debtGdp>85&&stats.debtGdp<=120,'debtGdp',`⚠ Debt ${stats.debtGdp.toFixed(0)}% — fiscal space constrained`],[stats.inflation>10,'inflation',`⚠ Inflation ${stats.inflation.toFixed(1)}% — wages eroding`],[stats.inequality>78,'inequality','⚠ Inequality near destabilization'],[stats.stability<35,'stability',`⚠ Stability ${stats.stability.toFixed(0)} — act immediately`]].filter(([c])=>c).map(([,k,msg],i)=><div key={i} style={{fontSize:'11px',color:'#9ca3af',lineHeight:'1.4',marginBottom:'6px',padding:'6px 8px',background:'#0d1117',borderRadius:'5px',borderLeft:`3px solid ${sc(ss(k,stats[k]))}`}}>{msg}</div>)}
+                {![stats.gdpGrowth<0,stats.debtGdp>85,stats.inflation>7,stats.inequality>78,stats.stability<35].some(Boolean)&&<div style={{fontSize:'11px',color:'#4ade80'}}>✓ No critical signals</div>}
+              </div>}
             {/* Active Issues */}
             <div>
               <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'}}>Active Issues</div>
@@ -771,16 +780,7 @@ function WorldLeadersInner({resumeSignal}){
           </div>
 
           {/* Right intel panel */}
-          <div className="wl-right" style={{width:'285px',background:'#0a0e14',borderLeft:'1px solid #1f2937',overflowY:'auto',padding:'12px',flexShrink:0}}>
-            {rightMode==='intel'&&<div>
-              <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'12px'}}>Intelligence</div>
-              <div style={{fontSize:'12px',color:'#6b7280',lineHeight:'1.9',marginBottom:'14px'}}>{[['🔍','Investigate issues ($300M, 2 months) for intelligence briefs'],['📋','Deploy briefs — effects apply over time, tracked live'],['🌍','Click map regions to deploy influence actions'],['⚔️','Defense advantage multiplies trade deal outcomes'],['💡','Click any Vital stat to see drivers and interventions'],['🕵️','Defense tab → Intelligence to run covert operations']].map(([i,t])=><div key={t} style={{display:'flex',gap:'8px',marginBottom:'8px',alignItems:'flex-start'}}><span style={{flexShrink:0}}>{i}</span><span>{t}</span></div>)}</div>
-              {stats&&<div style={{borderTop:'1px solid #1f2937',paddingTop:'10px'}}>
-                <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',marginBottom:'8px'}}>Risk Signals</div>
-                {[[stats.gdpGrowth<0,'gdpGrowth','⚠ Negative GDP — debt and unemployment compounding'],[stats.debtGdp>120,'debtGdp',`⚠ Debt ${stats.debtGdp.toFixed(0)}% — credit access at risk`],[stats.debtGdp>85&&stats.debtGdp<=120,'debtGdp',`⚠ Debt ${stats.debtGdp.toFixed(0)}% — fiscal space constrained`],[stats.inflation>10,'inflation',`⚠ Inflation ${stats.inflation.toFixed(1)}% — wages eroding`],[stats.inequality>78,'inequality','⚠ Inequality near destabilization'],[stats.stability<35,'stability',`⚠ Stability ${stats.stability.toFixed(0)} — act immediately`]].filter(([c])=>c).map(([,k,msg],i)=><div key={i} style={{fontSize:'11px',color:'#9ca3af',lineHeight:'1.4',marginBottom:'6px',padding:'6px 8px',background:'#0d1117',borderRadius:'5px',borderLeft:`3px solid ${sc(ss(k,stats[k]))}`}}>{msg}</div>)}
-                {![stats.gdpGrowth<0,stats.debtGdp>85,stats.inflation>7,stats.inequality>78,stats.stability<35].some(Boolean)&&<div style={{fontSize:'11px',color:'#4ade80'}}>✓ No critical signals</div>}
-              </div>}
-            </div>}
+          <div className={'wl-right'+(rightMode==='intel'?' wl-right-idle':'')} style={{width:'285px',background:'#0a0e14',borderLeft:'1px solid #1f2937',overflowY:'auto',padding:'12px',flexShrink:0}}>
             {rightMode==='issue'&&selIssue&&(()=>{
               const def=ISSUES[selIssue];if(!def)return null;
               const issue=issues.find(i=>i.type===selIssue);

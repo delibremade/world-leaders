@@ -38,11 +38,11 @@ export function MapView({ view, mode = 'sphere', onModeChange, onRegionTap, heig
   const { legend } = scene;
   return (
     <div data-map data-map-mode={mode} data-map-renderer={renderer}>
-      <div role="tablist" aria-label="Map mode" style={{ display: 'flex', gap: SPACE[2], overflowX: 'auto', paddingBottom: SPACE[3], marginBottom: SPACE[3], scrollbarWidth: 'none' }}>
+      <div role="tablist" aria-label="Map mode" data-map-modes style={{ display: 'grid', gridTemplateColumns: `repeat(${MAP_MODES.length}, minmax(0, 1fr))`, gap: 2, padding: 2, marginBottom: SPACE[3], border: `1px solid ${COLOR.border.strong}`, borderRadius: RADIUS.lg, background: COLOR.bg.inset }}>
         {MAP_MODES.map((m) => { const on = m.id === mode; return (
           <button key={m.id} role="tab" aria-selected={on} data-map-mode-btn={m.id} onClick={() => onModeChange?.(m.id)} title={m.hint}
-            style={{ minHeight: TAP, flexShrink: 0, padding: `0 ${SPACE[6]}px`, borderRadius: RADIUS.lg, border: `1px solid ${on ? COLOR.accent.command : COLOR.border.strong}`, background: on ? 'rgba(59,130,246,.16)' : 'transparent', color: on ? COLOR.text.primary : COLOR.text.muted, fontSize: SIZE.small, fontWeight: on ? 700 : 500, display: 'inline-flex', alignItems: 'center', gap: SPACE[2] }}>
-            <span aria-hidden="true">{m.icon}</span>{m.label}
+            style={{ minHeight: TAP, minWidth: 0, padding: `${SPACE[2]}px 0`, borderRadius: RADIUS.md, border: `1px solid ${on ? COLOR.accent.command : 'transparent'}`, background: on ? 'rgba(59,130,246,.2)' : 'transparent', color: on ? COLOR.text.primary : COLOR.text.muted, fontSize: SIZE.micro, fontWeight: on ? 700 : 500, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, lineHeight: 1.1 }}>
+            <span aria-hidden="true" style={{ fontSize: 16 }}>{m.icon}</span><span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.label}</span>
           </button>); })}
       </div>
       {renderer === 'pixi'

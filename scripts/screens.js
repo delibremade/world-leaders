@@ -43,6 +43,16 @@ export const SCENARIOS = {
   'p3c-desktop': async (page) => { await page.setViewportSize({ width: 1280, height: 800 }); await inGame(page); await pause(page); await settle(page, 600); },
 };
 
+// P3d: Overview map-first, HUD, nav, and the six map modes at 390 and 1280.
+const desk = (page) => page.setViewportSize({ width: 1280, height: 800 });
+const mode = async (page, m) => { await page.evaluate((m) => document.querySelector(`[data-map-mode-btn=${m}]`).click(), m); await settle(page, 700); };
+for (const [tag, setup] of [['390', async () => {}], ['1280', desk]]) {
+  SCENARIOS[`p3d-overview-${tag}`] = async (page) => { await setup(page); await inGame(page); await page.evaluate(() => { const h = window.__wl; h.setTension('russia', 82); h.deploy('ME', 'carrier', 2); h.event('hormuz_closure', 3); }); await settle(page, 4500); await pause(page); await page.evaluate(() => document.querySelector('[data-tab=economy]').click()); await settle(page, 300); await page.evaluate(() => document.querySelector('[data-tab=overview]').click()); await settle(page, 600); };
+  for (const m of ['sphere', 'tension', 'trade', 'energy', 'military', 'intel']) SCENARIOS[`p3d-map-${m}-${tag}`] = async (page) => { await setup(page); await inGame(page); await page.evaluate(() => { const h = window.__wl; h.setTension('russia', 82); h.setTension('china', 55); h.deploy('ME', 'carrier', 2); h.event('hormuz_closure', 3); }); await settle(page, 4500); await pause(page); await mode(page, m); };
+}
+SCENARIOS['p3d-hud-doctrine-390'] = async (page) => { await startUSA(page); await settle(page, 700); };
+SCENARIOS['p3d-nav-econ-390'] = async (page) => { await inGame(page); await pause(page); await page.evaluate(() => document.querySelector('[data-tab=technology]').click()); await settle(page, 500); };
+
 export async function run(names) {
   const js = await bundle(BUNDLES.app);
   const html = shell(js).replace('<script>', '<script>window.__WL_TEST=true;</script><script>'); // init scripts do not reach setContent pages
