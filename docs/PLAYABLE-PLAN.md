@@ -75,6 +75,7 @@ Each vertical: **core functions to preserve from v57** -> **UI target** -> **acc
 - Preserve: real-geography map (REGION_GEO, Natural Earth), sphere shading per region, momentum arrows, trade routes, influence lines, chokepoint markers, flashpoint markers + timers, victory path progress (hegemony/econ/tech/dip), world event, nation vitals, national doctrine choice, decision-required count, budget breakdown.
 - UI target: PixiJS map as the home screen; pinch-zoom/pan; tap region -> region sheet (sphere shares, units present, flashpoints, chokepoints); animated trade flows and fleet icons; victory paths as a compact rail.
 - Acceptance: every v57 overlay present and toggleable; tap targets >= 44px; 60fps pan on phone.
+- **Nav exception (owner ruling 2026-10-10, #34):** nine verticals share a 390px row, so each nav button is 43.3px wide. The 44px rule is relaxed to 43px **width for the bottom nav only**; height stays >= 56px and every other target stays >= 44px. Enforced in `test/layout.test.js`.
 
 ### V2 Situation Room
 - Preserve: action lanes (deployUnit, establishEmbassy, acts[] per item), tension per rival always visible, confrontations, ultimatums, blockades, brink rolls, nuclear register, rival demonstrations, final options (Twilight Struggle rule), hegemony-hold watch, pariah status.

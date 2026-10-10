@@ -4,13 +4,13 @@ import { launch, openGame, overflow, settle } from './util/browser.js';
 import { TABS, PANES, FOLDED } from './util/harness.js';
 
 // P3d gate: layout assertions jsdom cannot make, in real Chromium (playwright-core, devDependency).
-// Phone 390x844 and desktop 1280x800: nothing scrolls sideways on any vertical, the nav reaches all eight, the map
+// Phone 390x844 and desktop 1280x800: nothing scrolls sideways on any vertical, the nav reaches all nine, the map
 // is the first thing on Overview, map-mode chips all fit, and the static how-to text lives behind a popover.
 
 let browser;
 before(async () => { browser = await launch(); });
 after(async () => { await browser?.close(); });
-// Folded panes (sitroom, resources) are reached through their parent vertical's segmented control.
+// Folded panes (sitroom) are reached through their parent vertical's segmented control.
 const go = async (page, t) => {
   await page.evaluate((t) => document.querySelector(`[data-tab=${t}]`).click(), FOLDED[t] || t); await settle(page, 250);
   if (FOLDED[t]) { await page.evaluate((t) => document.querySelector(`[data-seg=${t}]`).click(), t); await settle(page, 250); }
@@ -35,12 +35,12 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
   });
 }
 
-test('390px: HUD speed control and all three figures are fully on screen; nav reaches all eight verticals in one tap, each >= 44px wide and tall', async () => {
+test('390px: HUD speed control and all three figures are fully on screen; nav reaches all nine verticals in one tap, each >= 43px wide (nav-only exception, PLAYABLE-PLAN) and >= 44px tall', async () => {
   const { ctx, page } = await openGame(browser, { width: 390 });
   try {
     for (const sel of ['[data-speed]', '[data-why^="Treasury"]', '[data-why^="Stability"]', '[data-why^="Hegemony"]']) { const r = await rect(page, sel); assert.ok(r && r.x >= 0 && r.r <= 390 && r.w > 40, `${sel} ${JSON.stringify(r)}`); }
     for (const t of TABS) {
-      const r = await rect(page, `[data-nav] [data-tab=${t}]`); assert.ok(r && r.x >= 0 && r.r <= 390.5 && r.w >= 44 && r.h >= 44, `nav ${t} ${JSON.stringify(r)}`);
+      const r = await rect(page, `[data-nav] [data-tab=${t}]`); assert.ok(r && r.x >= 0 && r.r <= 390.5 && r.w >= 43 && r.h >= 44, `nav ${t} ${JSON.stringify(r)}`);
       await page.evaluate((t) => document.querySelector(`[data-nav] [data-tab=${t}]`).click(), t); await settle(page, 200);
       assert.equal(await page.evaluate(() => document.querySelector('[data-nav] [aria-current=page]')?.dataset.tab), t, `one tap reaches ${t}`);
       assert.ok((await rect(page, `[data-nav] [aria-current=page] .wl-nav-l`))?.w > 0, 'active tab shows its label');

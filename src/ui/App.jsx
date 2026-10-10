@@ -37,11 +37,11 @@ import { ForcesTab } from './forces/ForcesTab.jsx';
 import { ArsenalTab } from './arsenal/ArsenalTab.jsx';
 import { MineralsTab, RES_SUBS } from './resources/MineralsTab.jsx';
 import { NukeRegister } from './shell/NukeRegister.jsx';
-// Nav verticals (8). Situation and Resources are panes folded under Overview and Economy behind a segmented control; activeTab keeps their ids.
-const TABS=['overview','economy','energy','arsenal','forces','intel','technology','trade'];
-const PARENT={sitroom:'overview',resources:'economy'};
+// Nav verticals (9). Situation is a pane folded under Overview behind a segmented control; activeTab keeps its id.
+const TABS=['overview','economy','energy','resources','arsenal','forces','intel','technology','trade'];
+const PARENT={sitroom:'overview'};
 const HELP_TIPS=[['🔍','Investigate issues ($300M, 2 months) for intelligence briefs'],['📋','Deploy briefs — effects apply over time, tracked live'],['🌍','Click map regions to deploy influence actions'],['⚔️','Defense advantage multiplies trade deal outcomes'],['💡','Click any Vital stat to see drivers and interventions'],['🕵️','Intel tab → run covert operations and Tier-1 actions']];
-const TAB_SHORT={overview:'Overview',economy:'Economy',energy:'Energy',arsenal:'Arsenal',forces:'Forces',intel:'Intel',technology:'Tech',trade:'Trade'};
+const TAB_SHORT={overview:'Overview',economy:'Economy',energy:'Energy',resources:'Res',arsenal:'Arsenal',forces:'Forces',intel:'Intel',technology:'Tech',trade:'Trade'};
 const TABM={overview:{i:'🌍',l:'Overview'},economy:{i:'💰',l:'Economy'},energy:{i:'⚡',l:'Energy'},resources:{i:'⛏️',l:'Resources'},sitroom:{i:'🎖️',l:'Situation Room'},arsenal:{i:'🏭',l:'Arsenal'},intel:{i:'🕵️',l:'Intel'},technology:{i:'💻',l:'Technology'},trade:{i:'🤝',l:'Trade'},forces:{i:'🪖',l:'Forces'}};
 function genModelData(sk,cv,opt,drift){return Array.from({length:21},(_,m)=>{const np=cv+drift*m;const pct=Math.min(m/Math.max(opt.tm,1),1);const eff=(opt.fx||[]).find(e=>e.s===sk)?.d||0;const wp=cv+drift*Math.min(m,opt.tm*.5)+eff*pct*(opt.conf/100);return{m,'No Policy':+np.toFixed(2),'With Policy':+wp.toFixed(2)};});}
 
@@ -494,7 +494,6 @@ function WorldLeadersInner({resumeSignal}){
   const goPane=(t)=>{setActiveTab(t);setVitalsDrill(null);};
   const segOverview=<Seg id="overview" label="Overview views" active={activeTab} onSelect={goPane} items={[{id:'overview',label:'Map'},{id:'sitroom',label:'Situation',badge:sitBadge(),sev:'alert'}]}/>;
   const segResources=<Seg id="resources" label="Resources views" cols={3} active={resSub} onSelect={setResSub} items={RES_SUBS}/>;
-  const segEconomy=<Seg id="economy" label="Economy views" active={activeTab} onSelect={goPane} items={[{id:'economy',label:'Ledger'},{id:'resources',label:'Resources'}]}/>;
   // Plain render helper (not a component: an inner component would remount every render)
   const panelBox=(id,title,accent,content)=>{const open=!collapsed.has(id);
     const toggle=()=>setCollapsed(p=>{const n2=new Set(p);if(n2.has(id))n2.delete(id);else n2.add(id);return n2;});
@@ -983,7 +982,7 @@ function WorldLeadersInner({resumeSignal}){
 
             {panelBox('nukes','☢ Nuclear Register · who fired, at whom, when','#831843',<NukeRegister log={nukeLog} me={country?.id}/>)}
         </div></div>}
-        {activeTab==='economy'&&<div className="wl-pane-wrap" data-sentinel="economy">{segEconomy}<div style={{flex:1,display:'flex',overflow:'hidden'}}>
+        {activeTab==='economy'&&<div className="wl-pane-wrap" data-sentinel="economy"><div style={{flex:1,display:'flex',overflow:'hidden'}}>
           <div style={{width:'230px',background:'#0a0e14',borderRight:'1px solid #1f2937',overflowY:'auto',padding:'13px',flexShrink:0}}>
             <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'12px'}}>Monetary Policy</div>
             <div style={{marginBottom:'16px'}}>
@@ -1207,7 +1206,7 @@ function WorldLeadersInner({resumeSignal}){
           <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'10px'}}>Energy Policy Actions</div><div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'9px'}}>{PA.filter(a=>a.t==='energy').map(a=><ActionCard key={a.id} action={a}/>)}</div></div>}
 
         {/* RESOURCES TAB */}
-        {activeTab==='resources'&&<div className="wl-pane-wrap" data-sentinel="resources">{segEconomy}{segResources}{resSub!=='natural'&&<MineralsTab sub={resSub} dispatch={dispatch} view={{country,minerals,nationRelations,resources,resExtraction,globalDef}}/>}{resSub==='natural'&&<div style={{flex:1,overflowY:'auto',padding:'12px'}}>
+        {activeTab==='resources'&&<div className="wl-pane-wrap" data-sentinel="resources">{segResources}{resSub!=='natural'&&<MineralsTab sub={resSub} dispatch={dispatch} view={{country,minerals,nationRelations,resources,resExtraction,globalDef}}/>}{resSub==='natural'&&<div style={{flex:1,overflowY:'auto',padding:'12px'}}>
           <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'12px'}}>Natural Resource Management</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(1,1fr)',gap:'10px',maxWidth:'650px'}}>
             {resources&&Object.entries(RES_META).map(([k,meta])=>{
