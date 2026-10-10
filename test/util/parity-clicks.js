@@ -90,7 +90,8 @@ export const verbScript = (g, shocks) => {
       await tab('defense');
       await click(/Establish SAP Office/); await click(/Develop \$400M/); await click(/^Build \$400M$/);
       await click(/^−1$/); await click(/^−1🌐$/);
-      await range(mm(80, 150), 120); await click(/Surge/);
+      // #20 (E8): the pay slider now reaches 0 (unpaid army); v57's runs 80..150. Same control, either range.
+      await range((el) => (el.min === '80' || el.min === '0') && el.max === '150', 120); await click(/Surge/);
       await click(/Material Science L/); await click(/Sell .* to All Eligible Buyers/);
     },
     6: async () => { // technology: R&D invest, IP policy, era program

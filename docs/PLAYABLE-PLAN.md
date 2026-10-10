@@ -122,4 +122,4 @@ Each vertical: **core functions to preserve from v57** -> **UI target** -> **acc
 Animated trade lanes, fleet movement and chokepoint traffic on the map (Plague Inc / Rebel Inc); screen transitions; audio cues for alerts and escalation.
 
 ## Deferred (explicitly not now)
-Exact parity proof, invariant fuzz expansion, balance bots, replay files, production queues/standing orders automation, JSOC task forces, military bases, rare-earth gating, theater/reach adjacency. Revisit after P4.
+Exact parity proof, invariant fuzz expansion, balance bots, replay files, production queues/standing orders automation, military bases, theater/reach adjacency. (Un-deferred: rare-earth gating by E4 #16; JSOC task forces by E8 #20, as Tier-1 SOF strength in the Tier-1 operations overmatch). Revisit after P4.
