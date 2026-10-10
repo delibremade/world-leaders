@@ -1,12 +1,37 @@
 [
   {
-    "name": "p3a-title",
-    "file": "reports/screens/p3a-title.png",
+    "name": "p3b-map-sphere",
+    "file": "reports/screens/p3b-map-sphere.png",
     "errors": []
   },
   {
-    "name": "p3a-hud",
-    "file": "reports/screens/p3a-hud.png",
+    "name": "p3b-map-tension",
+    "file": "reports/screens/p3b-map-tension.png",
+    "errors": []
+  },
+  {
+    "name": "p3b-map-trade",
+    "file": "reports/screens/p3b-map-trade.png",
+    "errors": []
+  },
+  {
+    "name": "p3b-map-energy",
+    "file": "reports/screens/p3b-map-energy.png",
+    "errors": []
+  },
+  {
+    "name": "p3b-map-military",
+    "file": "reports/screens/p3b-map-military.png",
+    "errors": []
+  },
+  {
+    "name": "p3b-map-intel",
+    "file": "reports/screens/p3b-map-intel.png",
+    "errors": []
+  },
+  {
+    "name": "p3b-map-tap",
+    "file": "reports/screens/p3b-map-tap.png",
     "errors": []
   }
 ]

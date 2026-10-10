@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.63.0 (2026-10-10) — P3b PixiJS world map: six map modes, every v57 overlay, pan/pinch/inertia
+- `src/ui/map/`: `scene.js` builds one scene (sphere shading, contested hatch, 6-month momentum, trade routes, influence lines, chokepoints, flashpoint + timer, deployed badge, intel dot) for six modes (Sphere, Tension, Trade, Energy, Military, Intel) with a legend each; `pixi-map.js` renders it with pixi.js 8.21.0 + pixi-viewport 6.0.3 (drag, pinch, wheel, decelerate, clamp, cover zoom at start, label LOD, 44px-tolerant region hit test over REGION_GEO polygons via `path.js`); `SvgMap.jsx` renders the same scene without WebGL (jsdom gate, old devices); `MapView.jsx` picks the renderer and owns the mode chips. App's overview swaps the inline SVG for `MapView`; region tap still opens the v57 region panel (P3c moves it to the sheet).
+- Phone fallback until P3c: under 900px the v57 columns stack (CSS only) so the map gets the full width.
+- Gate: `test/map.test.js` (REGION_GEO parse, hit tests, six scenes with every overlay, ruling 6 in tension mode, App renders chips/legend/taps and 120 months). `scripts/map-bench.js` measures pan fps in real Chromium; `scripts/screens.js` gained the P3b scenarios. Parity untouched. dist 1.5 MB (pixi.js is 0.95 MB of it).
+
 ## 0.62.0 (2026-10-10) — P3a design system: tokens, global stylesheet, build stamp from package.json
 - `docs/DESIGN-SYSTEM.md` (situation-room tactical, dark-first, 390px rules) and `src/ui/tokens.js`: colour (bg steps, text steps, accents, factions, chokepoints, 5 map-mode ramps), type scale, spacing, radius, 44px tap, elevation, motion, z-order, breakpoints. `TOKEN_CSS` carries every token as `--wl-*` plus the `.wl-panel/.wl-card/.wl-chip/.wl-btn/.wl-scrim` primitives; `installTheme(document)` injects it once from `src/ui/main.jsx`. `pixiHex()` for the P3b map.
 - Title screen and HUD stamp `BUILD v<package.json version>` via `src/ui/version.js` (was the hard-coded "BUILD v57").

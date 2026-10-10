@@ -1,0 +1,33 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 844,
+    "dpr": 2
+  },
+  "runs": [
+    {
+      "mode": "sphere",
+      "ms": 3016,
+      "rafFps": 28.2,
+      "tickerFps": 28.2,
+      "scale": 1.2
+    },
+    {
+      "mode": "tension",
+      "ms": 3015,
+      "rafFps": 38.5,
+      "tickerFps": 38.5,
+      "scale": 1.2
+    },
+    {
+      "mode": "military",
+      "ms": 3008,
+      "rafFps": 37.2,
+      "tickerFps": 37.2,
+      "scale": 1.2
+    }
+  ],
+  "errors": [],
+  "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.7390.37 Safari/537.36",
+  "gl": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+}

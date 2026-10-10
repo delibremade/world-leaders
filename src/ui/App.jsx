@@ -17,6 +17,7 @@ import { applyVerb } from '../sim/actions.js';
 import { stateView, openingPosition } from '../sim/state.js';
 import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups } from '../sim/selectors.js';
 import { VERSION, BUILD_STAMP } from './version.js';
+import { MapView } from './map/MapView.jsx';
 const TABS=['overview','sitroom','economy','energy','resources','defense','intel','technology','trade'];
 const TABM={overview:{i:'🌍',l:'Overview'},economy:{i:'💰',l:'Economy'},energy:{i:'⚡',l:'Energy'},resources:{i:'⛏️',l:'Resources'},sitroom:{i:'🎖️',l:'Situation Room'},defense:{i:'🛡️',l:'Defense'},intel:{i:'🕵️',l:'Intel'},technology:{i:'💻',l:'Technology'},trade:{i:'🤝',l:'Trade'}};
 function genModelData(sk,cv,opt,drift){return Array.from({length:21},(_,m)=>{const np=cv+drift*m;const pct=Math.min(m/Math.max(opt.tm,1),1);const eff=(opt.fx||[]).find(e=>e.s===sk)?.d||0;const wp=cv+drift*Math.min(m,opt.tm*.5)+eff*pct*(opt.conf/100);return{m,'No Policy':+np.toFixed(2),'With Policy':+wp.toFixed(2)};});}
@@ -121,6 +122,7 @@ function WorldLeadersInner({resumeSignal}){
   const [activeDecision,setActiveDecision]=useState(null);
   const [usedDecisions,setUsedDecisions]=useState(new Set());
   const [activeTab,setActiveTab]=useState('overview');
+  const [mapMode,setMapMode]=useState('sphere');
   const [interestRate,setInterestRate]=useState(4.0);
   const [taxPolicy,setTaxPolicy]=useState(28);
   const [spendingMode,setSpendingMode]=useState('balanced');
@@ -611,6 +613,8 @@ function WorldLeadersInner({resumeSignal}){
         .region-path{transition:fill-opacity .35s ease,filter .2s ease,stroke-opacity .2s ease}
         .region-path:hover{filter:brightness(1.35) drop-shadow(0 0 6px rgba(120,170,255,.35))}
         @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+        /* P3b phone fallback until P3c's shell: stack the v57 columns under 900px so the map gets the full width */
+        @media (max-width:899px){.wl-body{flex-direction:column!important;overflow:auto!important}.wl-vitals{width:100%!important;order:2;border-right:none!important;border-top:1px solid #1f2937;overflow:visible!important}.wl-overview{flex-direction:column!important;overflow:visible!important;flex:none!important}.wl-overview>div{overflow:visible!important;flex:none!important}.wl-right{width:100%!important;border-left:none!important;border-top:1px solid #1f2937}}
       `}</style>
 
       {toasts.length>0&&<div style={{position:'fixed',bottom:'20px',left:'50%',transform:'translateX(-50%)',zIndex:999,display:'flex',flexDirection:'column',gap:'6px',alignItems:'center',pointerEvents:'none',maxWidth:'86%'}}>
@@ -694,9 +698,9 @@ function WorldLeadersInner({resumeSignal}){
         {TABS.map(tab=><button key={tab} onClick={()=>{setActiveTab(tab);setVitalsDrill(null);}} style={{background:'transparent',border:'none',borderBottom:`2px solid ${activeTab===tab?'#3b82f6':'transparent'}`,color:activeTab===tab?'#f9fafb':'#6b7280',padding:'9px 14px',fontSize:'12px',fontWeight:activeTab===tab?700:400,display:'flex',alignItems:'center',gap:'5px',whiteSpace:'nowrap',flexShrink:0}}>{TABM[tab].i} {TABM[tab].l}</button>)}
       </div>
 
-      <div style={{flex:1,display:'flex',overflow:'hidden'}}>
+      <div className="wl-body" style={{flex:1,display:'flex',overflow:'hidden'}}>
         {/* Left vitals — always visible, clickable */}
-        <div style={{width:'205px',background:'#0a0e14',borderRight:'1px solid #1f2937',overflowY:'auto',padding:'10px',flexShrink:0}}>
+        <div className="wl-vitals" style={{width:'205px',background:'#0a0e14',borderRight:'1px solid #1f2937',overflowY:'auto',padding:'10px',flexShrink:0}}>
           <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'10px'}}>Nation Vitals <span style={{color:'#4b5563',fontWeight:400,textTransform:'none',letterSpacing:'0'}}>· click to drill</span></div>
           {stats&&Object.keys(SC).map(k=>stats[k]!=null?<StatBar key={k} k={k} val={stats[k]}/>:null)}
           {/* Active effects summary */}
@@ -708,7 +712,7 @@ function WorldLeadersInner({resumeSignal}){
         </div>
 
         {/* OVERVIEW / MAP TAB */}
-        {activeTab==='overview'&&<div style={{flex:1,display:'flex',overflow:'hidden'}}>
+        {activeTab==='overview'&&<div className="wl-overview" style={{flex:1,display:'flex',overflow:'hidden'}}>
           <div style={{flex:1,overflowY:'auto',padding:'12px',display:'flex',flexDirection:'column',gap:'12px'}}>
             {/* Vitals drill-down */}
             {vitalsDrill&&<VitalsDrillPanel/>}
@@ -754,50 +758,9 @@ function WorldLeadersInner({resumeSignal}){
             </div>
             {/* SVG WORLD MAP */}
             <div style={{background:'#0a0f1a',borderRadius:'10px',border:'1px solid #1f2937',padding:'12px'}}>
-              <div style={{fontSize:'11px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'}}>Political Sphere Map · Click region for actions</div>
-              <svg viewBox="0 0 1000 520" style={{width:'100%',borderRadius:'6px',display:'block'}}>
-                <defs>
-                  <pattern id="contestedHatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
-                    <line x1="0" y1="0" x2="0" y2="8" stroke="#9ca3af" strokeWidth="1.6" strokeOpacity="0.3"/>
-                  </pattern>
-                  <filter id="landGlow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="1.5" stdDeviation="3" floodColor="#000" floodOpacity="0.55"/></filter>
-                  <radialGradient id="oceanGrad" cx="50%" cy="38%" r="85%">
-                    <stop offset="0%" stopColor="#0b1422"/><stop offset="100%" stopColor="#060b14"/>
-                  </radialGradient>
-                </defs>
-                <rect x="0" y="0" width="1000" height="520" fill="url(#oceanGrad)"/>
-                {[...Array(9)].map((_,i)=><line key={'gv'+i} x1={(i+1)*100} y1="0" x2={(i+1)*100} y2="520" stroke="#1f2937" strokeOpacity="0.22" strokeWidth="0.6"/>)}
-                {[...Array(4)].map((_,i)=><line key={'gh'+i} x1="0" y1={(i+1)*104} x2="1000" y2={(i+1)*104} stroke="#1f2937" strokeOpacity="0.22" strokeWidth="0.6"/>)}
-                {Object.entries(REGION_GEO).map(([rid,g])=>{
-                  const sph=sphere[rid]||{};const pv=sph.player||0;
-                  const topC=Object.entries(sph.competitors||{}).sort((a,b)=>b[1]-a[1])[0];
-                  const tv=topC?topC[1]:0;const isP=pv>=tv;const lead=Math.max(pv,tv);const margin=Math.abs(pv-tv);
-                  const col=isP?'#3b82f6':(COMP_COLORS[topC?.[0]]||'#a78bfa');
-                  const sel=selectedRegion===rid;
-                  return(<g key={rid} onClick={()=>setSelectedRegion(selectedRegion===rid?null:rid)} style={{cursor:'pointer'}}>
-                    <path d={g.d} className="region-path" filter="url(#landGlow)" fill={col} fillOpacity={0.14+Math.min(0.5,lead/150)} stroke={sel?'#f9fafb':col} strokeOpacity={sel?0.95:0.55} strokeWidth={sel?1.8:0.9}/>
-                    {margin<15&&<path d={g.d} fill="url(#contestedHatch)" stroke="none" pointerEvents="none"/>}
-                    <text x={g.cx} y={g.cy-8} textAnchor="middle" fill="#e5e7eb" fontSize="11.5" fontWeight="600" pointerEvents="none">{REGIONS[rid].n}</text>
-                    <text x={g.cx} y={g.cy+7} textAnchor="middle" fill={isP?'#60a5fa':col} fontSize="10" fontWeight="800" pointerEvents="none">{isP?'YOU':(topC?.[0]||'').toUpperCase()} {Math.round(lead)}%</text>
-                    {margin<15&&<text x={g.cx} y={g.cy+19} textAnchor="middle" fill="#9ca3af" fontSize="8" pointerEvents="none">CONTESTED ±{Math.round(margin)}</text>}
-                    {sumDep(forceDeployments[rid])>0&&<g pointerEvents="none"><rect x={g.cx-16} y={g.cy+23} width="32" height="13" rx="3" fill="#0d1117" stroke="#3b82f6" strokeWidth="0.7"/><text x={g.cx} y={g.cy+33} textAnchor="middle" fill="#60a5fa" fontSize="8.5" fontWeight="700">⚓ {sumDep(forceDeployments[rid])}</text></g>}
-                    {flashpoint?.rid===rid&&<text x={g.cx} y={g.cy-24} textAnchor="middle" fontSize="14" pointerEvents="none" style={{animation:'pulse .9s infinite'}}>{FLASHPOINTS[flashpoint.type]?.i}⚠</text>}
-                    {Math.abs(sphereTrend[rid]||0)>=2&&<text x={g.cx+38} y={g.cy+7} fill={(sphereTrend[rid]||0)>0?'#4ade80':'#ef4444'} fontSize="9.5" fontWeight="800" pointerEvents="none">{(sphereTrend[rid]||0)>0?'▲':'▼'}{Math.abs(Math.round(sphereTrend[rid]))}</text>}
-                    {(intelOps.some(o=>o.targetId&&INTEL_TARGETS.find(t=>t.id===o.targetId)?.region===rid)||(forceDeployments[rid]?.sr72||0)>0)&&<circle cx={g.cx-38} cy={g.cy-12} r="3.2" fill="#a78bfa" fillOpacity="0.9" pointerEvents="none"/>}
-                  </g>);})}
-                {(()=>{const homeRid=Object.entries(REGIONS).find(([,r])=>r.homeFor?.includes(country?.id))?.[0];if(!homeRid||!REGION_GEO[homeRid])return null;const h=REGION_GEO[homeRid];const dests=new Set(Object.values(defExports).map(d=>BUYERS.find(b=>b.id===d.buyerId)?.region).filter(Boolean));return [...dests].map(rid=>{const r2=REGION_GEO[rid];if(!r2||rid===homeRid)return null;return <line key={`tr_${rid}`} x1={h.cx} y1={h.cy} x2={r2.cx} y2={r2.cy} stroke="#4ade80" strokeWidth="1.2" strokeOpacity="0.5" strokeDasharray="6,5" style={{animation:'dashmove 1.1s linear infinite'}} pointerEvents="none"/>;});})()}
-                {(()=>{const homeRid=Object.entries(REGIONS).find(([,r])=>r.homeFor?.includes(country?.id))?.[0];if(!homeRid||!REGION_GEO[homeRid])return null;const h=REGION_GEO[homeRid];const wide=doctrine==='hegemon';
-                  // Influence network: a line to each region where you hold an embassy, pact, or strong relations
-                  const links={};DIP_TARGETS.forEach(t=>{const rel=nationRelations[t.id]||0;const emb=embassies.has(t.id);const pact=defensePacts.has(t.id);if(pact||emb||rel>=50){const cur=links[t.region]||0;const strength=pact?3:emb?2:1;if(strength>cur)links[t.region]=strength;}});
-                  return Object.entries(links).map(([rid,strength])=>{const r2=REGION_GEO[rid];if(!r2||rid===homeRid)return null;const col=strength>=3?'#a78bfa':strength>=2?'#60a5fa':'#3b82f6';return <line key={`inf_${rid}`} x1={h.cx} y1={h.cy} x2={r2.cx} y2={r2.cy} stroke={col} strokeWidth={(strength*0.7+(wide?0.6:0)).toFixed(1)} strokeOpacity={wide?0.55:0.4} strokeDasharray="2,4" pointerEvents="none"/>;});})()}
-                {Object.entries(CHOKEPOINTS).map(([k,cp])=>{const st=chokeStatus[k]||'open';const col={secured:'#4ade80',escorted:'#60a5fa',open:'#9ca3af',disrupted:'#ef4444'}[st];return <g key={`cp_${k}`} pointerEvents="none"><circle cx={cp.x} cy={cp.y} r={st==='disrupted'?5:3.5} fill={col} fillOpacity={0.9} stroke="#0a0e14" strokeWidth="1"/>{st==='disrupted'&&<circle cx={cp.x} cy={cp.y} r="9" fill="none" stroke="#ef4444" strokeWidth="1" strokeOpacity="0.6"/>}</g>;})}
-                <g transform="translate(14,492)">
-                  <text x="0" y="0" fill="#6b7280" fontSize="9" fontWeight="700">AFFILIATION</text>
-                  {[['#3b82f6','You'],['#ef4444','Russia'],['#eab308','China'],['#22d3ee','USA'],['#f97316','Germany']].map(([c,l],i)=><g key={l} transform={`translate(${78+i*78},-8)`}><rect width="11" height="11" rx="2" fill={c} fillOpacity="0.55" stroke={c}/><text x="15" y="9" fill="#9ca3af" fontSize="9">{l}</text></g>)}
-                  <g transform="translate(478,-8)"><rect width="11" height="11" rx="2" fill="url(#contestedHatch)" stroke="#6b7280"/><text x="15" y="9" fill="#9ca3af" fontSize="9">Contested (±15)</text></g>
-                  <text x="610" y="1" fill="#6b7280" fontSize="9">⚓ deployed · ⚠ flashpoint · ▲▼ 6-mo trend · ● intel op</text>
-                </g>
-              </svg>
+              <div style={{fontSize:'11px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'}}>World Map · tap a region for actions</div>
+              <MapView mode={mapMode} onModeChange={setMapMode} onRegionTap={rid=>setSelectedRegion(selectedRegion===rid?null:rid)}
+                view={{country,sphere,selectedRegion,forceDeployments,flashpoint,sphereTrend,intelOps,defExports,doctrine,nationRelations,embassies,defensePacts,chokeStatus,rivalTension,blockades,tradeAgreements,importContracts,embargoes,embargoedBy,forcePosture,sanctions,moles,expelled:expelR.current,concessions}}/>
 
               {/* Selected region panel */}
               {selectedRegion&&<div style={{marginTop:'10px',background:'#111827',borderRadius:'8px',padding:'12px',border:`1px solid ${country?.color||'#4ade80'}55`}}>
@@ -908,7 +871,7 @@ function WorldLeadersInner({resumeSignal}){
           </div>
 
           {/* Right intel panel */}
-          <div style={{width:'285px',background:'#0a0e14',borderLeft:'1px solid #1f2937',overflowY:'auto',padding:'12px',flexShrink:0}}>
+          <div className="wl-right" style={{width:'285px',background:'#0a0e14',borderLeft:'1px solid #1f2937',overflowY:'auto',padding:'12px',flexShrink:0}}>
             {rightMode==='intel'&&<div>
               <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'12px'}}>Intelligence</div>
               <div style={{fontSize:'12px',color:'#6b7280',lineHeight:'1.9',marginBottom:'14px'}}>{[['🔍','Investigate issues ($300M, 2 months) for intelligence briefs'],['📋','Deploy briefs — effects apply over time, tracked live'],['🌍','Click map regions to deploy influence actions'],['⚔️','Defense advantage multiplies trade deal outcomes'],['💡','Click any Vital stat to see drivers and interventions'],['🕵️','Defense tab → Intelligence to run covert operations']].map(([i,t])=><div key={t} style={{display:'flex',gap:'8px',marginBottom:'8px',alignItems:'flex-start'}}><span style={{flexShrink:0}}>{i}</span><span>{t}</span></div>)}</div>
