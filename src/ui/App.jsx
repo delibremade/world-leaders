@@ -16,6 +16,7 @@ import { runMonth } from '../sim/tick.js';
 import { applyVerb } from '../sim/actions.js';
 import { stateView, openingPosition } from '../sim/state.js';
 import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups } from '../sim/selectors.js';
+import { VERSION, BUILD_STAMP } from './version.js';
 const TABS=['overview','sitroom','economy','energy','resources','defense','intel','technology','trade'];
 const TABM={overview:{i:'🌍',l:'Overview'},economy:{i:'💰',l:'Economy'},energy:{i:'⚡',l:'Energy'},resources:{i:'⛏️',l:'Resources'},sitroom:{i:'🎖️',l:'Situation Room'},defense:{i:'🛡️',l:'Defense'},intel:{i:'🕵️',l:'Intel'},technology:{i:'💻',l:'Technology'},trade:{i:'🤝',l:'Trade'}};
 function genModelData(sk,cv,opt,drift){return Array.from({length:21},(_,m)=>{const np=cv+drift*m;const pct=Math.min(m/Math.max(opt.tm,1),1);const eff=(opt.fx||[]).find(e=>e.s===sk)?.d||0;const wp=cv+drift*Math.min(m,opt.tm*.5)+eff*pct*(opt.conf/100);return{m,'No Policy':+np.toFixed(2),'With Policy':+wp.toFixed(2)};});}
@@ -485,7 +486,7 @@ function WorldLeadersInner({resumeSignal}){
     <div style={{background:'#06090d',minHeight:'100vh',color:'#d1d5db',fontFamily:"'SF Pro Display',-apple-system,'Segoe UI',Roboto,'Helvetica Neue',sans-serif",WebkitFontSmoothing:'antialiased',padding:'36px 20px',backgroundImage:'radial-gradient(ellipse at 50% -20%,rgba(30,60,100,.4) 0%,transparent 60%)'}}>
       <style>{`.cc{transition:border-color .2s,transform .15s,box-shadow .2s}.cc:hover{border-color:#3b82f6!important;transform:translateY(-3px);box-shadow:0 8px 32px rgba(59,130,246,.2)} ::-webkit-scrollbar{width:6px} ::-webkit-scrollbar-track{background:#0a0e14} ::-webkit-scrollbar-thumb{background:#374151;border-radius:3px}`}</style>
       <div style={{textAlign:'center',marginBottom:'40px'}}>
-        <div style={{fontSize:'11px',letterSpacing:'5px',color:'#3b82f6',marginBottom:'12px',textTransform:'uppercase'}}>▸ COMMAND TERMINAL · BUILD v57 ◂</div>
+        <div style={{fontSize:'11px',letterSpacing:'5px',color:'#3b82f6',marginBottom:'12px',textTransform:'uppercase'}}>▸ COMMAND TERMINAL · {BUILD_STAMP} ◂</div>
         <h1 style={{fontSize:'42px',fontWeight:900,margin:'0 0 8px',color:'#f9fafb',fontFamily:'Georgia,serif',letterSpacing:'-1px'}}>WORLD LEADERS</h1>
         <p style={{color:'#6b7280',fontSize:'13px',letterSpacing:'2px',textTransform:'uppercase',margin:0}}>Govern. Compete. Dominate. Survive.</p>
         {saveInfo&&<div style={{margin:'14px auto 0',maxWidth:'520px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:'10px',background:'#0d1117',border:'1px solid #4ade80',borderRadius:'8px',padding:'10px 14px'}}>
@@ -669,7 +670,7 @@ function WorldLeadersInner({resumeSignal}){
 
       {/* HUD */}
       <div style={{background:'#0d1117',borderBottom:'1px solid #1f2937',padding:'0 14px',height:'48px',display:'flex',alignItems:'center',gap:'8px',flexShrink:0}}>
-        <span style={{fontSize:'9px',color:'#4b5563',letterSpacing:'1px',flexShrink:0}}>v57</span>
+        <span style={{fontSize:'9px',color:'#4b5563',letterSpacing:'1px',flexShrink:0}}>v{VERSION}</span>
         <span style={{fontSize:'19px'}}>{country?.flag}</span>
         <div style={{borderRight:'1px solid #1f2937',paddingRight:'10px',marginRight:'2px',flexShrink:0}}><div style={{fontSize:'12px',fontWeight:700,color:'#f9fafb'}}>{country?.name}</div><div style={{fontSize:'10px',color:'#6b7280'}}>{MONTHS[date.mo]} {date.yr}</div></div>
         {stats&&['treasury','gdpGrowth','unemployment','inflation','stability','military'].map(k=>{const st=ss(k,stats[k]);const col=sc(st);const d=statsTrend[k]||0;const thr=k==='treasury'?20:0.04;const goodUp=!['unemployment','inflation'].includes(k);const fav=(d>0)===goodUp;return(<div key={k} style={{display:'flex',flexDirection:'column',background:'#1f2937',padding:'3px 8px',borderRadius:'5px',border:`1px solid ${st==='ok'?'#374151':col+'55'}`,flexShrink:0}}><div style={{fontSize:'9px',color:'#6b7280'}}>{SC[k].label}</div><div style={{fontSize:'12px',fontWeight:700,color:col}}>{SC[k].fmt(stats[k])}{Math.abs(d)>=thr&&<span style={{fontSize:'9px',marginLeft:'3px',color:fav?'#4ade80':'#ef4444'}}>{d>0?'▲':'▼'}{k==='treasury'?Math.abs(Math.round(d)):Math.abs(d).toFixed(1)}</span>}</div></div>);})}

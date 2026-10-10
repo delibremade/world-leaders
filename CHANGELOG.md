@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.62.0 (2026-10-10) — P3a design system: tokens, global stylesheet, build stamp from package.json
+- `docs/DESIGN-SYSTEM.md` (situation-room tactical, dark-first, 390px rules) and `src/ui/tokens.js`: colour (bg steps, text steps, accents, factions, chokepoints, 5 map-mode ramps), type scale, spacing, radius, 44px tap, elevation, motion, z-order, breakpoints. `TOKEN_CSS` carries every token as `--wl-*` plus the `.wl-panel/.wl-card/.wl-chip/.wl-btn/.wl-scrim` primitives; `installTheme(document)` injects it once from `src/ui/main.jsx`. `pixiHex()` for the P3b map.
+- Title screen and HUD stamp `BUILD v<package.json version>` via `src/ui/version.js` (was the hard-coded "BUILD v57").
+- `test/tokens.test.js`: hex validity, ascending scales, WCAG contrast on `bg.panel` (4.5 text, 3.0 dim/accents, factions on ocean), stylesheet completeness, App installs the theme once and shows the stamp. `scripts/screens.js`: 390px Playwright screenshots for PR evidence (global playwright, not a dependency). Parity untouched.
+
 ## 0.61.1 (2026-10-10) — fix: lane sanctions charge bloc/ally costs (#5); map +/- deploy writes live state (#6)
 - `imposeSanctions` now runs `toggleSanctions` when adding (bloc reset + 12mo freeze, -4 stability and warning for allies), ruling 7. `adjustDeployment` routes + to `deployUnit` and - to `recallUnit`; the map no longer treats unowned black programs as owned (free count cannot go negative). + now toasts "stationed", as the other deploy entry points do.
 - Tests: entry-point parity for france/japan/saudi, live-state reads after map +/-. Parity: map +/- clicks removed from `parity-clicks.js` month 9 (replaced by OOB station via the shared path); lane sanctions were never in the script. Every other parity case unchanged.

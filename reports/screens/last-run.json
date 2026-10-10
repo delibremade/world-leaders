@@ -1,0 +1,12 @@
+[
+  {
+    "name": "p3a-title",
+    "file": "reports/screens/p3a-title.png",
+    "errors": []
+  },
+  {
+    "name": "p3a-hud",
+    "file": "reports/screens/p3a-hud.png",
+    "errors": []
+  }
+]
