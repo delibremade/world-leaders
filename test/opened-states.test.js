@@ -19,7 +19,13 @@ const uncovered = (page, sel, what) => page.evaluate(([sel]) => {
   }
   return bad;
 }, [sel]).then((bad) => assert.deepEqual(bad, [], `${what} is covered`));
-const key = (page) => page.keyboard.press('Escape').then(() => settle(page, 250));
+// Close and wait for the exit animation: a slow runner otherwise still has the last popover mounted when the next one opens.
+// A sheet has landed once it is inside the viewport and has stopped moving (slow runners animate for longer than a fixed wait).
+async function landed(page, W, H) {
+  for (let i = 0; i < 40; i++) { const r = await stableRect(page, '[data-sheet]'); if (r && r.x >= -0.5 && r.y >= -0.5 && r.r <= W + 0.5 && r.b <= H + 0.5) return r; await settle(page, 150); }
+  return stableRect(page, '[data-sheet]');
+}
+const key = async (page) => { await page.keyboard.press('Escape'); await page.waitForFunction(() => !document.querySelector('[data-why-content],[data-help-content]'), null, { timeout: 5000 }); await settle(page, 100); };
 
 for (const [W, H] of [[390, 844], [1280, 800]]) {
   test(`${W}px: every opened sheet, popover and card is fully inside the viewport`, async () => {
@@ -65,9 +71,9 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       await page.evaluate(() => { const o = document.querySelector('[data-outliner]'); if (W_MOBILE() && o.dataset.open === 'true') document.querySelector('[data-outliner-handle]').click(); function W_MOBILE() { return innerWidth < 900; } }); await settle(page, 400);
       // region sheet, then nation sheet
       await page.evaluate(() => window.__wl.region('WE')); await settle(page, 700);
-      await settle(page, 400); const sheet = await stableRect(page, '[data-sheet]'); assert.ok(sheet, 'region sheet open'); inside(sheet, W, H, 'region sheet'); await uncovered(page, '[data-sheet]', 'region sheet');
+      const sheet = await landed(page, W, H); assert.ok(sheet, 'region sheet open'); inside(sheet, W, H, 'region sheet'); await uncovered(page, '[data-sheet]', 'region sheet');
       await page.evaluate(() => window.__wl.nation('france')); await settle(page, 500);
-      await settle(page, 400); const nsheet = await stableRect(page, '[data-sheet]'); inside(nsheet, W, H, 'nation sheet'); await uncovered(page, '[data-sheet]', 'nation sheet');
+      const nsheet = await landed(page, W, H); inside(nsheet, W, H, 'nation sheet'); await uncovered(page, '[data-sheet]', 'nation sheet');
       if (W >= 900) assert.ok(nsheet.w <= 480, `desktop sheet is a side panel, not full width: ${nsheet.w}`);
       assert.ok(await page.evaluate(() => !!document.querySelector('[data-nation-sheet=france]')), 'nation sheet open');
       // a why popover opened while the sheet is open stays inside too, and the sheet body scrolls rather than clips
