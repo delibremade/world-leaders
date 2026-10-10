@@ -2,19 +2,19 @@
 // Each platform: req (research gates), cost (build), maint (per month), mil (power contribution).
 // Effectiveness scales +7% per research level ABOVE requirement (cap ×2) — learnings feed systems.
 export const PLATFORMS={
-  fighter_wing:    {n:'Fighter Wing',          i:'✈️',req:{aircraft:2,propulsion:2},          cost:400, maint:6,  mil:4},
+  fighter_wing:    {n:'Fighter Wing',          i:'✈️',req:{aircraft:2,propulsion:2},          cost:400, maint:6,  mil:4,deployable:true,dOrder:3},
   missile_brigade: {n:'Missile Brigade',       i:'🚀',req:{missiles:2,munitions:2},           cost:600, maint:8,  mil:6},
-  carrier_group:   {n:'Carrier Strike Group',  i:'🛳️',req:{naval:3,aircraft:3},              cost:1500,maint:22, mil:12},
-  sub_fleet:       {n:'Attack Submarine Fleet',i:'🌊',req:{naval:4,propulsion:3},             cost:1200,maint:16, mil:10},
+  carrier_group:   {n:'Carrier Strike Group',  i:'🛳️',req:{naval:3,aircraft:3},              cost:1500,maint:22, mil:12,deployable:true,dOrder:1},
+  sub_fleet:       {n:'Attack Submarine Fleet',i:'🌊',req:{naval:4,propulsion:3},             cost:1200,maint:16, mil:10,deployable:true,dOrder:2},
   satellite_net:   {n:'Reconnaissance Constellation',i:'🛰️',req:{space:3,computers:3},        cost:900, maint:10, mil:7},
   cyber_command:   {n:'Cyber Command',         i:'⚡',req:{cyber:3},                          cost:500, maint:7,  mil:5},
-  drone_swarm:     {n:'Autonomous Drone Swarm',i:'🛸',req:{aircraft:5,computers:4},           cost:1800,maint:20, mil:14},
+  drone_swarm:     {n:'Autonomous Drone Swarm',i:'🛸',req:{aircraft:5,computers:4},           cost:1800,maint:20, mil:14,deployable:true,dOrder:4},
   rq170:           {n:'RQ-170 Sentinel Wing',  i:'🦇',req:{aircraft:3,computers:3},           cost:500, maint:5,  mil:2, isr:2, dev:{cost:400,mo:8},  d:'Stealth ISR drone. +2 ISR per wing; the quiet eye over denied airspace.'},
   rq180:           {n:'RQ-180 Penetrating ISR',i:'🌑',req:{aircraft:5,computers:5,materials:4},cost:1400,maint:12, mil:4, isr:4, dev:{cost:1200,mo:16},d:'High-altitude stealth ISR. +4 ISR per wing; sees what satellites cannot.'},
-  fa_xx:           {n:'F/A-XX Naval Fighter',  i:'🛩️',req:{aircraft:6,naval:5,propulsion:5}, cost:2200,maint:24, mil:9, dev:{cost:2500,mo:24},d:'6th-gen carrier fighter. Deployable; +2 kinetic damage per wing in-region.'},
-  mq25:            {n:'MQ-25 Stingray Tankers',i:'⛽',req:{aircraft:4,naval:4},               cost:700, maint:7,  mil:2, dev:{cost:500,mo:10}, d:'Carrier-based refueling UAV. Deployable; extends carrier air wing reach (+weight, +kinetic).'},
-  frigate:         {n:'Constellation Frigate', i:'🚢',req:{naval:3,missiles:2},               cost:600, maint:7,  mil:3, dev:{cost:350,mo:8},  d:'Escort workhorse. Deployable naval weight 0.5; cheap presence for escort/FON postures.'},
-  zumwalt:         {n:'Zumwalt Destroyer',     i:'⚔️',req:{naval:5,missiles:4,computers:4},  cost:1600,maint:18, mil:7, dev:{cost:1500,mo:18},d:'Stealth strike destroyer. Deployable naval weight 1.2; +3 kinetic damage per hull in-region.'},
+  fa_xx:           {n:'F/A-XX Naval Fighter',  i:'🛩️',req:{aircraft:6,naval:5,propulsion:5}, cost:2200,maint:24, mil:9, dev:{cost:2500,mo:24},d:'6th-gen carrier fighter. Deployable; +2 kinetic damage per wing in-region.',deployable:true,dOrder:5},
+  mq25:            {n:'MQ-25 Stingray Tankers',i:'⛽',req:{aircraft:4,naval:4},               cost:700, maint:7,  mil:2, dev:{cost:500,mo:10}, d:'Carrier-based refueling UAV. Deployable; extends carrier air wing reach (+weight, +kinetic).',deployable:true,dOrder:6},
+  frigate:         {n:'Constellation Frigate', i:'🚢',req:{naval:3,missiles:2},               cost:600, maint:7,  mil:3, dev:{cost:350,mo:8},  d:'Escort workhorse. Deployable naval weight 0.5; cheap presence for escort/FON postures.',deployable:true,dOrder:7},
+  zumwalt:         {n:'Zumwalt Destroyer',     i:'⚔️',req:{naval:5,missiles:4,computers:4},  cost:1600,maint:18, mil:7, dev:{cost:1500,mo:18},d:'Stealth strike destroyer. Deployable naval weight 1.2; +3 kinetic damage per hull in-region.',deployable:true,dOrder:8},
   hypersonic_bty:  {n:'Hypersonic Battery',    i:'☄️',req:{missiles:5,propulsion:4},          cost:2500,maint:28, mil:18},
   mech_division:   {n:'Mechanized Division',   i:'🪖',req:{},                                  cost:220, maint:4,  mil:3},
   frigate_sqn:     {n:'Frigate Squadron',      i:'⛵',req:{naval:1},                           cost:350, maint:6,  mil:4},
@@ -26,16 +26,19 @@ export const PLATFORMS={
 // Bleeding-edge capability AND the highest-value espionage targets (rivals will try to steal them).
 export const BLACK_PROGRAMS={
   b21:  {n:'B-21 Raider',i:'🛩️',cost:8000, mo:30,req:{aircraft:5,munitions:4,materials:4},mil:22,cap:6,
-    d:'Stealth strategic bomber. +22 military, strengthens nuclear deterrent.',bonus:'deterrent',exportable:false},
+    d:'Stealth strategic bomber. +22 military, strengthens nuclear deterrent.',bonus:'deterrent',exportable:false,deployable:true,dOrder:9},
   f47:  {n:'F-47 (NGAD)',i:'✈️',cost:11000,mo:36,req:{aircraft:6,propulsion:5,computers:5},mil:26,cap:8,
-    d:'6th-gen air dominance fighter. +26 military, commands CCA drone formations.',bonus:'air',exportable:false},
+    d:'6th-gen air dominance fighter. +26 military, commands CCA drone formations.',bonus:'air',exportable:false,deployable:true,dOrder:10},
   cca:  {n:'CCA Drone Wings',i:'🛸',cost:6000,mo:24,req:{aircraft:5,computers:5,cyber:4},mil:18,cap:12,
-    d:'Collaborative Combat Aircraft. +18 military, force-multiplies all air platforms.',bonus:'multiplier',exportable:true},
+    d:'Collaborative Combat Aircraft. +18 military, force-multiplies all air platforms.',bonus:'multiplier',exportable:true,attachesTo:'f47'},
   sr72: {n:'SR-72 Darkstar',i:'🚀',cost:9000,mo:30,req:{propulsion:6,materials:5,space:4},mil:14,cap:3,
-    d:'Hypersonic ISR/strike. +14 military, +6 ISR (deep reconnaissance).',bonus:'isr',exportable:false},
+    d:'Hypersonic ISR/strike. +14 military, +6 ISR (deep reconnaissance).',bonus:'isr',exportable:false,deployable:true,dOrder:11},
   ssnx: {n:'SSN(X) Attack Sub',i:'🌑',cost:10000,mo:34,req:{naval:6,propulsion:5,materials:4},mil:24,cap:8,
-    d:'Next-gen nuclear attack submarine. +24 military, undetectable sea control.',bonus:'naval',exportable:true},
+    d:'Next-gen nuclear attack submarine. +24 military, undetectable sea control.',bonus:'naval',exportable:true,deployable:true,dOrder:12},
 };
+// The deployable set is data (`deployable:true`), never a literal list (E1, #13). Display order is `dOrder` (v57 order, F-47 after the B-21).
+// CCA wings are not deployable: they attach to F-47 wings as a weight multiplier (see ccaMult in formulas.js).
+export const DEPLOYABLE=[...Object.keys(PLATFORMS),...Object.keys(BLACK_PROGRAMS)].filter(k=>(PLATFORMS[k]||BLACK_PROGRAMS[k]).deployable).sort((a,b)=>(PLATFORMS[a]||BLACK_PROGRAMS[a]).dOrder-(PLATFORMS[b]||BLACK_PROGRAMS[b]).dOrder);
 // Deployment weight per unit (default 1).
 export const DEP_W={b21:2,ssnx:2,sr72:0.6,frigate:0.5,zumwalt:1.2,mq25:0.8,fa_xx:1};
 

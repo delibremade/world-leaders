@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.64.2 (2026-10-10) — E1 (#13): F-47 deployable; deploy list is data
+- Rule change (intentional, parity with v57 ends for the deploy list): `deployable:true` + `dOrder` on the platform data, `DEPLOYABLE` derived in `src/data/platforms.js`. App deploy panel and Order of Battle read it; the literal lists are gone. F-47 stations and recalls by region like B-21, SR-72, SSN(X).
+- `deployUnit` rejects anything outside `DEPLOYABLE` (CCA, satellites, unknown ids); before, the engine accepted any owned id.
+- CCA wings attach to stationed F-47 wings: `ccaMult` in `formulas.js`, up to +50% on F-47 weight (CCA owned / F-47 owned), none alone. `wSum(o, black)`; all sim and UI call sites pass `blackPrograms`.
+- Tests: `test/deploy.test.js` (every deployable id stations and recalls, nothing else can, ownership cap, CCA multiplier, no literal lists in the UI). No v57 parity case needed re-baselining: the scripted runs never own an F-47 and the OOB row order is unchanged.
+
 ## 0.64.1 (2026-10-10) — P3d fix-up: 390px overflow, map-first Overview, nine-tab nav, fitting map chips, lazy pixi chunk
 - Overflow: `.wl-app` grid had an implicit `auto` column that grew to its widest child (417px at 390). Now `minmax(0,1fr)`; HUD figures are a 3-column grid (sparkline under the value on phones); nothing past the right edge on any vertical (`test/layout.test.js`, real Chromium via playwright-core, 390 and 1280).
 - Overview: the map card is first on phone and the main column on desktop. Static how-to tips moved behind a `?` popover (`shell/Help.jsx`); Risk Signals moved from the right column into the center column, and the right column only shows for an open issue or brief.
