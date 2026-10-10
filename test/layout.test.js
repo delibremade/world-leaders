@@ -1,16 +1,21 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { launch, openGame, overflow, settle } from './util/browser.js';
-import { TABS } from './util/harness.js';
+import { TABS, PANES, FOLDED } from './util/harness.js';
 
 // P3d gate: layout assertions jsdom cannot make, in real Chromium (playwright-core, devDependency).
-// Phone 390x844 and desktop 1280x800: nothing scrolls sideways on any vertical, the nav reaches all nine, the map
+// Phone 390x844 and desktop 1280x800: nothing scrolls sideways on any vertical, the nav reaches all eight, the map
 // is the first thing on Overview, map-mode chips all fit, and the static how-to text lives behind a popover.
 
 let browser;
 before(async () => { browser = await launch(); });
 after(async () => { await browser?.close(); });
-const go = (page, t) => page.evaluate((t) => document.querySelector(`[data-tab=${t}]`).click(), t).then(() => settle(page, 250));
+// Folded panes (sitroom, resources) are reached through their parent vertical's segmented control.
+const go = async (page, t) => {
+  await page.evaluate((t) => document.querySelector(`[data-tab=${t}]`).click(), FOLDED[t] || t); await settle(page, 250);
+  if (FOLDED[t]) { await page.evaluate((t) => document.querySelector(`[data-seg=${t}]`).click(), t); await settle(page, 250); }
+};
+const seg = (page, id) => page.evaluate((id) => document.querySelector(`[data-seg=${id}]`).click(), id).then(() => settle(page, 200));
 const rect = (page, sel) => page.evaluate((sel) => { const e = document.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, r: r.right, b: r.bottom, w: r.width, h: r.height }; }, sel);
 
 for (const [W, H] of [[390, 844], [1280, 800]]) {
@@ -20,7 +25,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       let o = await overflow(page, W);
       assert.ok(o.scrollWidth <= W, `doctrine card: scrollWidth ${o.scrollWidth}`); assert.deepEqual(o.bad, [], 'doctrine card: elements past the right edge');
       await page.locator('text=Military Superpower').first().click(); await settle(page, 500);
-      for (const t of TABS) {
+      for (const t of PANES) {
         await go(page, t); o = await overflow(page, W);
         assert.ok(o.scrollWidth <= W, `${t}: scrollWidth ${o.scrollWidth} > ${W}`);
         assert.deepEqual(o.bad, [], `${t}: elements past the right edge`);
@@ -30,12 +35,12 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
   });
 }
 
-test('390px: HUD speed control and all three figures are fully on screen; nav reaches all nine verticals in one tap', async () => {
+test('390px: HUD speed control and all three figures are fully on screen; nav reaches all eight verticals in one tap, each >= 44px wide and tall', async () => {
   const { ctx, page } = await openGame(browser, { width: 390 });
   try {
     for (const sel of ['[data-speed]', '[data-why^="Treasury"]', '[data-why^="Stability"]', '[data-why^="Hegemony"]']) { const r = await rect(page, sel); assert.ok(r && r.x >= 0 && r.r <= 390 && r.w > 40, `${sel} ${JSON.stringify(r)}`); }
     for (const t of TABS) {
-      const r = await rect(page, `[data-nav] [data-tab=${t}]`); assert.ok(r && r.x >= 0 && r.r <= 390.5 && r.w >= 36, `nav ${t} ${JSON.stringify(r)}`);
+      const r = await rect(page, `[data-nav] [data-tab=${t}]`); assert.ok(r && r.x >= 0 && r.r <= 390.5 && r.w >= 44 && r.h >= 44, `nav ${t} ${JSON.stringify(r)}`);
       await page.evaluate((t) => document.querySelector(`[data-nav] [data-tab=${t}]`).click(), t); await settle(page, 200);
       assert.equal(await page.evaluate(() => document.querySelector('[data-nav] [aria-current=page]')?.dataset.tab), t, `one tap reaches ${t}`);
       assert.ok((await rect(page, `[data-nav] [aria-current=page] .wl-nav-l`))?.w > 0, 'active tab shows its label');
@@ -58,20 +63,50 @@ test('390px: Resources minerals view with every row open stays inside the screen
   } finally { await ctx.close(); }
 });
 
-test('390px: Defense Forces panel (E8, #20) and the crew gap stay inside the screen; every mechanic has a control', async () => {
+// E5a: Forces vertical. Every sub-tab fits both widths with no sideways scroll, every segment and row control is a
+// 44px target, and every E8 mechanic (spec Part 7) has a control or a figure on one of the five screens.
+for (const [W, H] of [[390, 844], [1280, 800]]) {
+  test(`${W}px: Forces vertical, five sub-tabs inside the screen; every Part 7 mechanic reachable`, async () => {
+    const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
+    try {
+      await page.evaluate(() => { const h = window.__wl; h.field('f47', 2); h.forces({ crews: { land: 6, air: 0, sea: 6 } }); });
+      await go(page, 'forces');
+      const segs = await page.evaluate(() => [...document.querySelectorAll('[data-segbar=forces] [data-seg]')].map((b) => { const r = b.getBoundingClientRect(); return { id: b.dataset.seg, w: r.width, h: r.height, r: r.right }; }));
+      assert.deepEqual(segs.map((x) => x.id), ['manpower', 'quality', 'training', 'equipment', 'specialized']);
+      for (const x of segs) assert.ok(x.h >= 44 && x.w >= 44 && x.r <= W + 0.5, `segment ${JSON.stringify(x)}`);
+      const want = {
+        manpower: [/Strength/, /Retention/, /Personnel pay/, /Recruits/],
+        quality: [/Force quality index/, /Education/, /Healthcare/, /Food security/, /Stability/, /Equality/],
+        training: [/Unfunded/, /Intensive/, /Readiness by branch/, /Crew pipelines/],
+        equipment: [/Crews vs airframes/, /gap 4/, /Theater summary/, /Maintenance/, /F-47/],
+        specialized: [/Train Tier 2/, /Tier 1 selection/, /1st SFOD-D/, /ISR score/, /Cyber Command/, /Nuclear crews/],
+      };
+      for (const [id, res] of Object.entries(want)) {
+        await seg(page, id);
+        const txt = await page.evaluate(() => document.querySelector('[data-forces]').innerText);
+        for (const re of res) assert.match(txt, new RegExp(re.source, 'i'), `${id}: ${re}`); // panel titles are uppercase labels
+        const o = await overflow(page, W);
+        assert.ok(o.scrollWidth <= W, `${id}: scrollWidth ${o.scrollWidth}`); assert.deepEqual(o.bad, [], `${id}: elements past the right edge`);
+        const small = await page.evaluate(() => [...document.querySelectorAll('[data-forces] .wl-r, [data-forces] .wl-p-head, [data-forces] select, [data-forces] input')].filter((e) => e.getBoundingClientRect().height < 43.5).map((e) => e.className || e.tagName));
+        assert.deepEqual(small, [], `${id}: rows under 44px`);
+      }
+      await seg(page, 'manpower');
+      assert.ok(await page.evaluate(() => !!document.querySelector('input[type=range][min="0"][max="150"]')), 'pay slider reaches 0');
+      assert.deepEqual(errors, []);
+    } finally { await ctx.close(); }
+  });
+}
+
+test('390px: Forces why-popover on retention and the confirm sheet for Tier 1 selection stay on screen', async () => {
   const { ctx, page, errors } = await openGame(browser, { width: 390 });
   try {
-    await page.evaluate(() => { const h = window.__wl; h.field('f47', 2); h.forces({ crews: { land: 6, air: 0, sea: 6 } }); });
-    await go(page, 'defense');
-    await page.evaluate(() => document.querySelector('[data-forces]').scrollIntoView({ block: 'start' })); await settle(page, 200);
-    for (const sel of ['[data-forces-manpower]', '[data-forces-quality]', '[data-forces-training]', '[data-forces-crews]', '[data-forces-sof]']) {
-      const r = await rect(page, sel); assert.ok(r && r.x >= 0 && r.r <= 390.5, `${sel} ${JSON.stringify(r)}`);
-    }
-    const txt = await page.evaluate(() => document.querySelector('[data-forces]').innerText);
-    for (const re of [/Unfunded/, /Intensive/, /Train Tier 2/, /Tier 1 selection/, /1st SFOD-D/, /gap 4/, /Retention/]) assert.match(txt, re);
-    assert.ok(await page.evaluate(() => !!document.querySelector('input[type=range][min="0"][max="150"]')), 'pay slider reaches 0');
-    const o = await overflow(page, 390);
-    assert.ok(o.scrollWidth <= 390, `scrollWidth ${o.scrollWidth}`); assert.deepEqual(o.bad, [], 'elements past the right edge');
+    await go(page, 'forces');
+    await page.evaluate(() => document.querySelector('[data-why="Retention target"]').click()); await settle(page, 200);
+    const w = await rect(page, '[data-why-content="Retention target"]'); assert.ok(w && w.x >= 0 && w.r <= 390.5, JSON.stringify(w));
+    await page.keyboard.press('Escape'); await seg(page, 'specialized');
+    await page.evaluate(() => [...document.querySelectorAll('[data-forces] button')].find((b) => /Tier 1 selection/.test(b.textContent)).click()); await settle(page, 400);
+    const c = await rect(page, '[data-confirm]'); assert.ok(c && c.x >= 0 && c.r <= 390.5, JSON.stringify(c));
+    assert.match(await page.evaluate(() => document.querySelector('[data-confirm]').innerText), /\$20M\/mo/);
     assert.deepEqual(errors, []);
   } finally { await ctx.close(); }
 });
@@ -142,7 +177,7 @@ test('390px: every tab pane grows to its content; pane and content are >= 60% of
   const W = 390;
   const { ctx, page } = await openGame(browser, { width: W, height: 844 });
   try {
-    for (const t of TABS) {
+    for (const t of PANES) {
       await go(page, t);
       const m = await page.evaluate(() => {
         const pane = [...document.querySelector('.wl-body').children].find((c) => !c.classList.contains('wl-vitals'));

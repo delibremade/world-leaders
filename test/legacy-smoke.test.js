@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mount, flush, TABS, BUNDLES, gameEnded } from './util/harness.js';
+import { mount, flush, LEGACY_TABS, PANES, SENTINEL_PANES, BUNDLES, gameEnded } from './util/harness.js';
 
 // Smoke gate (PLAYABLE-PLAN guardrail 2): 120 months autoplay, no ErrorGate fault, every tab renders, autosave + resume.
 // Runs against the new App (src/ui/App.jsx on src/sim) and the v57 bundle that stays live on Pages.
 for (const [name, entry] of Object.entries(BUNDLES)) {
-  test(`${name}: 120 months, no ErrorGate fault, 9 tabs render, save/resume round-trips`, async () => {
+  test(`${name}: 120 months, no ErrorGate fault, every tab renders, save/resume round-trips`, async () => {
     const origErr = console.error; console.error = () => {};
     const g = await mount(entry);
     try {
@@ -18,12 +18,13 @@ for (const [name, entry] of Object.entries(BUNDLES)) {
       const saved = JSON.parse((await g.w.storage.get('wl_save')).value);
       assert.ok(saved && saved.countryId === 'usa', 'autosave written via window.storage shim');
 
-      for (const t of TABS) {
+      for (const t of (name === 'legacy' ? LEGACY_TABS : PANES)) {
         const b = g.tabBtn(t); assert.ok(b, `tab button ${t}`);
         b.click(); await flush(); await flush();
         assert.ok(!g.faulted(), `fault on tab ${t}`);
         const len = g.text().length;
         assert.ok(len > 500, `tab ${t} renders non-empty (${len} chars)`);
+        if (name !== 'legacy' && SENTINEL_PANES.includes(t)) assert.ok(g.doc.querySelector(`[data-sentinel=${t}]`), `sentinel for ${t}`);
       }
 
       // Resume: a fresh page with the autosave in storage offers Resume and restores the campaign.

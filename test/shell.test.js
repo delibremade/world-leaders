@@ -7,7 +7,7 @@ import { INTEL_OPS } from '../src/data/intel.js';
 import { oilPriceTerms, opOddsTerms, influencePool, influenceGain, renewableTotal } from '../src/sim/selectors.js';
 import { NATION_VERBS, NATION_VERB_ALIASES, verbsFor } from '../src/ui/shell/nation-verbs.js';
 import { buildOutliner, GROUPS } from '../src/ui/shell/outliner.js';
-import { mount, flush, BUNDLES, TABS, gameEnded } from './util/harness.js';
+import { mount, flush, BUNDLES, TABS, PANES, SENTINEL_PANES, gameEnded } from './util/harness.js';
 
 // P3c gate: the Tier 1 shell. Nation sheet covers every nation-keyed verb; why-breakdown selectors agree with
 // the engine's formulas; outliner rows come from engine state; the App renders HUD, nav, cards, sheet, outliner
@@ -66,7 +66,7 @@ test('outliner: rows from engine state, grouped, each with a jump target', () =>
   });
   const by = Object.fromEntries(GROUPS.map(([g]) => [g, rows.filter((r) => r.group === g).length]));
   assert.deepEqual(by, { flashpoints: 3, ops: 3, builds: 3, research: 1, timers: 7, cooldowns: 2 });
-  for (const r of rows) { assert.ok(r.id && r.title && r.jump?.tab && TABS.includes(r.jump.tab), r.id); }
+  for (const r of rows) { assert.ok(r.id && r.title && r.jump?.tab && PANES.includes(r.jump.tab), r.id); }
   assert.equal(rows.find((r) => r.id === 'fp').jump.region, 'ME'); assert.equal(rows.find((r) => r.id === 'x').jump.nation, 'china');
   assert.equal(rows.find((r) => r.id === 'sap').pct, 0.3); assert.equal(rows.find((r) => r.id === 'cd_visit_france').months, 3);
   assert.equal(buildOutliner({}).length, 0);
@@ -80,7 +80,7 @@ test('App: shell renders (HUD, speed, nav badges, doctrine card, sheet, outliner
     const { doc, w } = g;
     const q = (s) => doc.querySelector(s), qa = (s) => [...doc.querySelectorAll(s)];
     assert.ok(q('[data-hud]') && q('[data-nav]') && q('[data-outliner]'), 'shell chrome present');
-    assert.equal(qa('[data-nav] [data-tab]').length, 9, 'nine verticals');
+    assert.equal(qa('[data-nav] [data-tab]').length, 8, 'eight verticals');
     assert.equal(qa('[data-nav] [data-tab]').map((b) => b.getAttribute('data-tab')).join(','), TABS.join(','));
     assert.ok(q('[data-event-card=doctrine]'), 'doctrine is a non-blocking card');
     assert.equal(q('[data-event-card=doctrine]').getAttribute('data-modal'), '1900');
@@ -120,7 +120,7 @@ test('App: shell renders (HUD, speed, nav badges, doctrine card, sheet, outliner
     w.__wl.event('pandemic', 6); await flush(); await flush();
     assert.ok(q('[data-outliner-row=we]'), 'world event row in the outliner');
     assert.match(q('[data-outliner-row=we]').textContent, /Pandemic/);
-    for (const t of TABS) { g.tabBtn(t).click(); await flush(); assert.ok(g.text().length > 500, t); }
+    for (const t of PANES) { g.tabBtn(t).click(); await flush(); await flush(); assert.ok(g.text().length > 500, t); if (SENTINEL_PANES.includes(t)) assert.ok(q(`[data-sentinel=${t}]`), `sentinel ${t}`); }
     const raw = (await w.storage.get('wl_save')).value; assert.ok(raw, 'autosave');
     const g2 = await mount(BUNDLES.app, { preload: { wl_save: raw } });
     try {
