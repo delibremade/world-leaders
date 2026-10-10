@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.74.0 (2026-10-10) — F5 (#37): resources and factories are private capital
+- Intentional rule change (spec Part 3 amended). Processing plants are built by private capital when profitable; the `buildPlant` verb ($1.8B treasury capex, $15M/mo upkeep) is removed. Margin = price / hurdle x ore x scarcity (foreign controls against you) x demand (waiting tranches) / saturation x greenfield (0.5 with no ore and no plant); builds at margin >= 1. US start: rare earths, germanium, enrichment build unaided; greenfield gallium needs Chinese controls plus DPA funding.
+- State levers per build (`enactLever`), one-time, 2-17% of capex, in force until that plant is online: fast-track permits, tax credit, loan guarantee, DPA funding, offtake guarantee. Rare-earth plant: 36mo unaided, 18-30mo with one lever; all five cost $702M vs $1.8B capex.
+- Treasury: `Minerals sector` ledger income (royalties 5% + tax 12% of new output value); shows in the HUD treasury why. A new US enrichment plant pays $34M/mo.
+- Natural: GGRB Phase II is authorized ($0) and built privately (36mo, levers apply); the $2.5B button is gone. Extraction framed as licensing; the Extraction line is royalties + tax (values unchanged). Renewables and the GGRB survey stay state spending.
+- State: `minerals.proj` {id: {prog, levers}} replaces `minerals.plants`; old saves carry plants under construction over as private progress. Invariant: projects name a mineral or the retort, progress in [0, build months), levers known and unique.
+- UI: Processing shows each mineral's private build (progress, ETA, margin why) and the five levers; Natural shows the authorized retort the same way.
+- Tests: `test/private-capital.test.js` (9). E4 tests moved off `buildPlant`. Parity: v57 prefix untouched; all five pinned cases re-baselined citing #37 (first changed save 7-9, the first private plant online).
+
 ## 0.73.0 (2026-10-10) — F2 (#33): decision cadence and 'Why now'
 - Intentional rule change. Decisions open only at the quarterly cabinet briefing (Jan, Apr, Jul, Oct). The 7-12 month spacing timer is unchanged; a due decision now waits for the next briefing. At most one is open at a time, and none opens while a world event is open or within 3 months of one starting or ending.
 - Urgent exception: protest (stability < 45), ore run-out (< 12 months), pay dispute (retention < 35), coastal standoff (tension >= 65) skip the briefing wait. Their card says Urgent decision.
