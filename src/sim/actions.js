@@ -1,11 +1,12 @@
 import { NATIONS, BUYERS, DIP_TARGETS, NATION_BLOC, RD_MODS } from '../data/nations.js';
-import { REGIONS } from '../data/regions.js';
+import { REGIONS, POSTURE_LABELS } from '../data/regions.js';
+import { DOCTRINES } from '../data/world.js';
 import { PLATFORMS, BLACK_PROGRAMS, DV } from '../data/platforms.js';
 import { PA, ISSUES } from '../data/economy.js';
 import { INTEL_OPS } from '../data/intel.js';
 import { BLOC_TRADE } from '../data/trade.js';
 import { CONCESSIONS } from '../data/energy.js';
-import { isAllyOf, wSum, isrScore, navalWeight, getQualMult } from './formulas.js';
+import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, kineticDamage, getQualMult } from './formulas.js';
 import { rng } from './rng.js';
 
 // ── Toy-engine action vocabulary (scaffold for the pure tick(state, actions, rng) API in tick.js). Not used by the v57 UI.
@@ -374,6 +375,75 @@ function makeDecision(g,S,fx,optId){
 }
 
 
+// ── Inline v57 handlers (render-time locals are recomputed from g with the same expressions; render-state values
+// are snapshotted at the start of the verb, exactly as the click-time closure saw them).
+const cap=(id)=>id.charAt(0).toUpperCase()+id.slice(1);
+
+// Economy drill: sector budget -/+ 10.
+function adjustSectorBudget(g,S,fx,sector,delta){S.setBudgetAlloc(p=>({...p,[sector]:delta<0?Math.max(0,(p[sector]||100)+delta):Math.min(200,(p[sector]||100)+delta)}));}
+
+// Modals: doctrine, IMF bailout, nuclear ultimatum, blockade confrontation.
+function chooseDoctrine(g,S,fx,id){const d=DOCTRINES[id];
+  S.setDoctrine(id);g.doctrine=id;fx.toast(`${d.i} ${d.n} doctrine adopted`);S.setLog(p=>[{msg:`${d.i} National Doctrine: ${d.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+}
+function imfBailout(g,S,fx){S.setGameOver(null);S.setStats(p=>({...p,treasury:p.treasury+4000,stability:Math.min(100,p.stability+20)}));}
+function ultimatumResponse(g,S,fx,response){
+  const cid=g.ultimatum.cid;const rn=cap(cid);const tlM=triadLegs(g.platforms,g.blackPrograms);const sphere=g.sphere;const close=()=>{g.ultimatum=null;S.setUltimatum(null);};
+  if(response==='standDown'){S.setBlockades(p=>{const n2={};Object.entries(p).forEach(([r2,b])=>{if(b.target!==cid)n2[r2]=b;});g.blockades=n2;return n2;});S.setRivalTension(p=>({...p,[cid]:Math.max(0,(p[cid]||0)-25)}));const top=Object.entries(sphere).map(([r2,s2])=>[r2,s2.competitors?.[cid]||0]).sort((a,b)=>b[1]-a[1])[0];if(top)S.setSphere(p=>({...p,[top[0]]:{...p[top[0]],player:Math.max(0,(p[top[0]].player||0)-6)}}));fx.toast(`🕊 Stood down — blockades vs ${rn} lifted, tension −25, a region conceded −6`);S.setLog(p=>[{msg:`🕊 Stood down to ${rn} ultimatum`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);close();}
+  else if(response==='holdLine'){S.setRivalTension(p=>({...p,[cid]:Math.min(99,(p[cid]||0)+6)}));S.setStats(p=>({...p,stability:p.stability-2}));fx.toast(`⚠ Holding firm — ${rn} tension +6, the world holds its breath`);close();}
+  else if(response==='counterThreat'){if(tlM<2){fx.toast('⚠ Counter-threat needs 2+ strategic legs — they know you cannot answer');return;}const backs=rng()<0.6;if(backs){S.setRivalTension(p=>({...p,[cid]:Math.max(0,(p[cid]||0)-20)}));fx.toast(`🛡 ${rn} blinked — tension −20`);S.setLog(p=>[{msg:`🛡 Counter-threat: ${rn} backed down`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}else{S.setRivalTension(p=>({...p,[cid]:Math.min(99,(p[cid]||0)+5)}));S.setStats(p=>({...p,stability:p.stability-4}));fx.toast(`⚠ ${rn} did not blink — tension +5, stability −4`);}close();}
+}
+function confrontationResponse(g,S,fx,response){
+  const confrontation=g.confrontation;const rn=REGIONS[confrontation.rid]?.n;const tg=confrontation.target;const close=()=>{g.confrontation=null;S.setConfrontation(null);};
+  if(response==='enforce'){S.setSphere(p=>{const n2={...p};const s2=n2[confrontation.rid];if(s2)n2[confrontation.rid]={...s2,player:Math.min(100,(s2.player||0)+6),competitors:{...s2.competitors,[tg]:Math.max(0,(s2.competitors?.[tg]||0)-18)}};return n2;});S.setStats(p=>({...p,stability:p.stability-3}));pushTension(g,S,fx,tg,15,'enforcement under fire');S.setNationRelations(p=>{const n2={...p};DIP_TARGETS.forEach(d=>{if(NATION_BLOC[d.id]===NATION_BLOC[tg])n2[d.id]=Math.max(-100,(n2[d.id]||0)-6);});return n2;});fx.toast('⚔️ Cordon enforced — their convoy turned back under fire');S.setLog(p=>[{msg:`⚔️ Enforced blockade vs ${tg} — ${rn}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);close();}
+  else if(response==='board'){S.setSphere(p=>{const n2={...p};const s2=n2[confrontation.rid];if(s2)n2[confrontation.rid]={...s2,player:Math.min(100,(s2.player||0)+3),competitors:{...s2.competitors,[tg]:Math.max(0,(s2.competitors?.[tg]||0)-8)}};return n2;});S.setStats(p=>({...p,treasury:p.treasury+150}));S.setRivalTension(p=>({...p,[tg]:Math.min(100,(p[tg]||0)+5)}));fx.toast('⚓ Convoy boarded — cargo seized (+$150M)');S.setLog(p=>[{msg:`⚓ Boarded ${tg} convoy — ${rn}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);close();}
+  else if(response==='letPass'){S.setBlockades(p=>{const n2={...p};if(n2[confrontation.rid])n2[confrontation.rid]={...n2[confrontation.rid],half:true};g.blockades=n2;return n2;});S.setRivalTension(p=>({...p,[tg]:Math.max(0,(p[tg]||0)-5)}));fx.toast('🕊 Convoy passed — blockade credibility halved');S.setLog(p=>[{msg:`🕊 Let ${tg} convoy pass — ${rn}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);close();}
+}
+
+// Map region panel: flashpoint responses, forward deployment +/-, posture, blockade, kinetic strike.
+function flashpointResponse(g,S,fx,selectedRegion,response){
+  const stats=g.stats;const forceDeployments=g.forceDeployments;const embassies=g.embassies;
+  if(response==='intervene'){const dep=sumDep(forceDeployments[selectedRegion]);const canInt=dep>0||(stats?.military||0)>=70;
+    if(!canInt){fx.toast('⚠ Requires deployed forces here or Military 70+');return;}if((g.stats?.treasury||0)<500){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-500,stability:p.stability-2}));S.setSphere(p=>{const n2={...p};const sph=n2[selectedRegion];if(sph){const top=Object.entries(sph.competitors||{}).sort((a,b)=>b[1]-a[1])[0];n2[selectedRegion]={...sph,player:Math.min(100,(sph.player||0)+15),competitors:top?{...sph.competitors,[top[0]]:Math.max(0,top[1]-8)}:sph.competitors};}return n2;});g.flashpoint=null;S.setFlashpoint(null);fx.toast('🪖 Intervention successful — region secured (+15 sphere)');S.setLog(p=>[{msg:`🪖 Intervened: ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
+  else if(response==='mediate'){if((g.stats?.treasury||0)<300){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-300}));S.setSphere(p=>{const n2={...p};const sph=n2[selectedRegion];if(sph)n2[selectedRegion]={...sph,player:Math.min(100,(sph.player||0)+7)};return n2;});g.flashpoint=null;S.setFlashpoint(null);fx.toast('🕊 Mediation holds (+7 sphere)');S.setLog(p=>[{msg:`🕊 Mediated: ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
+  else if(response==='diplomatic'){const embHere=DIP_TARGETS.some(d=>d.region===selectedRegion&&embassies.has(d.id));
+    if(!embHere){fx.toast('⚠ Requires an embassy in this region — establish one via Trade');return;}if((g.stats?.treasury||0)<200){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-200}));S.setSphere(p=>{const n2={...p};const sph=n2[selectedRegion];if(sph){const top=Object.entries(sph.competitors||{}).sort((a,b)=>b[1]-a[1])[0];n2[selectedRegion]={...sph,player:Math.min(100,(sph.player||0)+6),competitors:top?{...sph.competitors,[top[0]]:Math.max(0,top[1]-4)}:sph.competitors};}return n2;});g.flashpoint=null;S.setFlashpoint(null);fx.toast('🏛️ Diplomatic resolution — embassy back-channels defused the crisis');S.setLog(p=>[{msg:`🏛️ Diplomatic resolution: ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
+}
+// v57 quirk preserved (inventory §8.4): the map +/- commits forceDeployments without writing the live ref.
+const MAP_BLACK=['b21','sr72','ssnx'];
+function adjustDeployment(g,S,fx,selectedRegion,pid,delta){
+  const forceDeployments=g.forceDeployments;const hereObj=forceDeployments[selectedRegion]||{};
+  if(delta>0){const p=PLATFORMS[pid]||BLACK_PROGRAMS[pid];const own=MAP_BLACK.includes(pid)?(+g.blackPrograms[pid]||1):(g.platforms[pid]||0)+(g.platformsImported[pid]||0);
+    const avail=own-Object.values(forceDeployments).reduce((a,r)=>a+((r&&r[pid])||0),0);
+    if(avail<=0){fx.toast(`⚠ No free ${p.n} — build more or recall from other regions`);return;}S.setForceDeployments(pr=>({...pr,[selectedRegion]:{...(pr[selectedRegion]||{}),[pid]:((pr[selectedRegion]||{})[pid]||0)+1}}));}
+  else{const hereN=hereObj[pid]||0;if(hereN<=0)return;S.setForceDeployments(pr=>({...pr,[selectedRegion]:{...(pr[selectedRegion]||{}),[pid]:Math.max(0,((pr[selectedRegion]||{})[pid]||0)-1)}}));}
+}
+function setPosture(g,S,fx,selectedRegion,k,lane){
+  if(lane){S.setForcePosture(p=>{const n2={...p,[selectedRegion]:k};g.forcePosture=n2;return n2;});fx.toast(`🚢 Escort posture — ${REGIONS[selectedRegion]?.n}`);return;}
+  const l=POSTURE_LABELS[k];S.setForcePosture(p=>{const n2={...p,[selectedRegion]:k};g.forcePosture=n2;return n2;});fx.toast(`${l} posture set — ${REGIONS[selectedRegion]?.n}`);
+}
+function liftBlockade(g,S,fx,selectedRegion,quiet){
+  S.setBlockades(p=>{const n2={...p};delete n2[selectedRegion];g.blockades=n2;return n2;});fx.toast(`⚓ ${REGIONS[selectedRegion]?.n} blockade lifted`);if(quiet)return;S.setLog(p=>[{msg:`⚓ Blockade lifted — ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+}
+function declareBlockade(g,S,fx,selectedRegion){
+  const hereObj=g.forceDeployments[selectedRegion]||{};const navalW=navalWeight(hereObj);const topR2=topHostile(g.sphere[selectedRegion]?.competitors,g.country?.id);const blocTrade=g.blocTrade;
+  if(!topR2||topR2[1]<8)return;const can=navalW>=4;
+  if(!can){fx.toast(`⚓ Need naval weight 4+ here (carriers/subs, SSN(X) ×2) — currently ${navalW}`);return;}
+  S.setBlockades(p=>{const n2={...p,[selectedRegion]:{target:topR2[0]}};g.blockades=n2;return n2;});
+  pushTension(g,S,fx,topR2[0],20,'blockade');
+  Object.entries(BLOC_TRADE).forEach(([bk,bm])=>{if(blocTrade[bk]>0&&bm.members.some(m=>NATIONS[m]?.region===selectedRegion)){S.setBlocTrade(p=>{const nb={...p,[bk]:0};g.blocTrade=nb;return nb;});S.setBlocLock(p=>{const nl={...p,[bk]:12};g.blocLock=nl;return nl;});fx.toast(`💥 ${bm.n} suspended — you blockaded members' waters. 12mo freeze`);}});
+  const tBloc=NATION_BLOC[topR2[0]];
+  S.setNationRelations(p=>{const n2={...p};DIP_TARGETS.forEach(d=>{if(d.region===selectedRegion&&NATION_BLOC[d.id]===tBloc)n2[d.id]=Math.max(-100,(n2[d.id]||0)-10);});return n2;});
+  fx.toast(`⚓ Naval blockade declared — ${REGIONS[selectedRegion]?.n} sealed against ${topR2[0]}. An act of war: tension +20`);
+  S.setLog(p=>[{msg:`⚓ BLOCKADE: ${REGIONS[selectedRegion]?.n} vs ${topR2[0]}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+}
+function kineticStrike(g,S,fx,selectedRegion){
+  const hereObj=g.forceDeployments[selectedRegion]||{};const topR=topHostile(g.sphere[selectedRegion]?.competitors,g.country?.id);const kcd=g.actionCooldowns[`kin_${selectedRegion}`]||0;
+  if(sumDep(hereObj)<3||!topR||topR[1]<10)return;
+  const kDmg=kineticDamage(isrScore(g.platforms,g.defLevels,g.intelInfra,g.blackPrograms),hereObj);
+  if(kcd>0){fx.toast(`⚠ Forces regrouping — ${kcd} months`);return;}if((g.stats?.treasury||0)<400){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-400,stability:p.stability-3}));S.setSphere(p=>{const n2={...p};const sph=n2[selectedRegion];if(sph){n2[selectedRegion]={...sph,player:Math.min(100,(sph.player||0)+6),competitors:{...sph.competitors,[topR[0]]:Math.max(0,(sph.competitors?.[topR[0]]||0)-kDmg)}};}return n2;});g.actionCooldowns={...g.actionCooldowns,[`kin_${selectedRegion}`]:8};S.setActionCooldowns(p=>({...p,[`kin_${selectedRegion}`]:8}));pushTension(g,S,fx,topR[0],15,'kinetic strike');fx.toast(`🎯 Kinetic strike: ${topR[0]} assets degraded in ${REGIONS[selectedRegion]?.n} (−${kDmg} their sphere)`);S.setLog(p=>[{msg:`🎯 Kinetic strike vs ${topR[0]} — ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+}
+
 // type -> (g, S, fx, payload). Return values are UI hints only (true = the verb went through).
 export const VERBS={
   // issues, policies, decisions
@@ -401,6 +471,19 @@ export const VERBS={
   respondIntelCrisis:(g,S,fx,{response,crisis})=>respondIntelCrisis(g,S,fx,response,crisis),
   regimeChange:(g,S,fx,{nation})=>regimeChange(g,S,fx,nation),
   launchIntervention:(g,S,fx,{concession})=>launchIntervention(g,S,fx,concession),
+  // modals and economy drill
+  adjustSectorBudget:(g,S,fx,{sector,delta})=>adjustSectorBudget(g,S,fx,sector,delta),
+  chooseDoctrine:(g,S,fx,{doctrine})=>chooseDoctrine(g,S,fx,doctrine),
+  imfBailout:(g,S,fx)=>imfBailout(g,S,fx),
+  ultimatumResponse:(g,S,fx,{response})=>ultimatumResponse(g,S,fx,response),
+  confrontationResponse:(g,S,fx,{response})=>confrontationResponse(g,S,fx,response),
+  // map region panel
+  flashpointResponse:(g,S,fx,{region,response})=>flashpointResponse(g,S,fx,region,response),
+  adjustDeployment:(g,S,fx,{region,unit,delta})=>adjustDeployment(g,S,fx,region,unit,delta),
+  setPosture:(g,S,fx,{region,posture,lane})=>setPosture(g,S,fx,region,posture,lane),
+  liftBlockade:(g,S,fx,{region,quiet})=>liftBlockade(g,S,fx,region,quiet),
+  declareBlockade:(g,S,fx,{region})=>declareBlockade(g,S,fx,region),
+  kineticStrike:(g,S,fx,{region})=>kineticStrike(g,S,fx,region),
 };
 
 export function applyVerb(g,S,fx,action){
@@ -408,3 +491,4 @@ export function applyVerb(g,S,fx,action){
   if(!f)throw new Error(`Unknown verb: ${action&&action.type}`);
   return f(g,S,fx,action.payload||{});
 }
+

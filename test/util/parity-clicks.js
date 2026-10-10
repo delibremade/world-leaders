@@ -40,7 +40,7 @@ export function clickDriver(g) {
 
 // Modal answerer that rotates through options so every modal choice gets exercised over a run. Game-over prefers the
 // IMF bailout (second button) so the run continues.
-export function rotatingAnswer(g) {
+export function rotatingAnswer(g, offset = 0) {
   const seen = {};
   const answer = () => {
     const { doc } = g;
@@ -53,7 +53,7 @@ export function rotatingAnswer(g) {
     const kind = /Nuclear Ultimatum/.test(txt) ? 'ult' : /Blockade Confrontation/.test(txt) ? 'conf' : /Intelligence Crisis/.test(txt) ? 'crisis' : /IMF Bailout/.test(txt) ? 'over' : 'other';
     let i;
     if (kind === 'over') { i = 1; seen.over = (seen.over || 0) + 1; }
-    else { seen[kind] = (seen[kind] || 0) + 1; i = (seen[kind] - 1) % opts.length; }
+    else { seen[kind] = (seen[kind] || 0) + 1; i = (seen[kind] - 1 + offset) % opts.length; }
     opts[i].click(); return true;
   };
   answer.seen = seen;
@@ -144,6 +144,7 @@ export const verbScript = (g, shocks) => {
     41: async () => { await tab('overview'); await region('Middle East'); await tryClick(/Lift Blockade/); await closeRegion(); },
     40: async () => { await tab('intel'); await tryClick(/🎯 Regime change · \$6B/); },
     60: async () => { await tab('trade'); await tryClick(/✂️ Cut/); await click(/✖ Clear/); },
+    110: async () => { h().fund(-9000); },
     100: async () => { h().setTension('china', 92); await tab('intel'); await tryClick(/☢️ Employ · \$3B/); },
   };
   let deploys = 0;

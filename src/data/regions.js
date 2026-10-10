@@ -58,3 +58,6 @@ export const REGION_BONUS={
   SEA:{treasury:10,gdpGrowth:0.008},
   PAC:{stability:0.04,treasury:6},
 };
+
+// Force posture labels per theater (Defense / map region panel).
+export const POSTURE_LABELS={deter:'🛡️ Deterrence',escort:'🚢 Escort / FON',isr:'👁️ ISR Overwatch',exercise:'🤝 Joint Exercises',humanitarian:'🆘 Humanitarian'};

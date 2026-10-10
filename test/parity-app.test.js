@@ -45,17 +45,18 @@ for (const c of CASES) {
 
 // P2b gate: the same, plus a scripted click sequence through the rendered UI that exercises every verb family
 // (test/util/parity-clicks.js). Verbs moving from App.jsx into src/sim/actions.js must keep these saves byte-identical.
-const VERB_CASES = [{ seed: 10, country: 0 }, { seed: 11, country: 0 }];
+// offset rotates modal answers so the two runs together pick every ultimatum and confrontation option.
+const VERB_CASES = [{ seed: 10, country: 0, offset: 0 }, { seed: 11, country: 0, offset: 2 }];
 const MUST_HIT = [/Kinetic Strike/, /Declare Blockade/, /Demonstration/, /Employ/, /decapitation/, /Regime change/, /Absolute Resolve/,
   /Rehabilitate/, /Hand over/, /Tranche/, /Initiate/, /Phase II/, /Cut Off/, /Back-channel/, /Deploy\$/, /^decision$/, /^flashpoint$/];
 const modalsSeen = {};
 
-async function playVerbs(entry, { seed, country }) {
+async function playVerbs(entry, { seed, country, offset }) {
   const origErr = console.error; console.error = () => {};
   const g = await mount(entry, { seed, testHook: true });
   try {
     await g.pickCountry(country);
-    const vs = verbScript(g, script(g.w)); const answer = rotatingAnswer(g);
+    const vs = verbScript(g, script(g.w)); const answer = rotatingAnswer(g, offset);
     const months = await g.advance(MONTHS, vs.onMonth, answer);
     for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0));
     return { months, saves: g.saves.slice(), hits: vs.hits, seen: answer.seen };
