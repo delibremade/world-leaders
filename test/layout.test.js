@@ -1,6 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { launch, openGame, overflow, settle } from './util/browser.js';
+import { launch, openGame, overflow, settle, stableRect } from './util/browser.js';
 import { TABS, PANES, FOLDED } from './util/harness.js';
 
 // P3d gate: layout assertions jsdom cannot make, in real Chromium (playwright-core, devDependency).
@@ -80,7 +80,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       }
       await seg(page, 'controls');
       await page.evaluate(() => [...document.querySelectorAll('[data-minerals] button')].find((b) => /Export control/.test(b.textContent))?.click()); await settle(page, 400);
-      const c = await rect(page, '[data-confirm]'); if (c) assert.ok(c.x >= 0 && c.r <= W + 0.5, JSON.stringify(c));
+      const c = await stableRect(page, '[data-confirm]', { within: { W, H } }); if (c) assert.ok(c.x >= 0 && c.r <= W + 0.5, JSON.stringify(c));
       assert.deepEqual(errors, []);
     } finally { await ctx.close(); }
   });

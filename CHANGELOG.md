@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.72.3 (2026-10-10) — F3 (#35): opened sheets and popovers no longer clip on desktop
+- Sheet: >= 900px it is a 440px right-side panel (vaul direction right), not a full-width bottom sheet. Sheet and scrim now stack above the outliner (phone: the outliner handle no longer paints over the sheet bottom).
+- Popovers (why, help) cap their height to the space Radix reports, so a tall one scrolls instead of running off the viewport.
+- Test hook: `__wl.region(rid)`, `__wl.nation(id)`.
+- Tests: `test/opened-states.test.js` opens event cards, every why trigger on all nine verticals, help, outliner, region sheet and nation sheet at 390 and 1280 and asserts each is inside the viewport, cards and outliner clear the HUD, and nothing paints over an opened panel. UI only; parity untouched.
+
 ## 0.72.2 (2026-10-10) — F4 (#36): pause is a toggle that remembers speed
 - The pause button toggles; resume restores the last speed (default 1x) with no speed click. While paused it reads `▶ 2×` and the chip says what resumes. Space toggles on desktop (>= 900px, ignored in fields and buttons).
 - Engine pause: the crisis briefing shows its reason and the same toggle closes it and resumes. Hard gates (ultimatum, confrontation, intel crisis, end screens) still need their own choice: the toggle is inert there and the chip names the gate.

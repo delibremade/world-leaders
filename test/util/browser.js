@@ -6,6 +6,13 @@ import { bundle, BUNDLES } from './harness.js';
 import { shell } from '../../scripts/shell.js';
 
 export const settle = (page, ms = 250) => page.waitForTimeout(ms);
+// Wait until an element's box stops moving (sheets slide in): two reads 120ms apart agree, or 3s pass. Returns the last box or null.
+export async function stableRect(page, sel, { within = null } = {}) { // within: {W,H} also waits (up to 5s) for the box to be inside it
+  const read = () => page.evaluate((sel) => { const e = document.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, r: r.right, b: r.bottom, w: r.width, h: r.height }; }, sel);
+  let prev = await read();
+  for (let i = 0; i < 40; i++) { await page.waitForTimeout(120); const cur = await read(); const still = cur && prev && ['x', 'y', 'r', 'b'].every((k) => Math.abs(cur[k] - prev[k]) < 0.5); const fits = !within || (cur && cur.x >= -0.5 && cur.y >= -0.5 && cur.r <= within.W + 0.5 && cur.b <= within.H + 0.5); if (still && fits) return cur; prev = cur; }
+  return prev;
+}
 const findChromium = () => {
   const root = process.env.PLAYWRIGHT_BROWSERS_PATH;
   if (!root || !existsSync(root)) return undefined; // let playwright resolve its own cache
