@@ -35,3 +35,18 @@ export function isDiversified(g){return ['oil','gas','coal'].filter(k=>g.importC
 export function getQualMult(v,dl){const p=DV[v]?.chain||[];if(!p.length)return 1;const ml=dl[v]||0;const ap=p.reduce((s,k)=>s+(dl[k]||0),0)/p.length;return ap>=ml?1:Math.max(0.4,1-(ml-ap)*0.2);}
 export function getRefineMult(dl){const ms=dl.materials||0,pr=dl.propulsion||0;if(ms>=5&&pr>=4)return 2.4;if(ms>=3&&pr>=2)return 1.6;if(ms>=2&&pr>=1)return 1.3;return 1.0;}
 export function getDefLeverage(dl,gdb,cid){const excl=Object.entries(gdb).filter(([k])=>k!==cid);if(!excl.length)return 1;const verts=Object.keys(DV);const pAvg=verts.reduce((s,v)=>s+(dl[v]||0),0)/verts.length;const gAvg=verts.reduce((s,v)=>s+(excl.reduce((mx,[,n])=>Math.max(mx,n[v]||0),0)),0)/verts.length/excl.length;return Math.min(1.5,1+Math.max(0,pAvg-gAvg)*0.1);}
+// Strategic legs fielded (SSBN, bombers, ICBM, B-21). Ultimatum counter-threat and the final-options panel.
+export const triadLegs=(platforms,black)=>((platforms.ssbn_fleet||0)>0?1:0)+((platforms.strategic_bombers||0)>0?1:0)+((platforms.icbm_force||0)>0?1:0)+((+black.b21||0)>0?1:0);
+// Kinetic strike damage to the top hostile's sphere in a region: ISR-scaled plus strike platforms stationed there.
+export const kineticDamage=(isr,dep)=>18+Math.round(isr/2)+(dep.fa_xx||0)*2+(dep.zumwalt||0)*3+(dep.mq25||0)*1;
+// Every R&D requirement of a platform / SAP / facility met.
+export const meetsReq=(req,dl)=>Object.entries(req).every(([v,rq])=>(dl[v]||0)>=rq);
+// Platform procurement price under the procurement mode.
+export const procurementCost=(p,mode)=>Math.round(p.cost*(mode==='efficiency'?0.85:mode==='surge'?1.25:1));
+// SAP production tranche price: cheaper per unit as the line matures.
+export const sapRate=(n)=>n<3?0.35:n<6?0.30:0.25;
+export const sapRunCost=(bp,n)=>Math.round(bp.cost*sapRate(n));
+// Force recapitalization price: 8% of treasury, clamped to $1.5B..$8B.
+export const recapCost=(treasury)=>Math.max(1500,Math.min(8000,Math.round((treasury||0)*0.08)));
+// A rival's strategic weight (aircraft / missiles / naval at L5+), 0..3. Parity with your triad = MAD.
+export const strategicWeight=(gl)=>((gl.aircraft||0)>=5?1:0)+((gl.missiles||0)>=5?1:0)+((gl.naval||0)>=5?1:0);

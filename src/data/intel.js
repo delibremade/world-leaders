@@ -80,3 +80,6 @@ export const CRISIS_STOLEN=[
   {id:'absorb',    label:'Absorb + Invest Quietly',
    tags:['No diplomatic cost','+15% effectiveness on next 2 ops'],effect:{}},
 ];
+
+// Response doctrine labels for foreign operations caught against you (Intel tab).
+export const INTEL_POSTURE_LABELS={quiet:'🕳️ Quiet',expose:'🗞️ Expose',expel:'✈️ Expel'};

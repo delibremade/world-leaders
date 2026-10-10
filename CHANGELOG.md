@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.61.0 (2026-10-10) — P2b player verbs into src/sim/actions.js
+- Every v57 player verb is now `dispatch({type, payload})` -> `applyVerb(g, S, fx, action)` (`src/sim/actions.js`, 100 verbs): the 20 callbacks plus ~80 inline render handlers. Payloads are keyed by nation / region / id for the P3 bottom sheet. App keeps presentation state only (tabs, selection, panels, speed, pause) and session lifecycle (start, resume, New Nation).
+- Shared rules hoisted so render and verbs use one implementation: `triadLegs`, `strategicWeight`, `kineticDamage`, `meetsReq`, `procurementCost`, `sapRate/sapRunCost`, `recapCost` (formulas.js); bloc tier reqs, EU/CN T3 exclusivity, EU thresholds, statecraft groups (`src/sim/selectors.js`). Labels to `src/data`.
+- Gate: `test/util/parity-clicks.js` drives every verb family through the UI (2 seeds x 120 months, every modal option, IMF bailout); App autosaves byte-identical to v57. `test/actions.test.js`: dispatch/VERBS coverage both ways, no game writes left in the UI, headless tests for verbs parity cannot reach (modernization, recapitalization, bailout).
+- v57 text variants of one act kept via `from` (back-channel, reserve release, posture, blockade lift); v57 quirks kept: map +/- skips the live ref, lane sanctions skip bloc consequences.
+
 ## 0.60.1 (2026-10-10) — fix: embargoed player with import contracts no longer faults every month
 - `isDiversified(g)` in `src/sim/formulas.js` replaces the v57 TDZ read (inventory bug 1); the two read sites in `tick.js` share it. No other rule changed.
 - `window.__wl.embargoBy/imports` test hooks; `test/embargo-imports.test.js` (engine + App smoke). Parity unchanged (no scenario hits the bug).

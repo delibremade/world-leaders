@@ -118,3 +118,8 @@ export const SECTOR_DECAY={
   education: {education:0.28,inequality:0.04},
   technology:{gdpGrowth:0.09,education:0.14},
 };
+
+// Sector labels (budget panel, modernization log).
+export const SECTOR_LABELS={defense:'🛡️ Defense',energy:'⚡ Energy',healthcare:'🏥 Healthcare',education:'🎓 Education',technology:'💻 Technology'};
+// IP policy labels (Technology tab).
+export const IP_POLICY_LABELS={protect:'🛡️ Protect',balanced:'⚖️ Balanced',license:'💰 License'};
