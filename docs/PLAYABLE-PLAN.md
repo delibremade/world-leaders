@@ -15,11 +15,36 @@ Priority set by owner 2026-10-09: **a playable build with proper visuals and eve
 |---|---|---|---|
 | **P1** | v57 as-is, bundled from the repo and live on GitHub Pages | Sonnet | Playable at a URL on the phone; autosave works |
 | **P2** | Thin seam: state + tick out of the component | Opus | Smoke gate green; v57 UI runs on the extracted engine; zero rule changes |
-| **P3** | Visual foundation: design system + PixiJS world map + Tier 1 shell (map modes, bottom sheet, why-breakdowns, outliner, event cards, sparklines) | Opus | Map renders all v57 layers at 60fps on phone; all 6 Tier 1 components live; tokens applied app-wide |
-| **P4** | Vertical-by-vertical UI rebuild (V1..V9 below, incl. Tier 2 components), one PR per vertical | Sonnet/Opus | Each vertical meets its acceptance list; feature-gaps list empty or signed off |
+| **P3** | Visual foundation: design system + PixiJS world map + Tier 1 shell (map modes, bottom sheet, why-breakdowns, outliner, event cards, sparklines) | **Fable 5.1** | Map renders all v57 layers at 60fps on phone; all 6 Tier 1 components live; tokens applied app-wide |
+| **P4** | Vertical-by-vertical UI rebuild (V1..V9 below, incl. Tier 2 components), one PR per vertical | Sonnet | Each vertical meets its acceptance list; feature-gaps list empty or signed off |
 
 ## Visual direction
 **Decided (owner, 2026-10-09): Situation-room tactical.** Dark, vector, glowing data on a command-terminal base (v57's current look is the seed). Recorded as tokens in `docs/DESIGN-SYSTEM.md` by P3. All vertical UIs inherit the tokens; no per-tab styling.
+
+## Model split (decided 2026-10-10)
+- **Fable 5.1: P3 only.** WebGL map + gestures + phone performance + engine wiring is long-horizon agentic work; worth ~2x cost there.
+- **Sonnet 5.5: P4 vertical PRs, bug fixes, mechanical ports.**
+- **Opus 5.5: reviews, audits, engine refactors with parity proofs (P2b-style).**
+- All models share the Max usage bucket: one heavy session per 5-hour window.
+
+## Tech stack (decided 2026-10-10; versions current on npm as of that date)
+| Job | Package | License | Notes |
+|---|---|---|---|
+| Map renderer | pixi.js 8.x | MIT | WebGL 2D; units, flows, map modes |
+| Pan / pinch / inertia | pixi-viewport 6.x | MIT | stable, small |
+| Projection + borders | d3-geo 3.x, world-atlas 2.x | ISC | REGION_GEO stays the source; regenerate, never hand-edit |
+| Bottom sheet | vaul 1.x | MIT | |
+| "Why" popovers | @radix-ui/react-popover 1.x | MIT | |
+| Transitions | motion 14.x | MIT | event cards, sheets |
+| Swipe gestures | @use-gesture/react 10.x | MIT | outliner |
+| Node graphs (Tier 2) | @xyflow/react 12.x | MIT | policy web (V3), tech lanes (V8) |
+| Charts | recharts 2.x (existing) | MIT | sparklines, ledger; no second chart library |
+| Audio (Tier 3) | howler 2.x | MIT | |
+| Icons | game-icons.net (CC BY 3.0, attribution required), Kenney (CC0) | | confirm license per asset; credits screen required |
+
+**Rejected:** deck.gl and MapLibre (second renderer / tile maps we don't need), visx (duplicates recharts), 3D engines.
+**License rule:** never copy code from GPL/AGPL projects. OpenFrontIO (AGPL v3) and freeciv-web (GPL) are study-only references for map rendering, territory shading and UI flow.
+**Dependency rule:** pin exact versions at least two weeks old; any new dependency beyond this table needs a one-line justification in its PR.
 
 ## UI principles (from the best-in-class review, 2026-10-09)
 1. **The map is the interface**, not wallpaper. Most actions start by tapping a place or a nation on it.
