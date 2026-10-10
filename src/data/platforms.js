@@ -26,21 +26,107 @@ export const PLATFORMS={
 // Bleeding-edge capability AND the highest-value espionage targets (rivals will try to steal them).
 export const BLACK_PROGRAMS={
   b21:  {n:'B-21 Raider',i:'🛩️',cost:8000, mo:30,req:{aircraft:5,munitions:4,materials:4},mil:22,cap:6,
-    d:'Stealth strategic bomber. +22 military, strengthens nuclear deterrent.',bonus:'deterrent',exportable:false,deployable:true,dOrder:9},
+    d:'Stealth strategic bomber. +22 military, strengthens nuclear deterrent.',bonus:'deterrent',exportable:false,deployable:true,dOrder:9,slot:'bomber'},
   f47:  {n:'F-47 (NGAD)',i:'✈️',cost:11000,mo:36,req:{aircraft:6,propulsion:5,computers:5},mil:26,cap:8,
-    d:'6th-gen air dominance fighter. +26 military, commands CCA drone formations.',bonus:'air',exportable:false,deployable:true,dOrder:10},
+    d:'6th-gen air dominance fighter. +26 military, commands CCA drone formations.',bonus:'air',exportable:false,deployable:true,dOrder:10,slot:'gen6'},
   cca:  {n:'CCA Drone Wings',i:'🛸',cost:6000,mo:24,req:{aircraft:5,computers:5,cyber:4},mil:18,cap:12,
-    d:'Collaborative Combat Aircraft. +18 military, force-multiplies all air platforms.',bonus:'multiplier',exportable:true,attachesTo:'f47'},
+    d:'Collaborative Combat Aircraft. +18 military, force-multiplies all air platforms.',bonus:'multiplier',exportable:true,attachesTo:'f47',slot:'cca'},
   sr72: {n:'SR-72 Darkstar',i:'🚀',cost:9000,mo:30,req:{propulsion:6,materials:5,space:4},mil:14,cap:3,
-    d:'Hypersonic ISR/strike. +14 military, +6 ISR (deep reconnaissance).',bonus:'isr',exportable:false,deployable:true,dOrder:11},
+    d:'Hypersonic ISR/strike. +14 military, +6 ISR (deep reconnaissance).',bonus:'isr',isr:6,exportable:false,deployable:true,dOrder:11,slot:'isr'},
   ssnx: {n:'SSN(X) Attack Sub',i:'🌑',cost:10000,mo:34,req:{naval:6,propulsion:5,materials:4},mil:24,cap:8,
-    d:'Next-gen nuclear attack submarine. +24 military, undetectable sea control.',bonus:'naval',exportable:true,deployable:true,dOrder:12},
+    d:'Next-gen nuclear attack submarine. +24 military, undetectable sea control.',bonus:'naval',exportable:true,deployable:true,dOrder:12,slot:'ssn'},
+  // E3 (#15): nation programs. Same role slots, different platforms. `req:{}` + `kv` = a line already in service (kv: the vertical a theft hits).
+  // `risk`: chance a prototype slips 12 months at first flight; funding the parallel program halves it.
+  f35:   {n:'F-35 Lightning II',i:'✈️',cost:4000,mo:24,req:{},kv:'aircraft',mil:12,cap:12,d:'5th-gen multirole. In service: production open from day one.',bonus:'air',exportable:true,deployable:true,dOrder:13,slot:'gen5'},
+  j20:   {n:'J-20 Mighty Dragon',i:'✈️',cost:3500,mo:24,req:{},kv:'aircraft',mil:11,cap:12,d:'5th-gen air superiority fighter. In service; GJ-11 wingmen attach to it.',bonus:'air',exportable:false,deployable:true,dOrder:14,slot:'gen5'},
+  j35:   {n:'J-35',i:'🛩️',cost:3200,mo:24,req:{},kv:'aircraft',mil:10,cap:12,d:'5th-gen medium stealth fighter, land and carrier variants. Early production.',bonus:'air',exportable:true,deployable:true,dOrder:15,slot:'gen5'},
+  su57:  {n:'Su-57 Felon',i:'✈️',cost:3800,mo:24,req:{},kv:'aircraft',mil:10,cap:8,d:'5th-gen fighter at low rate. S-70 Okhotnik attaches to it.',bonus:'air',exportable:true,deployable:true,dOrder:16,slot:'gen5'},
+  gripen:{n:'Gripen E',i:'🛩️',cost:2000,mo:18,req:{},kv:'aircraft',mil:6,cap:10,d:'Gen 4.5 multirole, Swedish design built under licence in Brazil.',bonus:'air',exportable:true,deployable:true,dOrder:17,slot:'gen5'},
+  x_gen5:{n:'Indigenous 5th-gen fighter',i:'🛠️',cost:9000,mo:36,req:{aircraft:4,propulsion:4,computers:4},mil:12,cap:8,d:'Your own stealth fighter from a blank sheet. Slow and costly; no foreign veto.',bonus:'air',exportable:true,deployable:true,dOrder:18,slot:'gen5'},
+  j36:   {n:'J-36',i:'🦅',cost:10000,mo:36,req:{aircraft:3,propulsion:3,computers:3},mil:24,cap:8,risk:0.3,parallel:'j50',d:'Tailless tri-engine 6th-gen heavy fighter. Prototype flying.',bonus:'air',exportable:false,deployable:true,dOrder:19,slot:'gen6'},
+  j50:   {n:'J-50',i:'🦅',cost:8000,mo:30,req:{aircraft:3,propulsion:2,computers:3},mil:20,cap:8,risk:0.3,parallel:'j36',d:'Tailless twin-engine 6th-gen fighter. Prototype flying.',bonus:'air',exportable:false,deployable:true,dOrder:20,slot:'gen6'},
+  gcap:  {n:'GCAP Tempest',i:'🦅',cost:12000,mo:48,req:{aircraft:4,propulsion:4,computers:4},mil:24,cap:8,d:'UK-Italy-Japan 6th-gen fighter, service target ~2035.',bonus:'air',exportable:false,deployable:true,dOrder:21,slot:'gen6'},
+  fcas:  {n:'FCAS / SCAF',i:'🦅',cost:12000,mo:48,req:{aircraft:4,propulsion:4,computers:4},mil:24,cap:8,d:'France-Germany-Spain next-generation air combat system.',bonus:'air',exportable:false,deployable:true,dOrder:22,slot:'gen6'},
+  x_gen6:{n:'Indigenous 6th-gen fighter',i:'🛠️',cost:16000,mo:54,req:{aircraft:6,propulsion:5,computers:5},mil:24,cap:6,d:'A sovereign 6th-gen program. Enormous cost, total control.',bonus:'air',exportable:false,deployable:true,dOrder:23,slot:'gen6'},
+  h20:   {n:'H-20',i:'🛩️',cost:9000,mo:36,req:{aircraft:4,munitions:3,materials:3},mil:20,cap:6,d:'Stealth strategic bomber. Adds the air leg of the nuclear triad.',bonus:'deterrent',exportable:false,deployable:true,dOrder:24,slot:'bomber'},
+  pakda: {n:'PAK DA',i:'🛩️',cost:8500,mo:40,req:{aircraft:4,munitions:3,materials:3},mil:18,cap:6,d:'Subsonic flying-wing strategic bomber. Adds the air leg of the nuclear triad.',bonus:'deterrent',exportable:false,deployable:true,dOrder:25,slot:'bomber'},
+  x_bomber:{n:'Indigenous stealth bomber',i:'🛠️',cost:12000,mo:48,req:{aircraft:5,munitions:4,materials:4},mil:20,cap:4,d:'A sovereign penetrating bomber. Adds the air leg of the nuclear triad.',bonus:'deterrent',exportable:false,deployable:true,dOrder:26,slot:'bomber'},
+  gj11:  {n:'GJ-11 Sharp Sword',i:'🛸',cost:4500,mo:24,req:{aircraft:3,computers:3},mil:14,cap:12,d:'Stealth UCAV. Attaches to J-20 wings as loyal wingmen.',bonus:'multiplier',exportable:true,attachesTo:'j20',slot:'cca'},
+  s70:   {n:'S-70 Okhotnik',i:'🛸',cost:4000,mo:24,req:{aircraft:3,computers:2},mil:12,cap:10,d:'Heavy stealth UCAV. Attaches to Su-57 wings.',bonus:'multiplier',exportable:true,attachesTo:'su57',slot:'cca'},
+  gcap_cca:{n:'GCAP adjunct drones',i:'🛸',cost:5000,mo:30,req:{aircraft:4,computers:4,cyber:3},mil:14,cap:12,d:'Uncrewed adjuncts flying with GCAP. Attach to GCAP wings.',bonus:'multiplier',exportable:true,attachesTo:'gcap',slot:'cca'},
+  x_cca: {n:'Indigenous combat drones',i:'🛠️',cost:7000,mo:30,req:{aircraft:5,computers:5,cyber:4},mil:14,cap:10,d:'Sovereign collaborative combat aircraft. Air force multiplier.',bonus:'multiplier',exportable:true,slot:'cca'},
+  wz8:   {n:'WZ-8',i:'🚀',cost:3000,mo:18,req:{},kv:'propulsion',mil:6,cap:4,isr:4,d:'Rocket-powered hypersonic reconnaissance drone, air-launched. +4 ISR.',bonus:'isr',exportable:false,deployable:true,dOrder:27,slot:'isr'},
+  x_isr: {n:'Indigenous hypersonic ISR',i:'🛠️',cost:10000,mo:36,req:{propulsion:6,materials:5,space:4},mil:12,cap:3,isr:6,d:'Sovereign hypersonic reconnaissance. +6 ISR.',bonus:'isr',exportable:false,deployable:true,dOrder:28,slot:'isr'},
+  t095:  {n:'Type 095 SSN',i:'🌑',cost:8000,mo:36,req:{naval:3,propulsion:3,materials:2},mil:18,cap:8,d:'Next-gen quieter nuclear attack submarine.',bonus:'naval',exportable:false,deployable:true,dOrder:29,slot:'ssn'},
+  husky: {n:'Husky SSN',i:'🌑',cost:9000,mo:42,req:{naval:4,propulsion:3,materials:3},mil:18,cap:6,d:'Fifth-generation nuclear attack submarine.',bonus:'naval',exportable:false,deployable:true,dOrder:30,slot:'ssn'},
+  x_ssn: {n:'Indigenous next-gen SSN',i:'🛠️',cost:12000,mo:48,req:{naval:6,propulsion:5,materials:4},mil:20,cap:6,d:'Sovereign nuclear attack submarine.',bonus:'naval',exportable:false,deployable:true,dOrder:31,slot:'ssn'},
+  ford:  {n:'Ford-class carrier',i:'🛳️',cost:13000,mo:48,req:{},kv:'naval',mil:14,cap:4,d:'Supercarrier with EMALS. In service; hulls in build.',bonus:'naval',exportable:false,deployable:true,dOrder:32,slot:'carrier'},
+  fujian:{n:'Fujian (Type 003)',i:'🛳️',cost:9000,mo:36,req:{naval:2,aircraft:1},mil:12,cap:4,d:'First catapult carrier. Sea trials.',bonus:'naval',exportable:false,deployable:true,dOrder:33,slot:'carrier'},
+  x_carrier:{n:'Indigenous carrier',i:'🛠️',cost:15000,mo:60,req:{naval:5,aircraft:4,materials:4},mil:12,cap:3,d:'A sovereign fleet carrier program.',bonus:'naval',exportable:false,deployable:true,dOrder:34,slot:'carrier'},
 };
 // The deployable set is data (`deployable:true`), never a literal list (E1, #13). Display order is `dOrder` (v57 order, F-47 after the B-21).
 // CCA wings are not deployable: they attach to F-47 wings as a weight multiplier (see ccaMult in formulas.js).
 export const DEPLOYABLE=[...Object.keys(PLATFORMS),...Object.keys(BLACK_PROGRAMS)].filter(k=>(PLATFORMS[k]||BLACK_PROGRAMS[k]).deployable).sort((a,b)=>(PLATFORMS[a]||BLACK_PROGRAMS[a]).dOrder-(PLATFORMS[b]||BLACK_PROGRAMS[b]).dOrder);
 // Deployment weight per unit (default 1).
-export const DEP_W={b21:2,ssnx:2,sr72:0.6,frigate:0.5,zumwalt:1.2,mq25:0.8,fa_xx:1};
+export const DEP_W={b21:2,ssnx:2,sr72:0.6,frigate:0.5,zumwalt:1.2,mq25:0.8,fa_xx:1,h20:2,pakda:2,x_bomber:2,t095:2,husky:2,x_ssn:2,wz8:0.6,x_isr:0.6,ford:1.5,fujian:1.3,x_carrier:1.2};
+// Naval weight of E3 hulls (the v57 hulls keep their literal terms in navalWeight).
+export const NAV_W={t095:2,husky:2,x_ssn:2,ford:1.5,fujian:1.3,x_carrier:1.2};
+
+// ── E3 (#15) nation catalogs. Role slots in display order: the v57 SAP order first (bomber, gen6, CCA, ISR, SSN), new slots after.
+export const SLOTS=[['bomber','Stealth bomber'],['gen6','Gen 6 fighter'],['cca','CCA / UCAV'],['isr','Hypersonic ISR'],['ssn','Next-gen SSN'],['gen5','Gen 5 fighter'],['carrier','Carrier']];
+// Program stages. `start` in a catalog is the real 2024 stage; lrip/full = production open at start, no SAP office needed.
+export const STAGES=[['rd','R&D'],['proto','Prototype'],['lrip','LRIP'],['full','Full rate']];
+// status_source: where the 2024 stage comes from. "general knowledge" entries are for the owner to correct (spec Part 2).
+// USA: the five v57 programs keep v57 behavior (start R&D) by owner rule "US unchanged except E1"; their real 2024 stage is in status_source.
+const GK='general knowledge, owner to verify';
+export const CATALOGS={
+  usa:[
+    {id:'b21',start:'rd',status_source:`${GK}: real 2024 stage LRIP; kept at R&D (v57 behavior, US unchanged)`},
+    {id:'f47',start:'rd',status_source:`${GK}: NGAD in development 2024 (F-47 award 2025)`},
+    {id:'cca',start:'rd',status_source:`${GK}: Increment 1 prototypes 2024; kept at R&D (v57 behavior)`},
+    {id:'sr72',start:'rd',status_source:`${GK}: R&D, unacknowledged`},
+    {id:'ssnx',start:'rd',status_source:`${GK}: design phase 2024`},
+    {id:'f35',start:'full',status_source:`${GK}: full-rate production declared March 2024`},
+    {id:'ford',start:'lrip',status_source:`${GK}: CVN-78 in service, CVN-79..81 building`}],
+  china:[
+    {id:'h20',start:'rd',status_source:`${GK}: in development, not shown publicly`},
+    {id:'j36',start:'proto',status_source:'owner spec Part 2: prototype flying (Dec 2024), funded in parallel with J-50'},
+    {id:'j50',start:'proto',status_source:'owner spec Part 2: prototype flying (Dec 2024), funded in parallel with J-36'},
+    {id:'gj11',start:'proto',status_source:`${GK}: prototypes and trials`},
+    {id:'wz8',start:'lrip',status_source:`${GK}: in service in small numbers (shown 2019)`},
+    {id:'t095',start:'rd',status_source:`${GK}: in development / early construction`},
+    {id:'j20',start:'full',status_source:`${GK}: serial production since ~2017`},
+    {id:'j35',start:'lrip',status_source:`${GK}: J-35A shown Nov 2024, early production`},
+    {id:'fujian',start:'proto',status_source:`${GK}: sea trials from May 2024`}],
+  russia:[
+    {id:'pakda',start:'rd',status_source:`${GK}: in development`},
+    {id:'s70',start:'proto',status_source:`${GK}: prototypes flying`},
+    {id:'husky',start:'rd',status_source:`${GK}: design phase`},
+    {id:'su57',start:'lrip',status_source:`${GK}: in service at low rate`}],
+  japan:[
+    {id:'gcap',start:'rd',status_source:`${GK}: GCAP development (UK/Italy/Japan), service ~2035`},
+    {id:'gcap_cca',start:'rd',status_source:`${GK}: adjunct concept with GCAP`},
+    {id:'f35',start:'full',buy:true,status_source:`${GK}: F-35A/B buyer, final assembly in Nagoya`}],
+  germany:[
+    {id:'fcas',start:'rd',status_source:`${GK}: FCAS phase 1B demonstrator work`},
+    {id:'f35',start:'full',buy:true,status_source:`${GK}: 35 F-35A ordered 2022, deliveries from 2026`}],
+  norway:[
+    {id:'f35',start:'full',buy:true,status_source:`${GK}: F-35A fleet operational 2022`}],
+  brazil:[
+    {id:'gripen',start:'lrip',status_source:`${GK}: Gripen E deliveries and local assembly ongoing`}],
+  cuba:[],
+};
+// Foreign-built lines (F-35 for buyers) cost this much more per tranche: delivered from the owner's line.
+export const BUY_PREMIUM=1.2;
+// Indigenous programs fill any slot a nation's catalog leaves empty (spec: "start their own program at R&D").
+export const INDIGENOUS={gen5:'x_gen5',gen6:'x_gen6',bomber:'x_bomber',cca:'x_cca',isr:'x_isr',ssn:'x_ssn',carrier:'x_carrier'};
+// A nation's full catalog: its own entries plus an R&D indigenous entry for every empty slot, in SLOTS order.
+export function nationCatalog(nid){
+  const own=CATALOGS[nid]||[];
+  return SLOTS.flatMap(([slot])=>{const xs=own.filter(e=>BLACK_PROGRAMS[e.id].slot===slot);return xs.length?xs:[{id:INDIGENOUS[slot],start:'rd',status_source:'game abstraction: indigenous program'}];});
+}
+// Display order inside the v57 grid: catalog order (keeps the v57 SAP order for the USA).
+export const catalogEntry=(nid,id)=>nationCatalog(nid).find(e=>e.id===id)||null;
 
 // Defense verticals
 export const DV={

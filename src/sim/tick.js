@@ -11,7 +11,7 @@ import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, CRISIS_FRIENDLY, CRISIS_HOSTIL
 import { BLOC_TRADE } from '../data/trade.js';
 import { CHOKEPOINTS, IMPORT_ROUTES } from '../data/chokepoints.js';
 import { RES_META, CONCESSIONS } from '../data/energy.js';
-import { sumDep, isAllyOf, topHostile, wSum, navalWeight, calcSCost, getEnergyTier, isDiversified, getRefineMult } from './formulas.js';
+import { sumDep, isAllyOf, topHostile, wSum, navalWeight, calcSCost, getEnergyTier, isDiversified, getRefineMult, triadLegs as legsOf, airMult } from './formulas.js';
 import { naturalDrift } from './economy.js';
 import { rng } from './rng.js';
 import { pickWorldEvent, startWorldEvent, eventCooldowns, fireChain, eventEffects } from './events.js';
@@ -116,6 +116,23 @@ function economy(g,S,fx,m){
       S.setLog(p=>[{msg:`🛩️ Black program complete: ${BLACK_PROGRAMS[br.id].n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
     } else {g.blackResearch={...br,prog:nprog};S.setBlackResearch({...br,prog:nprog});}
   }
+  // E3 (#15): prototype lines (catalog programs that start at prototype) run in parallel, outside the single SAP slot.
+  // A program with `risk` may slip 12 months once at first flight; funding its parallel program halves the risk.
+  if(Object.keys(g.arsenal?.dev||{}).length){
+    const dev=g.arsenal.dev;const nd={...dev};let done=null;
+    for(const id of Object.keys(dev)){
+      const d=dev[id];const bp=BLACK_PROGRAMS[id];const np=d.prog+1;
+      if(np<d.mo){nd[id]={...d,prog:np};continue;}
+      const both=bp.parallel&&(dev[bp.parallel]||(+g.blackPrograms?.[bp.parallel]||0)>0);
+      const risk=bp.risk&&!d.slipped?(both?bp.risk/2:bp.risk):0;
+      if(risk&&rng()<risk){nd[id]={...d,prog:Math.max(0,d.mo-12),slipped:true};fx.toast(`⚠ ${bp.n} prototype slipped 12 months`);S.setLog(p=>[{msg:`⚠ ${bp.n} slips 12mo`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);continue;}
+      delete nd[id];done={...(done||g.blackPrograms),[id]:1};
+      fx.toast(`🛩️ ${bp.n} enters low-rate production — first article delivered`);
+      S.setLog(p=>[{msg:`🛩️ ${bp.n}: LRIP`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+    }
+    if(done){g.blackPrograms=done;S.setBlackPrograms({...done});}
+    g.arsenal={...g.arsenal,dev:nd};S.setArsenal(g.arsenal);
+  }
   const milMult=g.doctrine==='vanguard'?0.8:1;
   // Military power DERIVES from deployed platforms; research alone caps at ~65
   const domMil=Object.entries(g.platforms||{}).reduce((sum,[pid,ct])=>{
@@ -126,7 +143,7 @@ function economy(g,S,fx,m){
   const impMil=Object.entries(g.platformsImported||{}).reduce((s2,[pid2,ct2])=>{const p2=PLATFORMS[pid2];return s2+(p2&&ct2?ct2*p2.mil*0.9:0);},0);
   const platMil=(domMil+impMil)*((g.personnelPay||100)<90?0.85:(g.personnelPay||100)>=120?1.1:1)*(g.procureMode==='surge'?1.08:g.procureMode==='efficiency'?0.95:1);
   const blackMil=Object.keys(g.blackPrograms||{}).reduce((s2,bid)=>s2+(BLACK_PROGRAMS[bid]?.mil||0),0);
-  const ccaMult=g.blackPrograms?.cca?1.15:1; // CCA force-multiplies air
+  const ccaMult=airMult(g.blackPrograms); // drone wings force-multiply air
   const milTarget=Math.min(100,30+(platMil*ccaMult+blackMil)*milMult*defEffM+totalDL*0.5+(g.doctrine==='fortress'?6:0));
   ns.military=ns.military+(milTarget-ns.military)*0.05;
 
@@ -268,7 +285,7 @@ function economy(g,S,fx,m){
   const maintM=g.procureMode==='efficiency'?0.85:g.procureMode==='surge'?1.2:1;
   {let pM=0;Object.entries(g.platforms||{}).forEach(([pid,ct])=>{const p=PLATFORMS[pid];if(p&&ct)pM+=p.maint*ct*maintM;});
   Object.entries(g.platformsImported||{}).forEach(([pid,ct])=>{const p=PLATFORMS[pid];if(p&&ct)pM+=p.maint*ct*maintM*1.25;});cash('Force maintenance',-Math.round(pM));} // foreign parts premium
-  const triadLegs=((g.platforms.ssbn_fleet||0)>0?1:0)+((g.platforms.strategic_bombers||0)>0?1:0)+((g.platforms.icbm_force||0)>0?1:0)+(g.blackPrograms?.b21?1:0);
+  const triadLegs=legsOf(g.platforms,g.blackPrograms);
   if(triadLegs>=3)ns.stability+=0.08; // full triad/strategic deterrent security umbrella
   cash('Personnel',-Math.round(unitTotal*3*((g.personnelPay||100)/100)));
   if(unitTotal>0){if((g.personnelPay||100)<90)ns.stability-=0.03;else if((g.personnelPay||100)>=120)ns.stability+=0.02;}
@@ -450,7 +467,7 @@ function research(g,S,fx,m){
   if(g.pariah>0){g.pariah--;S.setPariah(g.pariah);if(g.pariah===0)fx.toast('☢️ Pariah status lifted — arms markets cautiously reopen');}
   // ── BRINK: a rival at ≥85 may issue a nuclear ultimatum (deterrence-damped, one at a time)
   if(!g.ultimatum&&!g.confrontation){
-    const tlU=((g.platforms.ssbn_fleet||0)>0?1:0)+((g.platforms.strategic_bombers||0)>0?1:0)+((g.platforms.icbm_force||0)>0?1:0)+((+g.blackPrograms?.b21||0)>0?1:0);
+    const tlU=legsOf(g.platforms,g.blackPrograms);
     const nmU=tlU>=3?0.35:tlU===2?0.55:tlU===1?0.75:1;
     Object.entries(g.rivalTension).forEach(([cid,t])=>{if(cid===c.id||isAllyOf(c.id,cid)||(g.nationRelations[cid]||0)>=20)return;
       const gl=g.globalDef[cid]||{};const rs=((gl.aircraft||0)>=5?1:0)+((gl.missiles||0)>=5?1:0)+((gl.naval||0)>=5?1:0);
@@ -468,7 +485,7 @@ function research(g,S,fx,m){
     if(Object.keys(g.blockades).length){const sphB={...g.sphere};
       const nB=Object.keys(g.blockades).length;
       cash('Blockades',-nB*120);
-      const tlB=((g.platforms.ssbn_fleet||0)>0?1:0)+((g.platforms.strategic_bombers||0)>0?1:0)+((g.platforms.icbm_force||0)>0?1:0)+(g.blackPrograms?.b21?1:0);
+      const tlB=legsOf(g.platforms,g.blackPrograms);
       const nmB=tlB===3?0.4:tlB===2?0.6:tlB===1?0.8:1;
       Object.entries(g.blockades).forEach(([rid,b])=>{
         if(!b?.target)return;
@@ -509,7 +526,7 @@ function pressure(g,S,fx,m){
     });
     const eTier=getEnergyTier(g.resources,g.resExtraction,g.importContracts);
     const shockMult=eTier==='nuclear'?0.25:eTier==='high'?0.5:eTier==='coal'?1.2:1.0;
-    const tl=((g.platforms.ssbn_fleet||0)>0?1:0)+((g.platforms.strategic_bombers||0)>0?1:0)+((g.platforms.icbm_force||0)>0?1:0)+(g.blackPrograms?.b21?1:0);
+    const tl=legsOf(g.platforms,g.blackPrograms);
     const nm=tl===3?0.25:tl===2?0.5:tl===1?0.7:1;
     const milM=ns.military>=85?0.5:ns.military>=70?0.75:1;
     Object.entries(pressure).forEach(([compId,rids])=>{
@@ -869,7 +886,7 @@ function counterIntel(g,S,fx,m){
       if(goForBlack){
         const stolen=stealableBlack[Math.floor(rng()*stealableBlack.length)];ot='blacktheft';
         // Attacker gains a major GDB boost in the program's key vertical
-        const bp=BLACK_PROGRAMS[stolen];const kv=Object.keys(bp.req)[0];
+        const bp=BLACK_PROGRAMS[stolen];const kv=bp.kv||Object.keys(bp.req)[0];
         S.setGlobalDef(p=>{const ng={...p};if(ng[atk])ng[atk]={...ng[atk],[kv]:Math.min(5,(ng[atk][kv]||0)+1.2)};return ng;});
         fx.toast(`🚨 CLASSIFIED BREACH — ${atkName} exfiltrated ${bp.n} designs`);
       } else {
