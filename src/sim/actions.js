@@ -12,6 +12,7 @@ import { panamaPriorityBlock, sumDep, isAllyOf, topHostile, wSum, isrScore, nava
 import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups, opOddsTerms, programStage, programBlock, playerEntry, myAccess, accessGates, memberGates, shareCost, orderPrice, productionOpen } from './selectors.js';
 import { ALLIED_PROGRAMS, TIERS, TIER_ORDER, ACCESS_RULES } from '../data/alliance.js';
 import { rng } from './rng.js';
+import { startTranche, MINERAL_VERBS } from './minerals.js';
 
 // ── Toy-engine action vocabulary (scaffold for the pure tick(state, actions, rng) API in tick.js). Not used by the v57 UI.
 export const ACTION_TYPES = new Set([
@@ -549,6 +550,8 @@ function sapTranche(g,S,fx,bid){
   // E3 (#15): lines in service at the 2024 start produce from unit #1 with no industrial-base gate; v57 lines need a fielded program and Materials L4.
   const bp=BLACK_PROGRAMS[bid];if(!bp)return;const block=programBlock(g,bid,'produce');if(block){fx.toast(`⚠ ${block}`);return;}
   const n=+g.blackPrograms[bid]||0;const runCost=trancheCost(bp,n,programStage(g,bid),playerEntry(g,bid)?.buy);
+  // E4 (#16): the tranche draws its mineral inputs; a shortfall queues it (paid now, delivered as minerals arrive, never cancelled).
+  if(!startTranche(g,S,fx,bid)){S.setStats(p=>({...p,treasury:p.treasury-runCost}));S.setLog(p=>[{msg:`⏳ ${bp.n} tranche waiting on minerals`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);return;}
   S.setStats(p=>({...p,treasury:p.treasury-runCost,military:Math.min(100,p.military+(n>0?bp.mil*(Math.sqrt(n+1)-Math.sqrt(n)):0))}));g.blackPrograms={...g.blackPrograms,[bid]:n+1};S.setBlackPrograms({...g.blackPrograms});fx.toast(`${bp.i} ${bp.n} unit #${n+1} delivered — production line hot`);S.setLog(p=>[{msg:`${bp.i} ${bp.n} #${n+1} produced`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
 }
 function sapInitiate(g,S,fx,bid){
@@ -844,6 +847,8 @@ export const VERBS={
   setInfluenceBudget:(g,S,fx,{level})=>setInfluenceBudget(g,S,fx,level),
   toggleSanctions:(g,S,fx,{nation})=>toggleSanctions(g,S,fx,nation),
   toggleImportContract:(g,S,fx,{resource})=>toggleImportContract(g,S,fx,resource),
+  // minerals and processing (E4, #16)
+  ...MINERAL_VERBS,
   setCurrencyPosture:(g,S,fx,{posture})=>setCurrencyPosture(g,S,fx,posture),
 };
 

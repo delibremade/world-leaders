@@ -45,7 +45,7 @@ test('UI layer no longer writes game state: no ref writes or game setters in ren
   const src = readFileSync('src/ui/App.jsx', 'utf8');
   const body = src.slice(src.indexOf('const tick=useCallback'));
   assert.equal((body.match(/\b\w+R\.current\s*=(?!=)/g) || []).length, 0, 'ref writes after the engine seam');
-  const UI = /^set(Phase|SelectedRegion|SelDipNation|SelIssue|IntelIssue|SelOption|RightMode|SelDefVert|SelExportVert|SelIntelTarget|T1Target|VitalsDrill|HovOpt|ActiveTab|Toasts|Collapsed|Paused|GameSpeed|SaveInfo|LastSaved|VictoryShown|Interval|MapMode|SelNation|OutlinerOpen|History)$/;
+  const UI = /^set(Phase|SelectedRegion|SelDipNation|SelIssue|IntelIssue|SelOption|RightMode|SelDefVert|SelExportVert|SelIntelTarget|T1Target|VitalsDrill|HovOpt|ActiveTab|Toasts|Collapsed|Paused|GameSpeed|SaveInfo|LastSaved|VictoryShown|Interval|MapMode|SelNation|OutlinerOpen|History|OpenMineral)$/;
   // New Nation (back to country select) is session lifecycle, like startGame/restoreGame: it clears gameOver.
   const game = [...body.matchAll(/(?<![\w.])(set[A-Z]\w*)\(/g)].map((m) => m[1]).filter((n) => !UI.test(n) && n !== 'setGameOver');
   assert.deepEqual(game, []);

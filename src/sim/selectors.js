@@ -3,6 +3,8 @@ import { ALLIED_PROGRAMS, TIERS, TIER_ORDER, ACCESS_RULES } from '../data/allian
 import { BLOC_GROUPS } from '../data/trade.js';
 import { WORLD_EVENTS } from '../data/world.js';
 import { INTEL_OPS } from '../data/intel.js';
+import { bindingMineral, mineralFlows } from './minerals.js';
+import { MINERALS, MINERAL_RULES } from '../data/minerals.js';
 import { isrScore, panamaPriorityBlock, meetsReq, trancheCost, devCost, interceptChance, espionageExposure, defGdpPct } from './formulas.js';
 import { BLACK_PROGRAMS, CATALOGS, nationCatalog } from '../data/platforms.js';
 import { WORLD_RULES } from '../data/events.js';
@@ -188,7 +190,9 @@ export function accessGates(g,pid,tier){
   if(tier!=='buyer'){
     const due=shareCost(pid,tier)-(cur?shareCost(pid,cur.tier):0);
     gates.push({id:'share',label:`Cost share $${due.toLocaleString()}M`,met:(g.stats?.treasury||0)>=due});
-    gates.push({id:'minerals',label:'Mineral contribution: rare earths (extraction or import contract)',met:(g.resExtraction?.rareEarth||0)>=1||!!g.importContracts?.has?.('rareEarth')});
+    // E4 (#16): secure supply (home processing, recycling, offtake, allied pact) of the program's binding mineral at the agreed rate.
+    const bm=bindingMineral(pid);const sec=mineralFlows(g)[bm].secure;
+    gates.push({id:'minerals',label:`Mineral contribution: ${MINERALS[bm].n} ${MINERAL_RULES.contribution}/mo secure supply (now ${sec.toFixed(1)})`,met:sec>=MINERAL_RULES.contribution});
   }
   if(tier==='codev')gates.push({id:'rd',label:'Owner line still at R&D',met:ownerStage(g,pid)==='rd'});
   return gates;

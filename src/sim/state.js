@@ -3,6 +3,8 @@ import { REGIONS, SPHERE_INIT } from '../data/regions.js';
 import { RES_META } from '../data/energy.js';
 import { newEvState } from './events.js';
 import { ALLIED_PROGRAMS } from '../data/alliance.js';
+import { newMinerals } from './minerals.js';
+export { newMinerals };
 
 // Canonical game state. Plain JSON-serializable data only: no classes, no functions, no Dates.
 // Anything the UI needs to render must live here or be derivable from here by a pure selector.
@@ -44,7 +46,7 @@ export const STATE_FIELDS=Object.freeze([
   'currencyPosture','embassyMissions','embassyLocks','ultimatum','pariah','confrontationCooldowns','forcePosture','nukeLog',
   'embargoes','embargoedBy','spr','sprRelease','concessions','chokeStatus','stewardship','exportShare',
   'chokeDeals','platformDev','developed','pathHold','usedTech','rivalHolds','sectorMaturity','sectorAge',
-  'prevSectorLevels','decisionTimer','pressureTimer','evState','arsenal',
+  'prevSectorLevels','decisionTimer','pressureTimer','evState','arsenal','minerals',
 ]);
 
 // Live view over holders of {current} (the App's refs): reads and writes go straight through, so in-month writes
@@ -102,7 +104,7 @@ export function newCampaign(c){
     currencyPosture:'neutral',embassyMissions:{},embassyLocks:{},ultimatum:null,pariah:0,confrontationCooldowns:{},forcePosture:{},nukeLog:[],
     embargoes:new Set(),embargoedBy:null,spr:0,sprRelease:false,concessions:new Set(),chokeStatus:{},stewardship:{},exportShare:{oil:0.6,gas:0.6},
     chokeDeals:{},platformDev:{},developed:new Set(),pathHold:{econ:0,tech:0,dip:0},usedTech:new Set(),rivalHolds:{},sectorMaturity:{defense:0,energy:0,healthcare:0,education:0,technology:0},sectorAge:{defense:0,energy:0},
-    prevSectorLevels:o.prevSectorLevels,decisionTimer:8,pressureTimer:3,evState:newEvState(),arsenal:newArsenal(c.id),
+    prevSectorLevels:o.prevSectorLevels,decisionTimer:8,pressureTimer:3,evState:newEvState(),arsenal:newArsenal(c.id),minerals:newMinerals(c.id),
   };
   return Object.seal(g);
 }

@@ -24,11 +24,11 @@ test('newCampaign covers exactly STATE_FIELDS', () => {
   assert.deepEqual(Object.keys(newCampaign(COUNTRIES[0])).sort(), [...STATE_FIELDS].sort());
 });
 
-test('runMonth: all 9 phases in v57 order, monthly systems outside the 3-month gate', () => {
+test('runMonth: all 10 phases in v57 order (E4 minerals after research), monthly systems outside the 3-month gate', () => {
   const r = month(1);
   assert.equal(r.ok, true);
-  assert.deepEqual(r.ran, ['economy', 'research', 'pressure', 'intelOps', 'alliances', 'market', 'statecraft', 'counterIntel', 'world']);
-  assert.deepEqual([...new Set(MONTH_PHASES.map((p) => p.system))].sort(), ['diplomacy', 'economy', 'intel', 'military', 'world']);
+  assert.deepEqual(r.ran, ['economy', 'research', 'minerals', 'pressure', 'intelOps', 'alliances', 'market', 'statecraft', 'counterIntel', 'world']);
+  assert.deepEqual([...new Set(MONTH_PHASES.map((p) => p.system))].sort(), ['diplomacy', 'economy', 'intel', 'military', 'resources', 'world']);
   assert.equal(r.g.tickCount, 1);
   assert.equal(r.g.pressureTimer, 2, 'pressure timer counts down every month');
   assert.equal(r.g.decisionTimer, 7);
