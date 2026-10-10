@@ -37,12 +37,14 @@ import { EventCards } from './shell/EventCards.jsx';
 import { SHELL_CSS } from './shell/styles.js';
 import { Seg } from './shell/Seg.jsx';
 import { ForcesTab } from './forces/ForcesTab.jsx';
+import { ArsenalTab } from './arsenal/ArsenalTab.jsx';
+import { NukeRegister } from './shell/NukeRegister.jsx';
 // Nav verticals (8). Situation and Resources are panes folded under Overview and Economy behind a segmented control; activeTab keeps their ids.
-const TABS=['overview','economy','energy','defense','forces','intel','technology','trade'];
+const TABS=['overview','economy','energy','arsenal','forces','intel','technology','trade'];
 const PARENT={sitroom:'overview',resources:'economy'};
-const HELP_TIPS=[['🔍','Investigate issues ($300M, 2 months) for intelligence briefs'],['📋','Deploy briefs — effects apply over time, tracked live'],['🌍','Click map regions to deploy influence actions'],['⚔️','Defense advantage multiplies trade deal outcomes'],['💡','Click any Vital stat to see drivers and interventions'],['🕵️','Defense tab → Intelligence to run covert operations']];
-const TAB_SHORT={overview:'Overview',economy:'Economy',energy:'Energy',defense:'Defense',forces:'Forces',intel:'Intel',technology:'Tech',trade:'Trade'};
-const TABM={overview:{i:'🌍',l:'Overview'},economy:{i:'💰',l:'Economy'},energy:{i:'⚡',l:'Energy'},resources:{i:'⛏️',l:'Resources'},sitroom:{i:'🎖️',l:'Situation Room'},defense:{i:'🛡️',l:'Defense'},intel:{i:'🕵️',l:'Intel'},technology:{i:'💻',l:'Technology'},trade:{i:'🤝',l:'Trade'},forces:{i:'🪖',l:'Forces'}};
+const HELP_TIPS=[['🔍','Investigate issues ($300M, 2 months) for intelligence briefs'],['📋','Deploy briefs — effects apply over time, tracked live'],['🌍','Click map regions to deploy influence actions'],['⚔️','Defense advantage multiplies trade deal outcomes'],['💡','Click any Vital stat to see drivers and interventions'],['🕵️','Intel tab → run covert operations and Tier-1 actions']];
+const TAB_SHORT={overview:'Overview',economy:'Economy',energy:'Energy',arsenal:'Arsenal',forces:'Forces',intel:'Intel',technology:'Tech',trade:'Trade'};
+const TABM={overview:{i:'🌍',l:'Overview'},economy:{i:'💰',l:'Economy'},energy:{i:'⚡',l:'Energy'},resources:{i:'⛏️',l:'Resources'},sitroom:{i:'🎖️',l:'Situation Room'},arsenal:{i:'🏭',l:'Arsenal'},intel:{i:'🕵️',l:'Intel'},technology:{i:'💻',l:'Technology'},trade:{i:'🤝',l:'Trade'},forces:{i:'🪖',l:'Forces'}};
 function genModelData(sk,cv,opt,drift){return Array.from({length:21},(_,m)=>{const np=cv+drift*m;const pct=Math.min(m/Math.max(opt.tm,1),1);const eff=(opt.fx||[]).find(e=>e.s===sk)?.d||0;const wp=cv+drift*Math.min(m,opt.tm*.5)+eff*pct*(opt.conf/100);return{m,'No Policy':+np.toFixed(2),'With Policy':+wp.toFixed(2)};});}
 
 function WorldLeadersInner({resumeSignal}){
@@ -56,7 +58,7 @@ function WorldLeadersInner({resumeSignal}){
   const [activeEffects,setActiveEffects]=useState([]);
   const [resources,setResources]=useState(null);
   const [resExtraction,setResExtraction]=useState({});
-  const [forcesSub,setForcesSub]=useState('manpower');
+  const [forcesSub,setForcesSub]=useState('manpower');const [arsenalSub,setArsenalSub]=useState('programs');
   const [defLevels,setDefLevels]=useState({});
   const [defResearch,setDefResearch]=useState({});
   const [spillApplied,setSpillApplied]=useState(new Set());
@@ -919,7 +921,7 @@ function WorldLeadersInner({resumeSignal}){
               Object.entries(rivalTension).forEach(([cid,t])=>{if(t>=70&&t<85&&!isAllyOf(country?.id,cid))items.push({i:'⚔️',c:'#ef4444',t:`${cid.charAt(0).toUpperCase()+cid.slice(1)} tension CRITICAL (${Math.round(t)})`,d:`Confrontation risk is live.`,acts:[
                   {lane:'🤝',l:'Back-channel ($250M · −8)',f:()=>{dispatch({type:'backChannel',payload:{nation:cid}});}},
                   {lane:'🕵️',l:'Counter-intel sweep',f:()=>dispatch({type:'runIntelOp',payload:{op:'counter_int',nation:cid}})},
-                  {lane:'🪖',l:'Ready the triad (Defense)',f:()=>setActiveTab('defense')}]});});
+                  {lane:'🪖',l:'Ready the triad (Arsenal)',f:()=>{setActiveTab('arsenal');setArsenalSub('deterrence');}}]});});
               if(flashpoint){const fp=FLASHPOINTS[flashpoint.type];const rid=flashpoint.rid;const embHere=DIP_TARGETS.some(d=>d.region===rid&&embassies.has(d.id));
                 items.push({i:fp.i,c:'#ef4444',t:`${fp.n} in ${REGIONS[rid]?.n}`,d:`A crisis is unfolding — ${flashpoint.t}mo to respond.`,acts:[
                   {lane:'🪖',l:'Station fighter wing',f:()=>dispatch({type:'deployUnit',payload:{region:rid,unit:'fighter_wing'}})},{lane:'🪖',l:'Station carrier group',f:()=>dispatch({type:'deployUnit',payload:{region:rid,unit:'carrier_group'}})},
@@ -980,9 +982,7 @@ function WorldLeadersInner({resumeSignal}){
                 {items.map((it,idx)=><span key={idx} style={{fontSize:'10px',padding:'2px 8px',background:'#111827',border:'1px solid #374151',borderRadius:'4px',color:'#9ca3af'}}>{it.i} {it.t}{it.mo!=null&&<b style={{color:'#60a5fa'}}> · {it.mo}mo</b>}</span>)}
               </div>;})()}
 
-            {panelBox('nukes','☢ Nuclear Register · who fired, at whom, when','#831843',(()=>{if(!nukeLog.length)return <div style={{fontSize:'10px',color:'#6b7280'}}>No nuclear-tier events. The register records demonstrations, employments, ultimatums, and exchanges — yours and theirs.</div>;
-              const L={demonstration:'☢ Demonstration strike',employment:'☢️ Tactical employment',ultimatum:'⚠ Nuclear ultimatum',exchange:'💀 Exchange'};
-              return <div style={{display:'grid',gap:'3px'}}>{nukeLog.map((e,i)=><div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:'10px',padding:'4px 6px',background:'#111827',borderRadius:'4px',borderLeft:`3px solid ${e.actor===country?.id?'#f0c040':'#ef4444'}`}}><span style={{color:'#e5e7eb'}}><b style={{color:e.actor===country?.id?'#f0c040':'#ef4444'}}>{(NATIONS[e.actor]?.n||e.actor)}</b> → {NATIONS[e.target]?.n||e.target}{e.region?` · ${REGIONS[e.region]?.n}`:''} — {L[e.type]||e.type}</span><span style={{color:'#6b7280'}}>{MONTHS[e.mo]} {e.yr}</span></div>)}</div>;})())}
+            {panelBox('nukes','☢ Nuclear Register · who fired, at whom, when','#831843',<NukeRegister log={nukeLog} me={country?.id}/>)}
         </div></div>}
         {activeTab==='economy'&&<div className="wl-pane-wrap" data-sentinel="economy">{segEconomy}<div style={{flex:1,display:'flex',overflow:'hidden'}}>
           <div style={{width:'230px',background:'#0a0e14',borderRight:'1px solid #1f2937',overflowY:'auto',padding:'13px',flexShrink:0}}>
@@ -1307,223 +1307,9 @@ function WorldLeadersInner({resumeSignal}){
             </div>;})()}
         </div></div>}
 
-        {/* DEFENSE TAB */}
-        {activeTab==='defense'&&<div className="wl-def" style={{flex:1,display:'flex',overflow:'hidden'}}>
-          <div style={{width:'300px',background:'#0a0e14',borderRight:'1px solid #1f2937',overflowY:'auto',padding:'11px',flexShrink:0}}>
-            <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'10px'}}>Force Overview</div>
-            <div style={{fontSize:'10px',color:'#6b7280',marginBottom:'10px',lineHeight:'1.5'}}>Research happens in the <span style={{color:'#a78bfa'}}>Technology</span> tab. Here you build and field what research unlocks — platforms, black programs, the nuclear triad.</div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr',gap:'7px'}}>
-              {Object.entries(DV).map(([vert,def])=>{const lvl=defLevels[vert]||0;return(
-                <div key={vert} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 7px',background:'#0d1117',borderRadius:'5px'}}>
-                  <span style={{fontSize:'10px',color:'#9ca3af'}}>{def.i} {def.n}</span>
-                  <div style={{display:'flex',gap:'2px'}}>{Array.from({length:7}).map((_,i)=><div key={i} style={{width:'5px',height:'5px',borderRadius:'50%',background:i<lvl?def.col:'#374151'}}/>)}</div>
-                </div>);})}
-            </div>
-            <div style={{marginTop:'10px',padding:'8px',background:'#0d1117',borderRadius:'6px'}}>
-              <div style={{fontSize:'10px',color:'#6b7280',marginBottom:'4px'}}>Deployed military power</div>
-              <div style={{fontSize:'18px',fontWeight:800,color:'#f9fafb'}}>{Math.round(stats?.military||0)}<span style={{fontSize:'11px',color:'#6b7280'}}>/100</span></div>
-            </div>
-          </div>
-
-          <div style={{flex:1,overflowY:'auto',padding:'12px',display:'flex',flexDirection:'column',gap:'12px'}}>
-            {/* Research queue */}
-            {Object.keys(defResearch).length>0&&<div>
-              <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'7px'}}>Research Queue</div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'7px'}}>
-                {Object.entries(defResearch).map(([vert,mo])=>{const def=DV[vert];if(!def)return null;const totalMo=def.lvl[defLevels[vert]||0]?.mo||mo;const pct=Math.max(0,Math.round(((totalMo-mo)/totalMo)*100));return(<div key={vert} style={{background:'#0d1117',border:'1px solid rgba(167,139,250,.3)',borderRadius:'7px',padding:'10px'}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:'4px'}}><div><div style={{fontSize:'11px',fontWeight:700,color:'#f9fafb'}}>{def.n}</div><div style={{fontSize:'9px',color:'#a78bfa'}}>→ L{(defLevels[vert]||0)+1}: {def.lvl[defLevels[vert]||0]?.n}</div></div><div style={{fontSize:'11px',color:'#a78bfa',fontWeight:700}}>{mo}mo</div></div><div style={{height:'3px',background:'#1f2937',borderRadius:'2px'}}><div style={{height:'100%',width:`${pct}%`,background:'#a78bfa',borderRadius:'2px'}}/></div></div>);})}
-              </div>
-            </div>}
-
-            {/* Export Marketplace */}
-            <div>
-              <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'7px'}}>Export Marketplace</div>
-              <div style={{display:'flex',gap:'4px',flexWrap:'wrap',marginBottom:'7px',alignItems:'center'}}>
-                <span style={{fontSize:'9px',color:'#6b7280'}}>Market demand:</span>
-                {(()=>{const movers=Object.entries(demand).filter(([,v])=>Math.abs((v||1)-1)>=0.08).sort((a,b)=>Math.abs(b[1]-1)-Math.abs(a[1]-1)).slice(0,4);
-                  return movers.length?movers.map(([v,d])=><span key={v} style={{fontSize:'9px',padding:'2px 6px',borderRadius:'3px',background:d>1?'rgba(74,222,128,.08)':'rgba(239,68,68,.08)',border:`1px solid ${d>1?'#14532d':'#7f1d1d'}`,color:d>1?'#4ade80':'#ef4444'}}>{DV[v]?.i} {DV[v]?.n} {d>1?'▲':'▼'}{Math.abs(Math.round((d-1)*100))}%</span>):<span style={{fontSize:'9px',color:'#4b5563'}}>stable — prices lock at signing</span>;})()}
-              </div>
-              <div style={{fontSize:'11px',color:'#6b7280',marginBottom:'7px'}}>Pick any system you've developed (L1+), then offer it to a willing buyer. Leading the world (✦) pays more; buyers won't import what they build at home or accept from a hostile power. Leverage ×{defLev.toFixed(2)}.</div>
-              <div style={{display:'flex',flexWrap:'wrap',gap:'4px',marginBottom:'9px'}}>
-                {Object.entries(DV).map(([vert,def])=>{const lvl=defLevels[vert]||0;const sel=selExportVert===vert;return(
-                  <button key={vert} onClick={()=>setSelExportVert(sel?null:vert)} style={{background:sel?'#1d4ed8':'#0d1117',border:`1px solid ${sel?'#3b82f6':'#1f2937'}`,color:sel?'white':lvl>0?'#9ca3af':'#4b5563',padding:'4px 8px',borderRadius:'5px',fontSize:'10px',fontWeight:sel?700:400}}>{def.i} {def.n} <span style={{opacity:0.7}}>L{lvl}</span></button>);})}
-              </div>
-              {selExportVert&&<div style={{fontSize:'10px',color:'#9ca3af',marginBottom:'7px'}}>Offering: <span style={{color:'#f9fafb',fontWeight:700}}>{DV[selExportVert]?.n} L{defLevels[selExportVert]||0}</span> · global avg {(Object.entries(globalDef).reduce((s,[,n])=>s+(n[selExportVert]||0),0)/Math.max(1,Object.keys(globalDef).length)).toFixed(1)}</div>}
-              {selExportVert&&(defLevels[selExportVert]||0)>=1&&<button onClick={()=>dispatch({type:'sellAllVertical',payload:{vertical:selExportVert}})} style={{width:'100%',marginBottom:'8px',background:'rgba(74,222,128,.1)',border:'1px solid #4ade80',color:'#4ade80',padding:'7px',borderRadius:'5px',fontSize:'11px',fontWeight:700}}>🤝 Sell {DV[selExportVert]?.n} to All Eligible Buyers</button>}
-              <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'7px'}}>
-                {BUYERS.filter(b=>b.id!==country?.id).map(buyer=>{
-                  const key=selExportVert?`${buyer.id}_${selExportVert}`:'';
-                  const hasDeal=defExports[key];
-                  const excGlobal=Object.entries(globalDef);
-                  const avgGlobal2=selExportVert&&excGlobal.length?excGlobal.reduce((s,[,n])=>s+(n[selExportVert]||0),0)/excGlobal.length:0;
-                  const wontBuy=selExportVert&&(buyer.noBuy||[]).includes(selExportVert);
-                  const bRel=nationRelations[buyer.id]!==undefined?nationRelations[buyer.id]:buyer.rel;
-                  const hostile=bRel<-30;
-                  const canSell=selExportVert&&!wontBuy&&!hostile&&(defLevels[selExportVert]||0)>=1;
-                  const advantage2=Math.max(0,(defLevels[selExportVert]||0)-Math.floor(avgGlobal2));
-                  return(<div key={buyer.id} style={{background:'#0d1117',border:'1px solid #1f2937',borderRadius:'7px',padding:'10px'}}>
-                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:'5px'}}>
-                      <div style={{display:'flex',alignItems:'center',gap:'6px'}}><span style={{fontSize:'18px'}}>{buyer.flag}</span><div><div style={{fontSize:'11px',fontWeight:700,color:'#f9fafb'}}>{buyer.n}</div><div style={{fontSize:'9px',color:'#6b7280'}}>{buyer.align} · ${buyer.budget}M budget</div></div></div>
-                    </div>
-                    {Object.entries(defExports).filter(([k])=>k.startsWith(buyer.id)).map(([k,d])=><div key={k} style={{fontSize:'9px',color:'#4ade80',marginBottom:'3px'}}>✓ {DV[k.split('_')[1]]?.n} L{d.level} — ${d.revenue}M/yr</div>)}
-                    {selExportVert&&<button onClick={()=>dispatch({type:'offerArms',payload:{nation:buyer.id,vertical:selExportVert}})} style={{width:'100%',background:hasDeal?'#14532d':wontBuy||hostile?'rgba(0,0,0,.5)':canSell?'#1d4ed8':'rgba(0,0,0,.4)',border:`1px solid ${hasDeal?'#4ade80':wontBuy?'#1f2937':hostile?'#7f1d1d':canSell?'#3b82f6':'#374151'}`,color:hasDeal?'#4ade80':wontBuy?'#4b5563':hostile?'#ef4444':canSell?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>{hasDeal?'Active':wontBuy?'Domestic producer':hostile?'Hostile':canSell?`Offer L${defLevels[selExportVert]||0}${advantage2>0?' ✦':''}`:'Develop first'}</button>}
-                    {selExportVert&&canSell&&!hasDeal&&(()=>{const ch=[];if((sphere[buyer.region]?.player||0)>60)ch.push('sphere ×1.18');if(embassies.has(buyer.id))ch.push('attaché ×1.10');if(blocTrade.eu>=2&&BLOC_TRADE.eu.members.includes(buyer.id))ch.push('EU ×1.15');if(advantage2>0)ch.push(`lead +${(advantage2*13)}%`);if(forces)ch.push(`force quality ×${exportEdge(forces).toFixed(2)}`);return ch.length?<div style={{fontSize:'8px',color:'#60a5fa',marginTop:'3px'}}>{ch.join(' · ')}</div>:null;})()}
-                  </div>);
-                })}
-              </div>
-            </div>
-
-            {/* Intelligence Services */}
-            {(()=>{const age=sectorAge.defense||0;if(age<=360)return null;const eff=age>480?Math.max(0.7,1-(age-480)*0.0008):1;const cost=recapCost(stats?.treasury);return(
-              <div style={{padding:'10px',background:age>480?'rgba(239,68,68,.07)':'rgba(240,192,64,.06)',border:`1px solid ${age>480?'#ef4444':'#f0c040'}`,borderRadius:'8px'}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px'}}>
-                  <div>
-                    <div style={{fontSize:'12px',fontWeight:700,color:age>480?'#ef4444':'#f0c040'}}>{age>480?`⚠ Force Obsolescence — fleet effectiveness ×${eff.toFixed(2)}`:`⏱ Aging Force — obsolescence in ${480-age}mo`}</div>
-                    <div style={{fontSize:'10px',color:'#9ca3af',marginTop:'2px'}}>Platforms older than 40 years lose effectiveness ({age}mo since last recapitalization). Recapitalize to reset the clock and restore full power.</div>
-                  </div>
-                  <button onClick={()=>dispatch({type:'recapitalizeForces'})} style={{background:'rgba(74,222,128,.1)',border:'1px solid #4ade80',color:'#4ade80',padding:'8px 14px',borderRadius:'6px',fontSize:'11px',fontWeight:700,flexShrink:0}}>🔄 Recapitalize Forces — ${cost.toLocaleString()}M</button>
-                </div>
-              </div>);})()}
-            {Object.keys(blackPrograms).length>0&&(
-              <div style={{padding:'8px 11px',background:'rgba(167,139,250,.06)',border:'1px solid #4c1d95',borderRadius:'8px',display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
-                <span style={{fontSize:'10px',color:'#a78bfa',fontWeight:700,letterSpacing:'1px'}}>◆ OPERATIONAL</span>
-                {Object.keys(blackPrograms).map(bid=><span key={bid} style={{fontSize:'10px',color:'#c4b5fd'}}>{BLACK_PROGRAMS[bid].i} {BLACK_PROGRAMS[bid].n}</span>)}
-                <span style={{fontSize:'9px',color:'#6b7280'}}>· deployable below — B-21/SSN(X) suppress ×2, SR-72 runs regional recon</span>
-              </div>)}
-            {country?.id==='japan'&&!activePolicies.has('jp_normalization')&&(
-              <div style={{padding:'10px',background:'rgba(239,68,68,.05)',border:'1px solid #ef444466',borderRadius:'8px'}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:'8px'}}>
-                  <div>
-                    <div style={{fontSize:'12px',fontWeight:700,color:'#f9fafb'}}>🇯🇵 Article 9 — Constitutional Constraint</div>
-                    <div style={{fontSize:'10px',color:'#9ca3af',marginTop:'2px',maxWidth:'520px'}}>Munitions and Missile programs carry +40% cost under the pacifist constitution. Defense Normalization removes the penalty permanently — counterstrike doctrine, standoff weapons, 2%-GDP posture — at real political cost: −6 stability now, political turmoil −0.05/mo for a year.</div>
-                  </div>
-                  <button onClick={()=>dispatch({type:'japanNormalization'})} style={{background:'rgba(239,68,68,.1)',border:'1px solid #ef4444',color:'#ef4444',padding:'8px 14px',borderRadius:'6px',fontSize:'11px',fontWeight:700,flexShrink:0}}>⚖️ Enact Normalization — $500M · −6 stability</button>
-                </div>
-              </div>)}
-            {country?.id==='japan'&&activePolicies.has('jp_normalization')&&(
-              <div style={{padding:'8px 10px',background:'rgba(74,222,128,.05)',border:'1px solid #4ade8055',borderRadius:'8px',fontSize:'10px',color:'#4ade80'}}>⚖️ Defense Normalization in force — Munitions & Missiles at standard cost. Counterstrike doctrine adopted.</div>)}
-            {/* Black Programs — classified next-gen platforms */}
-            <div>
-              <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'7px'}}>Special Access Programs · the bleeding edge</div>
-              {!sapOffice&&(
-                <div style={{padding:'10px',background:'#0d1117',border:'1px solid #1f2937',borderRadius:'8px',marginBottom:'7px'}}>
-                  <div style={{fontSize:'11px',color:'#9ca3af',marginBottom:'7px'}}>Establish a classified Special Access Program office to pursue next-generation platforms — stealth bombers, 6th-gen fighters, hypersonic ISR. Requires deep R&D and a black budget. <span style={{color:'#f0c040'}}>These become prime espionage targets once fielded.</span></div>
-                  <button onClick={()=>dispatch({type:'establishSapOffice'})} disabled={(stats?.treasury||0)<1500} style={{background:'rgba(167,139,250,.1)',border:`1px solid ${(stats?.treasury||0)<1500?'#7f1d1d':'#a78bfa'}`,color:(stats?.treasury||0)<1500?'#4b5563':'#a78bfa',padding:'8px 14px',borderRadius:'6px',fontSize:'11px',fontWeight:700,opacity:(stats?.treasury||0)<1500?0.7:1}}>🔒 Establish SAP Office — $1,500M{(stats?.treasury||0)<1500?' (short)':''}</button>
-                </div>
-              )}
-              {/* E3 (#15): your nation's catalog only, by role slot; stage from programView (one rule with the verbs). */}
-              <div data-catalog={country?.id} style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:'7px'}}>
-                {programView({country,blackPrograms,arsenal,blackResearch,stats,defLevels,sapOffice}).map(r=>{const bid=r.id,bp=r.bp;
-                  const owned=r.n>0;const researching=r.action==='wait';const reqMet=meetsReq(bp.req,defLevels);const live=r.action==='produce';
-                  const stageN=STAGES.find(([k])=>k===r.stage)?.[1];const slotN=SLOTS.find(([k])=>k===r.slot)?.[1];
-                  return(<div key={bid} data-program={bid} style={{background:owned?'rgba(167,139,250,.06)':'#0d1117',border:`1px solid ${owned?'#a78bfa':researching?'#3b82f6':'#1f2937'}`,borderRadius:'7px',padding:'10px',opacity:reqMet||owned||live?1:0.55,minWidth:0}}>
-                    <div style={{fontSize:'9px',color:'#6b7280',marginBottom:'2px'}} title={r.status_source}>{slotN} · <b style={{color:r.stage==='full'?'#4ade80':r.stage==='lrip'?'#a3e635':r.stage==='proto'?'#60a5fa':'#9ca3af'}}>{stageN}</b>{r.buy?' · from USA':''}</div>
-                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:'3px',gap:'4px'}}>
-                      <span style={{fontSize:'11px',fontWeight:700,color:owned?'#a78bfa':'#f9fafb'}}>{bp.i} {bp.n}</span>
-                      {owned&&<span style={{fontSize:'10px',color:'#4ade80',fontWeight:700}}>✓ FIELDED</span>}
-                    </div>
-                    <div style={{fontSize:'9px',color:'#6b7280',marginBottom:'4px'}}>{bp.d}</div>
-                    {Object.keys(bp.req).length>0&&<div style={{fontSize:'9px',marginBottom:'5px'}}>Req: {Object.entries(bp.req).map(([v,rq])=><span key={v} style={{color:(defLevels[v]||0)>=rq?'#4ade80':'#ef4444',marginRight:'4px'}}>{DV[v]?.n} L{rq}</span>)}</div>}
-                    {live?(()=>{const n=r.n;const runCost=r.cost;const canRun=!r.block;const indOk=!/industrial base/.test(r.block||'');
-                      return <div>
-                        <div style={{fontSize:'9px',color:'#a78bfa'}}>+{bp.mil} military{bp.isr?` · +${bp.isr} ISR`:bp.bonus==='multiplier'?' · air ×1.15':bp.bonus==='deterrent'?' · nuclear deterrent':''} · <b style={{color:'#c4b5fd'}}>{n} unit{n===1?'':'s'}</b>{n>0?` · force mil +${Math.round(bp.mil*Math.sqrt(n))} · next tranche at ${Math.round(sapRate(r.stage==='full'?Math.max(n,6):n)*100)}% of program`:''}</div>
-                        {(()=>{const sp=programSupply({country,minerals},bid);const q=sp.queued;const nm=(m)=>MINERALS[m]?.n||m;
-                          return <div data-supply style={{fontSize:'9px',marginTop:'3px',color:q.length?'#f87171':sp.coverage<1?'#fbbf24':'#6b7280',lineHeight:1.5}}>
-                            {q.length?<b>⏳ {q.length} tranche{q.length>1?'s':''} slowed: {nm(q[0].binding)} short · ~{q[0].months===Infinity?'∞':q[0].months}mo</b>:<span>Supply {Math.round(sp.coverage*100)}%{sp.binding?` · short of ${nm(sp.binding)}`:''}</span>}
-                            <span style={{color:'#6b7280'}}> · per tranche {Object.entries(inputsOf(bid)).map(([m,u])=>`${MINERALS[m].i}${u}`).join(' ')}</span>
-                          </div>;})()}
-                        <button onClick={()=>dispatch({type:'sapTranche',payload:{program:bid}})} style={{marginTop:'4px',width:'100%',background:canRun?'rgba(167,139,250,.12)':'rgba(0,0,0,.35)',border:`1px solid ${canRun?'#a78bfa':'#374151'}`,color:canRun?'#c4b5fd':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{n>0?`🏭 Tranche #${n+1} — $${runCost}M${indOk?'':' · needs Materials L4'}`:`🏭 Produce ${bp.n} — $${runCost}M`}</button>
-                      </div>;})()
-                    :researching?<div style={{fontSize:'10px',color:'#3b82f6',fontWeight:700}}>⏳ {r.monthsLeft}mo to {r.start==='proto'?'LRIP':'operational'}</div>
-                    :!sapOffice?<div style={{fontSize:'9px',color:'#6b7280'}}>🔒 Needs the SAP office · ${(r.cost/1000).toFixed(1)}B · {r.months}mo</div>
-                    :<button onClick={()=>dispatch({type:'sapInitiate',payload:{program:bid}})} style={{width:'100%',background:!r.block?'#4c1d95':'rgba(0,0,0,.4)',border:`1px solid ${!r.block?'#a78bfa':'#374151'}`,color:!r.block?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{r.action==='initiate'&&blackResearch?'SAP busy':`${r.action==='fund'?'Fund prototype':'Initiate'} $${(r.cost/1000).toFixed(1)}B · ${r.months}mo`}</button>}
-                  </div>);})}
-              </div>
-            </div>
-            {/* E7 (#19): allied access to programs. Gates and compliance from accessView/compliance (one rule with the verbs). */}
-            {(()=>{const v={country,nationRelations,defensePacts,budgetAlloc,stats,resExtraction,importContracts,tradeAgreements,blocTrade,ipPolicy,defLevels,intelBudget,intelOps,covertPrograms,intelInfra,platforms,arsenal,blackPrograms,blackResearch,date,sapOffice};
-              const rows=accessView(v);const cp=compliance(v);const btn=(on)=>({background:on?'rgba(96,165,250,.12)':'rgba(0,0,0,.35)',border:`1px solid ${on?'#60a5fa':'#374151'}`,color:on?'#bfdbfe':'#6b7280',padding:'6px 8px',borderRadius:'4px',fontSize:'10px',fontWeight:700,minHeight:'32px'});
-              return <div data-partnerships>
-                <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'5px'}}>Allied programs · Buyer → Partner → Co-developer</div>
-                <div data-compliance style={{fontSize:'10px',color:cp.ok?'#4ade80':'#f87171',marginBottom:'7px'}}>Security: counter-intel {Math.round(cp.ci*100)}% (floor {ACCESS_RULES.ciFloor*100}) · exposure {Math.round(cp.exposure*100)}% (ceiling {ACCESS_RULES.exposureCeil*100}) · flagged deals: {cp.flagged.length?cp.flagged.map(n=>NATIONS[n].n).join(', '):'none'}</div>
-                <div style={{display:'grid',gap:'7px'}}>{rows.map(r=>{const own=NATIONS[r.A.owner];const st=STAGES.find(([k])=>k===r.stage)?.[1];
-                  return <div key={r.id} data-access={r.id} style={{padding:'9px',background:'#0d1117',border:`1px solid ${r.mine?.status==='suspended'?'#ef4444':r.mine?'#60a5fa':'#1f2937'}`,borderRadius:'7px',minWidth:0}}>
-                    <div style={{fontSize:'11px',fontWeight:700,color:'#f9fafb'}}>{r.bp.i} {r.bp.n}</div>
-                    <div style={{fontSize:'9px',color:'#6b7280',marginBottom:'4px'}} title={r.status_source}>{r.owner?'Your program':`Owner ${own.n}`}{r.A.founders?` · founders ${r.A.founders.map(n=>NATIONS[n].n).join(', ')}`:''}{r.A.natoOnly?' · NATO only':''} · {st}{r.open?' · in production':` · deliveries from ${r.A.ioc}`}</div>
-                    {r.owner?<div style={{display:'grid',gap:'4px'}}>
-                      {r.members.map(m=><div key={m.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'6px',fontSize:'10px',color:'#d1d5db'}}><span>{m.n} · {TIERS[m.tier].n}{m.flag?` · ⚠ ${m.flag}`:''}</span><button onClick={()=>dispatch({type:'expelPartner',payload:{program:r.id,nation:m.id}})} style={btn(false)}>Expel</button></div>)}
-                      {r.applicants.length?<div style={{fontSize:'9px',color:'#9ca3af'}}>Applicants (relations ≥70, pact or NATO, NATO 2%):</div>:<div style={{fontSize:'9px',color:'#6b7280'}}>No eligible applicants. Raise relations to 70 and sign pacts.</div>}
-                      {r.applicants.map(a=><div key={a.id} style={{display:'flex',flexWrap:'wrap',gap:'4px',alignItems:'center'}}><span style={{fontSize:'10px',color:'#d1d5db',minWidth:'90px'}}>{a.n}{a.flag?' ⚠':''}</span>{a.tiers.map(t=><button key={t} onClick={()=>dispatch({type:'admitPartner',payload:{program:r.id,nation:a.id,tier:t}})} style={btn(true)}>Admit {a.n} as {TIERS[t].n}</button>)}</div>)}
-                    </div>:<div style={{display:'grid',gap:'5px'}}>
-                      {r.mine&&<div style={{fontSize:'10px',fontWeight:700,color:r.mine.status==='suspended'?'#f87171':'#60a5fa'}}>{TIERS[r.mine.tier].n} · {r.mine.status}{r.mine.founder?' · founder':''}{r.mine.status==='suspended'?` · re-entry review ${r.mine.susp}mo`:` · variant ${Math.round(TIERS[r.mine.tier].eff*100)}%`}</div>}
-                      {r.mine?.status==='suspended'&&<button onClick={()=>dispatch({type:'reinstateAccess',payload:{program:r.id}})} style={btn(r.mine.susp===0&&cp.ok)}>Reinstate · relations −{ACCESS_RULES.reentryRel}</button>}
-                      {r.mine?.status==='active'&&!r.mine.founder&&<button onClick={()=>dispatch({type:'orderAllied',payload:{program:r.id}})} style={btn(r.open)}>{r.open?`Order ${r.bp.n} — $${r.price.toLocaleString()}M · ${TIERS[r.mine.tier].queue}mo`:`Orders open ${r.A.ioc}`}</button>}
-                      {r.orders.length>0&&<div style={{fontSize:'9px',color:'#9ca3af'}}>📦 {r.orders.length} in queue · next in {Math.min(...r.orders.map(o=>o.mo))}mo</div>}
-                      {r.next.map(({tier,gates})=>{const ok=gates.every(x=>x.met);return <div key={tier}>
-                        <button onClick={()=>dispatch({type:'joinProgram',payload:{program:r.id,tier}})} style={{...btn(ok),width:'100%'}}>Join as {TIERS[tier].n}</button>
-                        <div style={{fontSize:'9px',marginTop:'2px',lineHeight:1.5}}>{gates.map(x=><span key={x.id} style={{color:x.met?'#4ade80':'#f87171',marginRight:'6px'}}>{x.met?'✓':'✗'} {x.label}</span>)}</div></div>;})}
-                      {r.canDefect&&<button onClick={()=>dispatch({type:'defectProgram',payload:{from:ACCESS_RULES.defect.from,to:ACCESS_RULES.defect.to}})} style={btn(true)}>Defect to {BLACK_PROGRAMS[ACCESS_RULES.defect.to].n} · France −20, Spain −10</button>}
-                    </div>}
-                  </div>;})}</div>
-              </div>;})()}
-            {/* Force Structure — converting R&D into deployed power */}
-            <div>
-              <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'7px'}}>Force Structure · military power comes from deployed platforms</div>
-              <div style={{fontSize:'11px',color:'#6b7280',marginBottom:'8px',padding:'7px 9px',background:'#0d1117',borderRadius:'5px',border:'1px solid #1f2937'}}>
-                Research unlocks designs — building them creates power. Effectiveness scales +7% per research level above requirement.
-                Total deployed: <span style={{color:'#f9fafb',fontWeight:700}}>{Object.values(platforms).reduce((a,b)=>a+(b||0),0)} units</span> · Maintenance: <span style={{color:'#f87171',fontWeight:700}}>${Object.entries(platforms).reduce((s,[pid,ct])=>s+(PLATFORMS[pid]?.maint||0)*(ct||0),0)}M/mo</span>
-                <div style={{marginTop:'4px'}}>
-                  Deterrence: <span style={{color:(stats?.military||0)>=70?'#4ade80':'#6b7280'}}>{(stats?.military||0)>=85?'−50% foreign pressure & sphere loss':(stats?.military||0)>=70?'−25% foreign pressure & sphere loss':'none — reach Military 70+'}</span>
-                  {' · '}Projection: <span style={{color:'#3b82f6'}}>+{Math.min(0.6,((platforms.carrier_group||0)*2+(platforms.sub_fleet||0)+(platforms.fighter_wing||0)*0.5+(platforms.drone_swarm||0)+(platforms.hypersonic_bty||0))*0.05).toFixed(2)}/mo sphere in contested regions</span>
-                  {' · '}Trade lanes: <span style={{color:'#4ade80'}}>+${((platforms.carrier_group||0)+(platforms.sub_fleet||0))*10}M/mo</span>
-                  {' · '}Exports: <span style={{color:'#fbbf24'}}>+25% revenue on fielded systems</span>
-                </div>
-                {(()=>{const legs=((platforms.ssbn_fleet||0)>0?1:0)+((platforms.strategic_bombers||0)>0?1:0)+((platforms.icbm_force||0)>0?1:0);return <div style={{marginTop:'4px'}}>
-                  ☢ Nuclear Triad: <span style={{color:legs===3?'#4ade80':legs>0?'#f0c040':'#6b7280',fontWeight:700}}>{legs}/3 legs {legs===3?'— SUPREME DETERRENCE (foreign pressure −75%, +0.05 stability/mo)':legs===2?'— strong deterrent (−50%)':legs===1?'— minimal deterrent (−30%)':'— none (SSBN: Naval 5 + Missiles 4 · Bombers: Aircraft 4 + Munitions 3 · ICBM: Missiles 5 + Munitions 4)'}</span>
-                </div>;})()}
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:'8px'}}>
-                <div style={{background:'#0d1117',border:'1px solid #1f2937',borderRadius:'7px',padding:'10px'}}>
-                  <div style={{fontSize:'11px',color:'#9ca3af',marginBottom:'6px'}}>Acquisition Policy</div>
-                  {[['efficiency','💲 Efficiency','Build −15%, maint −15%, effectiveness −5%'],['balanced','⚖️ Balanced','Standard terms'],['surge','🚀 Surge','Build +25%, maint +20%, effectiveness +8%']].map(([m,l,d])=>(
-                    <button key={m} onClick={()=>dispatch({type:'setProcurement',payload:{mode:m}})} style={{display:'block',width:'100%',marginBottom:'4px',background:procureMode===m?'#1d4ed8':'transparent',border:`1px solid ${procureMode===m?'#3b82f6':'#374151'}`,color:procureMode===m?'white':'#9ca3af',padding:'5px 8px',borderRadius:'4px',fontSize:'10px',textAlign:'left',fontWeight:procureMode===m?700:400}}>{l} — {d}</button>
-                  ))}
-                </div>
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'7px'}}>
-                {Object.entries(PLATFORMS).map(([pid,p])=>{
-                  const ct=platforms[pid]||0;
-                  const reqsMet=meetsReq(p.req,defLevels);
-                  const over=Object.entries(p.req).reduce((o,[v,rq])=>o+Math.max(0,(defLevels[v]||0)-rq),0);
-                  const eff=Math.min(2,1+0.07*over)*(procureMode==='surge'?1.08:procureMode==='efficiency'?0.95:1);
-                  const procCost=procurementCost(p,procureMode);
-                  return(<div key={pid} style={{background:'#0d1117',border:`1px solid ${ct>0?'#14532d':'#1f2937'}`,borderRadius:'7px',padding:'10px',opacity:reqsMet?1:0.55}}>
-                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:'4px'}}>
-                      <div style={{display:'flex',alignItems:'center',gap:'6px'}}><span style={{fontSize:'17px'}}>{p.i}</span><div style={{fontSize:'11px',fontWeight:700,color:'#f9fafb'}}>{p.n}</div></div>
-                      {(ct>0||(platformsImported[pid]||0)>0)&&<span style={{fontSize:'12px',fontWeight:800,color:'#4ade80'}}>×{ct}{(platformsImported[pid]||0)>0&&<span style={{color:'#f0c040',fontSize:'10px'}}> +{platformsImported[pid]}🌐</span>}</span>}
-                    </div>
-                    <div style={{fontSize:'10px',color:'#6b7280',marginBottom:'4px'}}>Req: {Object.entries(p.req).map(([v,rq])=><span key={v} style={{color:(defLevels[v]||0)>=rq?'#4ade80':'#ef4444',marginRight:'5px'}}>{DV[v]?.n} L{rq}{(defLevels[v]||0)>=rq?'✓':` (you: ${defLevels[v]||0})`}</span>)}</div>
-                    <div style={{fontSize:'10px',color:'#9ca3af',marginBottom:'6px'}}>+{(p.mil*eff).toFixed(1)} military each{eff>1?` (${Math.round((eff-1)*100)}% tech bonus)`:''} · ${p.maint}M/mo maint</div>
-                    {p.d&&<div style={{fontSize:'9px',color:'#60a5fa',marginBottom:'4px'}}>{p.d}</div>}
-                    <div style={{fontSize:'8px',letterSpacing:'1px',marginBottom:'4px',color:DEPLOYABLE.includes(pid)?'#f0c040':'#6b7280'}}>{DEPLOYABLE.includes(pid)?'THEATER ASSET — station it in a region to act':'NATIONAL ASSET — effect applies automatically'}</div>
-                    {p.triad&&<div style={{fontSize:'9px',color:'#ef4444',marginBottom:'4px',letterSpacing:'1px'}}>☢ STRATEGIC — cannot be purchased abroad; domestic program only</div>}
-                    <div style={{display:'flex',gap:'5px',flexWrap:'wrap'}}>
-                      {p.dev&&!developed.has(pid)&&(()=>{const pd=platformDev[pid];if(pd)return <div style={{flex:1,fontSize:'10px',color:'#3b82f6',fontWeight:700,padding:'5px',background:'#0d1117',border:'1px solid #1e3a8a',borderRadius:'4px'}}>🔬 Developing — {pd.mo}mo</div>;return <button onClick={()=>dispatch({type:'developPlatform',payload:{platform:pid}})} style={{flex:1,background:reqsMet?'#1e3a8a':'rgba(0,0,0,.4)',border:`1px solid ${reqsMet?'#3b82f6':'#374151'}`,color:reqsMet?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>🔬 Develop ${p.dev.cost}M · {p.dev.mo}mo</button>;})()}
-                      {(!p.dev||developed.has(pid))&&<button onClick={()=>dispatch({type:'buildPlatform',payload:{platform:pid}})} style={{flex:1,background:reqsMet?'#1d4ed8':'rgba(0,0,0,.4)',border:`1px solid ${reqsMet?'#3b82f6':'#374151'}`,color:reqsMet?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>Build ${procCost}M</button>}
-                      {!reqsMet&&!p.triad&&<button onClick={()=>dispatch({type:'importPlatform',payload:{platform:pid}})} style={{flex:1,background:'rgba(240,192,64,.08)',border:'1px solid #f0c040',color:'#f0c040',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>🌐 Purchase ${Math.round(p.cost*1.8)}M</button>}
-                      {ct>0&&<button onClick={()=>dispatch({type:'decommissionPlatform',payload:{platform:pid}})} style={{background:'rgba(239,68,68,.08)',border:'1px solid #ef4444',color:'#ef4444',padding:'5px 8px',borderRadius:'4px',fontSize:'10px'}}>−1</button>}
-                      {(platformsImported[pid]||0)>0&&<button onClick={()=>dispatch({type:'retireImported',payload:{platform:pid}})} style={{background:'rgba(240,192,64,.06)',border:'1px solid #f0c040',color:'#f0c040',padding:'5px 8px',borderRadius:'4px',fontSize:'10px'}}>−1🌐</button>}
-                    </div>
-                  </div>);
-                })}
-              </div>
-            </div>
-
-                        {Object.keys(defExports).length>0&&<div>
-              <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'7px'}}>Active Export Deals</div>
-              {Object.entries(defExports).map(([k,d])=>{const[bid,vert]=k.split('_');const buyer=BUYERS.find(b=>b.id===bid);return(<div key={k} style={{background:'#0d1117',border:'1px solid #14532d',borderRadius:'6px',padding:'9px',marginBottom:'6px',display:'flex',justifyContent:'space-between',alignItems:'center'}}><div><div style={{fontSize:'11px',fontWeight:700,color:'#f9fafb'}}>{buyer?.flag} {buyer?.n} — {DV[vert]?.n}</div><div style={{fontSize:'10px',color:'#4ade80'}}>${d.revenue}M/yr · Rel: {d.relationship}%</div></div><button onClick={()=>dispatch({type:'cutExportDeal',payload:{deal:k}})} style={{background:'rgba(239,68,68,.08)',border:'1px solid #ef4444',color:'#ef4444',padding:'3px 8px',borderRadius:'3px',fontSize:'10px'}}>Cut Off</button></div>);})}
-            </div>}
-          </div>
-        </div>}
+        {/* ARSENAL TAB (E5b): programs, procurement, supply, partnerships, exports, deterrence. Sub-tabs and cards live in src/ui/arsenal. */}
+        {activeTab==='arsenal'&&<ArsenalTab sub={arsenalSub} onSub={setArsenalSub} dispatch={dispatch} toast={showToast} onJump={goPane} exportVert={selExportVert} onExportVert={setSelExportVert}
+          view={{country,nationRelations,defensePacts,budgetAlloc,stats,resExtraction,importContracts,tradeAgreements,blocTrade,ipPolicy,defLevels,intelBudget,intelOps,covertPrograms,intelInfra,platforms,platformsImported,arsenal,blackPrograms,blackResearch,date,sapOffice,minerals,forces,platformDev,developed,defResearch,procureMode,sectorAge,activePolicies,globalDef,defExports,demand,sphere,embassies,nukeLog}}/>}
 
         {/* FORCES TAB (E5a): people and readiness. Sub-tabs and cards live in src/ui/forces. */}
         {activeTab==='forces'&&<ForcesTab sub={forcesSub} onSub={setForcesSub} dispatch={dispatch} toast={showToast} onJump={goPane}
@@ -1924,7 +1710,7 @@ function WorldLeadersInner({resumeSignal}){
         const sb=sitBadge();
         const badge={overview:(activeDecision?1:0)+(doctrine?0:1)+sb,economy:issues.filter(i=>i.status==='unexamined'||i.status==='ready').length,energy:Object.values(chokeStatus).filter(st=>st==='disrupted').length,intel:intelCrisis?1:0,trade:Object.keys(blocLock||{}).length}[id]||0;
         return {id,icon:TABM[id].i,label:TABM[id].l,short:TAB_SHORT[id],badge,sev:((id==='overview'&&sb)||id==='intel')&&badge?'alert':'warn'};})}/>
-      <Outliner open={outlinerOpen} onOpenChange={setOutlinerOpen} onJump={({tab,region,nation,issue})=>{setActiveTab(tab);if(issue)setIntelIssue(issue);setVitalsDrill(null);if(region){setSelNation(null);setSelectedRegion(region);}if(nation)setSelNation(nation);setOutlinerOpen(false);}}
+      <Outliner open={outlinerOpen} onOpenChange={setOutlinerOpen} onJump={({tab,region,nation,issue,sub})=>{setActiveTab(tab);if(sub&&tab==='arsenal')setArsenalSub(sub);if(issue)setIntelIssue(issue);setVitalsDrill(null);if(region){setSelNation(null);setSelectedRegion(region);}if(nation)setSelNation(nation);setOutlinerOpen(false);}}
         rows={buildOutliner({issues,evState,arsenal,flashpoint,worldEvent,ultimatum,confrontation,blockades,intelOps,continuousOps,investigations,platformDev,blackResearch,deployments,defResearch,defLevels,gracePeriod,pariah,hegHold,embargoedBy,expelled:expelR.current,embassyLocks:embLockR.current,blocLock,concessions,sprRelease,actionCooldowns})}/>
       <Sheet open={!!selectedRegion||!!selNation} onClose={()=>{setSelectedRegion(null);setSelNation(null);}} back={!!selNation&&!!selectedRegion} onBack={()=>setSelNation(null)}
         title={selNation?`${NATIONS[selNation]?.flag||''} ${nationName(selNation)}`:selectedRegion?REGIONS[selectedRegion]?.n:''} subtitle={selNation?'Every action on this nation':selectedRegion?`${Math.round(sphere[selectedRegion]?.player||0)}% your sphere · tap a nation for its actions`:''}>

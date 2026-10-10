@@ -79,6 +79,8 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
 .wl-verb[data-kind=warn]{border-color:${c.accent.warnDeep}}
 .wl-verb[data-kind=good]{border-color:${c.accent.good}66}
 .wl-verb:disabled{opacity:.45}
+.wl-btn[aria-pressed=true]{border-color:${c.accent.command};color:${c.text.primary};background:rgba(59,130,246,.14)}
+.wl-verb[aria-pressed=true]{border-color:${c.accent.command};background:rgba(59,130,246,.14)}
 .wl-verb b{color:${c.text.primary};display:block}
 .wl-verb small{display:block;color:${c.text.dim};font-size:${SIZE.caption}px;line-height:1.4}
 .wl-verb .wl-verb-cost{margin-left:auto;font-weight:700;white-space:nowrap;color:${c.text.muted};font-size:${SIZE.small}px}
@@ -101,10 +103,15 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
 .wl-seg{display:flex;gap:${SPACE[2]}px;padding:${SPACE[4]}px ${SPACE[6]}px 0;background:${c.bg.canvas};flex-shrink:0}
 .wl-seg button{flex:1 1 0;min-width:0;min-height:${TAP}px;display:flex;align-items:center;justify-content:center;gap:${SPACE[2]}px;border:1px solid ${c.border.strong};border-radius:${RADIUS.lg}px;background:transparent;color:${c.text.muted};font:inherit;font-size:${SIZE.caption}px;font-weight:700;padding:0 2px;position:relative}
 .wl-seg button[aria-selected=true]{background:rgba(59,130,246,.14);border-color:${c.accent.command};color:${c.text.primary}}
+.wl-seg[data-cols='3']{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.wl-stack{display:flex;flex-direction:column;gap:${SPACE[5]}px}
 .wl-seg-l{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wl-seg-b{position:absolute;top:-6px;right:-3px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:${c.accent.warn};color:#000;font-size:${SIZE.micro}px;font-weight:800;display:inline-flex;align-items:center;justify-content:center}
 .wl-seg-b[data-sev=alert]{background:${c.accent.alert};color:#fff}
 .wl-tabroot{flex:1;overflow-y:auto;padding:${SPACE[6]}px;display:flex;flex-direction:column;gap:${SPACE[5]}px;min-width:0}
+.wl-tabroot>*{flex-shrink:0}
+.wl-r-stack{flex-wrap:wrap}
+.wl-r-stack>.wl-btn,.wl-r-stack>span.wl-row{flex:1 1 100%}
 .wl-p{padding:0;overflow:hidden}
 .wl-p-head{width:100%;min-height:${TAP}px;display:flex;align-items:center;gap:${SPACE[4]}px;padding:${SPACE[2]}px ${SPACE[6]}px;border:none;background:transparent;color:inherit;font:inherit;text-align:left}
 .wl-p-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

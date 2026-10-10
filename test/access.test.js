@@ -237,7 +237,7 @@ test('App: Norway joins F-47 as Buyer then Partner from the Defense tab; the USA
   const g = await mount(BUNDLES.app, { seed: 7, testHook: true });
   try {
     await g.pickCountry(idx('norway')); g.w.__wl.fund(50000); g.w.__wl.rel('usa', 80); g.w.__wl.minerals({ recycle: ['rareEarth'] }); await settle();
-    g.tabBtn('defense').click(); await settle();
+    g.tabBtn('defense').click(); await settle(); g.doc.querySelector('[data-seg=partnerships]').click(); await settle();
     const card = () => g.doc.querySelector('[data-access=f47]');
     assert.ok(card(), 'partnerships card');
     const press = async (re) => { const b = [...card().querySelectorAll('button')].find((x) => re.test(x.textContent)); assert.ok(b, `button ${re}`); b.click(); await settle(); };
@@ -247,7 +247,7 @@ test('App: Norway joins F-47 as Buyer then Partner from the Defense tab; the USA
   const u = await mount(BUNDLES.app, { seed: 7, testHook: true });
   try {
     await u.pickCountry(idx('usa')); u.w.__wl.rel('uk', 80); await settle();
-    u.tabBtn('defense').click(); await settle();
+    u.tabBtn('defense').click(); await settle(); u.doc.querySelector('[data-seg=partnerships]').click(); await settle();
     const card = u.doc.querySelector('[data-access=f47]');
     const admit = [...card.querySelectorAll('button')].find((b) => /Admit UK|Admit United Kingdom/.test(b.textContent));
     assert.ok(admit, 'UK applies'); admit.click(); await settle();

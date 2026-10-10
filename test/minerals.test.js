@@ -256,7 +256,7 @@ test('App: Resources shows the minerals view with every lever; Defense shows sup
     const drain = async () => { for (const m of MINERAL_IDS) g.w.__wl.mineral(m, { stock: 0, reserve: 0 }); await settle(); };
     await drain(); g.w.__wl.setTension('china', 90); await settle();
     g.w.__wl.month(); await settle(); await drain();
-    g.tabBtn('defense').click(); await settle();
+    g.tabBtn('defense').click(); await settle(); // Arsenal opens on Programs
     const card = () => g.doc.querySelector('[data-program=f35]');
     assert.ok(card().querySelector('[data-supply]'), 'supply line on the program card');
     [...card().querySelectorAll('button')].find((b) => /Tranche|Produce/.test(b.textContent)).click(); await settle();

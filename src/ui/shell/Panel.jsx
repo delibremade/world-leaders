@@ -18,9 +18,9 @@ export function Panel({ id, title, figure, tone, defaultOpen = true, children, .
 }
 
 // An outliner-style row: title and sub on the left, a value on the right, optional trailing control. >= 44px tall.
-export function Row({ title, sub, value, tone, children, trailing, ...rest }) {
+export function Row({ title, sub, value, tone, children, trailing, stack, ...rest }) {
   return (
-    <div className="wl-r" {...rest}>
+    <div className={stack ? 'wl-r wl-r-stack' : 'wl-r'} {...rest}>
       <div className="wl-r-main">
         <b>{title}</b>
         {sub != null && <small>{sub}</small>}

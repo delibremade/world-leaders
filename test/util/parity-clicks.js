@@ -12,6 +12,8 @@ export function clickDriver(g) {
   const tab = async (t) => { g.tabBtn(t).click(); await flush(); };
   // Segmented sub-tab inside the current vertical (Forces: manpower, quality, training, equipment, specialized).
   // E5a: troops, pay and the Order of Battle moved to the Forces vertical; v57 keeps them on the Defense tab. One script drives both.
+  // E5b: the Defense tab became the Arsenal vertical with six sub-tabs; v57 keeps everything on Defense.
+  const arsenal = async (sub) => { if (doc.querySelector('[data-nav]')) { await tab('arsenal'); await seg(sub); } else await tab('defense'); };
   const forces = async (sub) => { if (doc.querySelector('[data-nav]')) { await tab('forces'); await seg(sub); } else await tab('defense'); };
   // Order of Battle controls in v57's order (DEPLOYABLE, then region): the App groups units by branch, so pick by unit, not DOM position.
   const dIdx = (pid) => { const i = DEPLOYABLE.indexOf(pid); return i < 0 ? 99 : i; };
@@ -55,7 +57,7 @@ export function clickDriver(g) {
     gEl.dispatchEvent(new w.MouseEvent('click', { bubbles: true })); await flush();
   };
   const closeRegion = async () => { const x = all('button').find((b) => b.textContent === '✕' && !/border/.test(b.getAttribute('style') || '') && /Your Influence/.test(b.parentElement?.parentElement?.textContent || '')); if (!x) throw new Error('region close not found'); x.click(); await flush(); };
-  return { tab, seg, forces, stationFirst, recallFirst, find, click, tryClick, div, clickDiv, range, mm, region, closeRegion, hits };
+  return { tab, seg, forces, arsenal, stationFirst, recallFirst, find, click, tryClick, div, clickDiv, range, mm, region, closeRegion, hits };
 }
 
 // Modal answerer that rotates through options so every modal choice gets exercised over a run. Game-over prefers the
@@ -83,7 +85,7 @@ export function rotatingAnswer(g, offset = 0) {
 // `shocks` is the existing hook script (fund, platforms, deployments, tension) that makes the verbs reachable.
 export const verbScript = (g, shocks) => {
   const d = clickDriver(g);
-  const { tab, seg, forces, stationFirst, recallFirst, click, tryClick, clickDiv, range, mm, region, closeRegion, find } = d;
+  const { tab, seg, forces, arsenal, stationFirst, recallFirst, click, tryClick, clickDiv, range, mm, region, closeRegion, find } = d;
   const h = () => g.w.__wl;
   const plan = {
     2: async () => { // doctrine; economy: rate, stance, tax, sector budget, social program, policy action, budget drill +/-
@@ -107,14 +109,17 @@ export const verbScript = (g, shocks) => {
       await tab('energy'); await click(/Embargo Venezuela/); await click(/Embargo Germany/);
     },
     5: async () => { // defense: SAP office, develop, build, import, decommission, pay, procurement, exports
-      await tab('defense');
-      await click(/Establish SAP Office/); await click(/Develop \$400M/); await click(/^Build \$400M$/);
+      await arsenal('programs');
+      await click(/Establish SAP Office/);
+      await arsenal('procurement');
+      await click(/Develop \$400M/); await click(/^Build \$400M$/);
       await click(/^−1$/); await click(/^−1🌐$/);
       // #20 (E8): the pay slider now reaches 0 (unpaid army); v57's runs 80..150. Same control, either range.
       // E5a: it lives in the Forces vertical (Manpower).
       await forces('manpower');
       await range((el) => (el.min === '80' || el.min === '0') && el.max === '150', 120);
-      await tab('defense'); await click(/Surge/);
+      await arsenal('procurement'); await click(/Surge/);
+      await arsenal('exports');
       await click(/Material Science L/); await click(/Sell .* to All Eligible Buyers/);
     },
     6: async () => { // technology: R&D invest, IP policy, era program
@@ -156,19 +161,19 @@ export const verbScript = (g, shocks) => {
       await tryClick(/☢ Demonstration · \$1.5B/); await tryClick(/Back-channel · \$250M/);
     },
     12: async () => { // SAP program, OOB station + recall, Tier-1 intervention
-      await tab('defense');
+      await arsenal('programs');
       await tryClick(/^Initiate \$/);
       await forces('equipment');
       await stationFirst('EU');
       await recallFirst();
       await tab('energy'); await click(/Launch Absolute Resolve/);
     },
-    16: async () => { await tab('defense'); await tryClick(/Tranche #/); await tab('energy'); await tryClick(/Rehabilitate fields/); },
+    16: async () => { await arsenal('programs'); await tryClick(/Tranche #/); await tab('energy'); await tryClick(/Rehabilitate fields/); },
     // More ops so a discovery (intel crisis) stays on the path; discovery is a 5..30% roll per op.
     ...Object.fromEntries([14, 18, 22, 26, 32, 36, 44, 48].map((m, i) => [m, async () => { await tab('intel'); await tryClick(/^🇨🇳 China$/); await tryClick(/^Launch Op$/, { nth: i % 3 }); }])),
     20: async () => { await tab('intel'); await tryClick(/Launch decapitation raid/); await tab('trade'); await click(/Step down/); },
     24: async () => { await tab('energy'); await tryClick(/Hand over to interim/); await click(/Lift — Venezuela/); await tab('resources'); await tryClick(/Activate Phase II/); },
-    30: async () => { await tab('defense'); await tryClick(/Recapitalize Forces/); await tryClick(/Cut Off/); },
+    30: async () => { await arsenal('procurement'); await tryClick(/Recapitalize Forces/); await arsenal('exports'); await tryClick(/Cut Off/); },
     41: async () => { await tab('overview'); await region('Middle East'); await tryClick(/Lift Blockade/); await closeRegion(); },
     40: async () => { await tab('intel'); await tryClick(/🎯 Regime change · \$6B/); },
     60: async () => { await tab('trade'); await tryClick(/✂️ Cut/); await click(/✖ Clear/); },
@@ -204,7 +209,7 @@ export const verbScript = (g, shocks) => {
   };
   const onMonth = async (m) => {
     if (m >= 10 && m <= 40) h().setTension('russia', 82);
-    if (m === 1) { await tab('defense'); await click(/^🌐 Purchase/); }
+    if (m === 1) { await arsenal('procurement'); await click(/^🌐 Purchase/); }
     await shocks(m);
     if (m >= 2) { if (plan[m]) await plan[m](); await every(m); }
   };
