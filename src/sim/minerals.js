@@ -2,9 +2,9 @@
 // verbs (actions.js), the month (tick.js), the E7 mineral gate (selectors.js) and the Resources / Defense tabs.
 // State g.minerals: own {mineral:{ore,cap,stock,reserve}}, built {mineral:plants}, plants [{m,mo}], deals [{m,n,units,price,mo}],
 // recycle [m], release [m], pact bool, controls [m] (ours), against {nation:[m]} (AI controls on us, recomputed monthly),
-// queue [{id,left:{m:u},need:{m:u}}] (tranches waiting for minerals, FIFO).
-import { MINERALS, MINERAL_IDS, MINERAL_START, ROW_CAP, SLOT_INPUTS, PROGRAM_INPUTS, MINERAL_RULES as R } from '../data/minerals.js';
-import { BLACK_PROGRAMS } from '../data/platforms.js';
+// queue [{id,left:{m:u},need:{m:u}}] (tranches and, since E8 #20, platform builds waiting for minerals, FIFO).
+import { MINERALS, MINERAL_IDS, MINERAL_START, ROW_CAP, SLOT_INPUTS, PROGRAM_INPUTS, PLATFORM_INPUTS, MINERAL_RULES as R } from '../data/minerals.js';
+import { BLACK_PROGRAMS, PLATFORMS } from '../data/platforms.js';
 import { NATIONS, NATION_BLOC } from '../data/nations.js';
 import { ALLIED_PROGRAMS } from '../data/alliance.js';
 
@@ -18,8 +18,9 @@ export function newMinerals(nid) {
 const M = (g) => g.minerals || newMinerals(g.country?.id);
 const me = (g) => g.country?.id;
 
-// Tranche inputs: a program override, else its role slot.
-export const inputsOf = (id) => PROGRAM_INPUTS[id] || SLOT_INPUTS[BLACK_PROGRAMS[id]?.slot] || {};
+// Tranche inputs: a program override, else its role slot. A regular platform (PLATFORMS) declares its own per-unit inputs (E8, #20).
+export const inputsOf = (id) => PROGRAM_INPUTS[id] || PLATFORM_INPUTS[id] || SLOT_INPUTS[BLACK_PROGRAMS[id]?.slot] || {};
+const unitName = (id) => (BLACK_PROGRAMS[id] || PLATFORMS[id])?.n || id;
 // The program's binding mineral for allied contributions (E7): the input with the largest value per tranche.
 export const bindingMineral = (id) => Object.entries(inputsOf(id)).reduce((b, [m, u]) => (!b || u * MINERALS[m].price > b[1] ? [m, u * MINERALS[m].price] : b), null)?.[0] || null;
 
@@ -113,7 +114,7 @@ export function startTranche(g, S, fx, id) {
   if (!Object.keys(left).length) { setM(g, S, { ...mm, own }); return true; }
   setM(g, S, { ...mm, own, queue: [...mm.queue, { id, left, need: { ...need } }] });
   const sup = programSupply(g, id); const q = sup.queued[sup.queued.length - 1]; const b = q?.binding || Object.keys(left)[0];
-  fx.toast(`⏳ ${BLACK_PROGRAMS[id].n} tranche slowed: ${MINERALS[b].n} short — ~${q?.months === Infinity ? '∞' : q?.months}mo at current supply`);
+  fx.toast(`⏳ ${unitName(id)} ${PLATFORMS[id] ? 'build' : 'tranche'} slowed: ${MINERALS[b].n} short — ~${q?.months === Infinity ? '∞' : q?.months}mo at current supply`);
   return false;
 }
 const setM = (g, S, v) => { g.minerals = v; S.setMinerals(v); };
@@ -146,11 +147,12 @@ export function stepMinerals(g, S, fx, cash, ns) {
   }
   for (const m of contributions(g)) own[m].stock = Math.max(0, own[m].stock - R.contribution);
   // Waiting tranches draw supply first-in first-out; a tranche with nothing left delivers.
-  const queue = []; let got = null; let mil = 0;
+  const queue = []; let got = null; let mil = 0; let plat = null;
   for (const q of mm.queue) {
     const left = {};
     for (const [m, u] of Object.entries(q.left)) { const take = Math.min(own[m].stock, u); own[m].stock -= take; if (u - take > EPS) left[m] = u - take; }
     if (Object.keys(left).length) { queue.push({ ...q, left }); continue; }
+    if (PLATFORMS[q.id]) { const p = PLATFORMS[q.id]; plat = { ...(plat || g.platforms), [q.id]: ((plat || g.platforms)?.[q.id] || 0) + 1 }; fx.toast(`${p.i} ${p.n} delivered — minerals in`); continue; }
     const bp = BLACK_PROGRAMS[q.id]; const bag = got || g.blackPrograms; const n = +bag?.[q.id] || 0;
     got = { ...bag, [q.id]: n + 1 }; mil += n > 0 ? bp.mil * (Math.sqrt(n + 1) - Math.sqrt(n)) : 0;
     fx.toast(`${bp.i} ${bp.n} unit #${n + 1} delivered — minerals in`);
@@ -158,6 +160,7 @@ export function stepMinerals(g, S, fx, cash, ns) {
   for (const m of MINERAL_IDS) own[m].stock = Math.min(R.stockMax, own[m].stock);
   const deals = mm.deals.filter((d) => d.mo > 1).map((d) => ({ ...d, mo: d.mo - 1 }));
   for (const d of mm.deals) if (d.mo <= 1) fx.toast(`📄 ${MINERALS[d.m].n} offtake with ${NATIONS[d.n]?.n} expired`);
+  if (plat) { g.platforms = plat; S.setPlatforms({ ...plat }); }
   if (got) { g.blackPrograms = got; S.setBlackPrograms({ ...got }); if (ns) ns.military = Math.min(100, ns.military + mil); }
   setM(g, S, { ...mm, own, queue, deals });
 }

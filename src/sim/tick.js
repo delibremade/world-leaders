@@ -12,7 +12,9 @@ import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, CRISIS_FRIENDLY, CRISIS_HOSTIL
 import { BLOC_TRADE } from '../data/trade.js';
 import { CHOKEPOINTS, IMPORT_ROUTES } from '../data/chokepoints.js';
 import { RES_META, CONCESSIONS } from '../data/energy.js';
-import { sumDep, isAllyOf, topHostile, wSum, navalWeight, calcSCost, getEnergyTier, isDiversified, getRefineMult, triadLegs as legsOf, airMult, interceptChance, cnExposure } from './formulas.js';
+import { sumDep, isAllyOf, topHostile, wSum, navalWeight, calcSCost, getEnergyTier, isDiversified, getRefineMult, triadLegs as legsOf, airMult, interceptChance, cnExposure, forceMult, capWeight } from './formulas.js';
+import { stepForces, payrollOf } from './forces.js';
+import { crewOf } from '../data/forces.js';
 import { naturalDrift } from './economy.js';
 import { rng } from './rng.js';
 import { stepIssues, ISSUE_TTL } from './issues.js';
@@ -141,10 +143,10 @@ function economy(g,S,fx,m){
   const domMil=Object.entries(g.platforms||{}).reduce((sum,[pid,ct])=>{
     const p=PLATFORMS[pid];if(!p||!ct)return sum;
     const over=Object.entries(p.req).reduce((o,[v,rq])=>o+Math.max(0,(g.defLevels[v]||0)-rq),0);
-    return sum+ct*p.mil*Math.min(2,1+0.07*over);
+    return sum+ct*p.mil*Math.min(2,1+0.07*over)*forceMult(g.forces,crewOf(pid).b); // E8: x strength x quality x readiness of its branch
   },0);
-  const impMil=Object.entries(g.platformsImported||{}).reduce((s2,[pid2,ct2])=>{const p2=PLATFORMS[pid2];return s2+(p2&&ct2?ct2*p2.mil*0.9:0);},0);
-  const platMil=(domMil+impMil)*((g.personnelPay||100)<90?0.85:(g.personnelPay||100)>=120?1.1:1)*(g.procureMode==='surge'?1.08:g.procureMode==='efficiency'?0.95:1);
+  const impMil=Object.entries(g.platformsImported||{}).reduce((s2,[pid2,ct2])=>{const p2=PLATFORMS[pid2];return s2+(p2&&ct2?ct2*p2.mil*0.9*forceMult(g.forces,crewOf(pid2).b):0);},0);
+  const platMil=(domMil+impMil)*((g.personnelPay??100)<90?0.85:(g.personnelPay??100)>=120?1.1:1)*(g.procureMode==='surge'?1.08:g.procureMode==='efficiency'?0.95:1);
   // E7 (#19): allied program access. As a member: compliance check (breach suspends), suspension clock, workshare, deliveries.
   // As the owner: export income per member and a leak roll per member (rng only while members exist).
   const acc0=g.arsenal?.access||{};
@@ -180,9 +182,9 @@ function economy(g,S,fx,m){
     g.arsenal={...g.arsenal,access:acc,orders:next};S.setArsenal(g.arsenal);
   }
   // Allied variants fly at their tier's performance (E7); own programs at 1, so v57 sums are unchanged.
-  const blackMil=Object.keys(g.blackPrograms||{}).reduce((s2,bid)=>s2+(BLACK_PROGRAMS[bid]?.mil||0)*variantEff(g,bid),0);
+  const blackMil=Object.keys(g.blackPrograms||{}).reduce((s2,bid)=>s2+(BLACK_PROGRAMS[bid]?.mil||0)*variantEff(g,bid)*forceMult(g.forces,crewOf(bid).b),0);
   const ccaMult=airMult(g.blackPrograms); // drone wings force-multiply air
-  const milTarget=Math.min(100,30+(platMil*ccaMult+blackMil)*milMult*defEffM+totalDL*0.5+(g.doctrine==='fortress'?6:0));
+  const milTarget=Math.min(100,(30+totalDL*0.5)*forceMult(g.forces,'land')+(platMil*ccaMult+blackMil)*milMult*defEffM+(g.doctrine==='fortress'?6:0));
   ns.military=ns.military+(milTarget-ns.military)*0.05;
 
   // ── Sector Fiscal Engine ─────────────────────────────────────────────────
@@ -298,14 +300,14 @@ function economy(g,S,fx,m){
       const pv=sph.player||0;let gain=0;
       if(projRate>0&&pv>25&&pv<60)gain+=projRate;
       const dep=sumDep(g.forceDeployments?.[rid]);
-      const wdep=wSum(g.forceDeployments?.[rid],g.blackPrograms);
+      const wdep=capWeight(g.forceDeployments?.[rid],g.blackPrograms,g.forces); // E8: posture weight reads capability
       if((g.forceDeployments?.[rid]?.sr72||0)>0&&pv<95)gain+=0.04; // SR-72 on station: persistent regional reconnaissance
       const post=g.forcePosture[rid]||'deter';
       const perUnit=post==='deter'?0.12:post==='humanitarian'?((g.flashpoint?.rid===rid||(g.worldEvent&&WORLD_EVENTS[g.worldEvent.id]?.choke&&CHOKEPOINTS[WORLD_EVENTS[g.worldEvent.id].choke]?.region===rid))?0.2:0.04):0.06;
       if(dep>0&&pv<95)gain+=Math.min(0.6,dep*perUnit);
       if(post==='humanitarian'&&dep>0){cash('Humanitarian ops',-dep*30);const relH={...g.nationRelations};let hCh=false;DIP_TARGETS.forEach(t=>{if(t.region===rid){relH[t.id]=Math.min(100,(relH[t.id]||0)+1);hCh=true;}});if(hCh){g.nationRelations=relH;S.setNationRelations(relH);}}
       if(post==='exercise'&&dep>0){const relX={...g.nationRelations};let xCh=false;DIP_TARGETS.forEach(t=>{if(t.region===rid&&(isAllyOf(c.id,t.id)||g.defensePacts.has(t.id)||(relX[t.id]||0)>=60)){relX[t.id]=Math.min(100,(relX[t.id]||0)+0.5);xCh=true;}});if(xCh){g.nationRelations=relX;S.setNationRelations(relX);}}
-      if(post==='escort'&&dep>0){const top=topHostile(sph.competitors,c.id);if(top&&g.tickCount%2===0)S.setRivalTension(p=>({...p,[top[0]]:Math.min(99,(p[top[0]]||0)+1)}));}
+      if(post==='escort'&&dep>0&&wdep>=1){const top=topHostile(sph.competitors,c.id);if(top&&g.tickCount%2===0)S.setRivalTension(p=>({...p,[top[0]]:Math.min(99,(p[top[0]]||0)+1)}));}
       // Deployed forces actively suppress the leading rival — influence is contested, not parallel
       let comps=sph.competitors;
       const suppM=post==='deter'?1:post==='isr'?0.5:0; // escort/exercise/humanitarian forces aren't pushing
@@ -325,8 +327,8 @@ function economy(g,S,fx,m){
   Object.entries(g.platformsImported||{}).forEach(([pid,ct])=>{const p=PLATFORMS[pid];if(p&&ct)pM+=p.maint*ct*maintM*1.25;});cash('Force maintenance',-Math.round(pM));} // foreign parts premium
   const triadLegs=legsOf(g.platforms,g.blackPrograms);
   if(triadLegs>=3)ns.stability+=0.08; // full triad/strategic deterrent security umbrella
-  cash('Personnel',-Math.round(unitTotal*3*((g.personnelPay||100)/100)));
-  if(unitTotal>0){if((g.personnelPay||100)<90)ns.stability-=0.03;else if((g.personnelPay||100)>=120)ns.stability+=0.02;}
+  cash('Personnel',-Math.round((unitTotal*3+payrollOf(g.forces))*((g.personnelPay??100)/100))); // E8: manpower and SOF payroll
+  if(unitTotal>0){if((g.personnelPay??100)<90)ns.stability-=0.03;else if((g.personnelPay??100)>=120)ns.stability+=0.02;}
   // Social programs: monthly cost + QoL effects
   {let sC=0;g.socialPrograms.forEach(spId=>{const sp=SOCIAL_PROGRAMS[spId];if(!sp)return;sC+=sp.cost;Object.entries(sp.fx).forEach(([k,v])=>{if(k in ns)ns[k]+=v;});});cash('Social programs',-sC);}
   // Quality of Life composite drives stability + growth
@@ -576,7 +578,7 @@ function pressure(g,S,fx,m){
       const scale=Math.min(1.6,1+0.2*(rids.length-1))*((g.rivalTension[compId]||0)>=40?1.25:1)*Math.max(0.4,1-0.3*isrDamp)*(g.embargoes.has(compId)?0.75:1);
       S.setStats(p=>{const ns2={...p};Object.entries(resp.effect||{}).forEach(([k,v])=>{if(k in ns2&&typeof v==='number')ns2[k]+=((k==='stability'||k==='inflation')?v*shockMult:v)*detM*scale;});return ns2;});
       rids.forEach(rid=>{
-        const wHere=wSum(g.forceDeployments?.[rid],g.blackPrograms);
+        const wHere=capWeight(g.forceDeployments?.[rid],g.blackPrograms,g.forces);
         const detS=Math.min(nm,milM)*(wHere>0?0.5:1)*moleM;
         const ps=sphCopy[rid]?.player||0;
         if(sphCopy[rid]){sphCopy[rid]={...sphCopy[rid],player:Math.max(0,ps-6*detS),competitors:{...sphCopy[rid].competitors,[compId]:Math.min(90,(sphCopy[rid].competitors?.[compId]||0)+8*detS)}};}
@@ -1059,11 +1061,14 @@ function world(g,S,fx,m){
 
 // resources (E4, #16): processing plants, inflows, AI export controls on us, queued tranches waiting for minerals.
 function minerals(g,S,fx,m){stepMinerals(g,S,fx,m.cash,m.ns);}
+// forces (E8, #20): manpower, quality, training and readiness, crew pipelines, SOF selection.
+function forces(g,S,fx,m){stepForces(g,S,fx,m.cash,m.ns);}
 
 export const MONTH_PHASES=[
   {id:'economy',system:'economy',run:economy},
   {id:'research',system:'military',run:research},
   {id:'minerals',system:'resources',run:minerals},
+  {id:'forces',system:'military',run:forces},
   {id:'pressure',system:'military',run:pressure},
   {id:'intelOps',system:'intel',run:intelOps},
   {id:'alliances',system:'diplomacy',run:alliances},

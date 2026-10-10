@@ -1,8 +1,10 @@
 // One implementation per formula (CLAUDE.md rule 8). Pure: plain data in, number/bool out.
-import { NATION_BLOC, DIP_TARGETS } from '../data/nations.js';
+import { NATION_BLOC, DIP_TARGETS, NATIONS } from '../data/nations.js';
+const NATIONS_REGION=(nid)=>NATIONS[nid]?.region;
 import { REGIONS } from '../data/regions.js';
 import { DEP_W, DV, NAV_W, BLACK_PROGRAMS, BUY_PREMIUM } from '../data/platforms.js';
 import { BASE_SECTOR } from '../data/economy.js';
+import { FORCE_RULES as FR, SOF_RULES, crewOf } from '../data/forces.js';
 
 // Units deployed in one region, unweighted.
 export const sumDep=o=>Object.values(o||{}).reduce((a,b)=>a+(b||0),0);
@@ -87,4 +89,31 @@ export function panamaPriorityBlock(g){
   if(!(naHome||saRel>=30))return 'Needs a hemispheric home or South American relations ≥30';
   if((g.stats?.treasury||0)<800)return '$800M';
   return null;
+}
+
+// ── E8 (#20): troops, training, force quality. Capability per branch = strength x quality x readiness x equipment; equipment is
+// the platform term each consumer already sums, so these return the personnel multiplier. Old saves without forces read 1.
+// Force quality index (0..100) from the existing vitals; the force's own `quality` lags this target (forces.js).
+export const forceQuality=(s)=>Math.max(0,Math.min(100,0.30*(s?.education||0)+0.20*(s?.healthcare||0)+0.15*(s?.foodSecurity||0)+0.20*(s?.stability||0)+0.15*(100-(s?.inequality??100))));
+export const qualityF=(q)=>0.6+0.8*(q||0)/100;                      // 0.6..1.4; 50 = 1
+export const readinessF=(r)=>0.7+0.3*(r||0)/FR.start.readiness;     // 0.7..1.13; standard (70) = 1
+const S0=FR.start.active+0.25*FR.start.reserve;
+export const strengthF=(f)=>Math.min(1.1,0.4+0.6*((f.active||0)+0.25*(f.reserve||0))/S0); // 0.4..1.1; a fully manned force = 1
+export const forceMult=(f,b)=>f?strengthF(f)*qualityF(f.quality)*readinessF(f.readiness?.[b]):1;
+// Capability-weighted regional weight: wSum per unit x its branch multiplier (posture: sphere suppression, escort tension, pressure).
+export const capWeight=(o,black,f)=>Object.entries(o||{}).reduce((a,[k,v])=>a+wSum({[k]:v},black)*forceMult(f,crewOf(k).b),0);
+// Tier-1 strength: squadrons x quality x land readiness.
+export const tier1Power=(f)=>f?(f.sof?.t1||0)*qualityF(f.quality)*readinessF(f.readiness?.land):0;
+// Export buyer advantage: buyers pay more for kit fielded by a well-trained force (training packages, combat credibility). 50 = 1.
+export const exportEdge=(f)=>f?0.9+0.2*(f.quality||0)/100:1;
+// Tier-1 operation (regime change) overmatch and odds: the v57 math plus the Tier-1 term. One implementation for the verb and the card.
+export function tier1Odds(g,nid){
+  const home=NATIONS_REGION(nid);const dep=g.forceDeployments?.[home]||{};const w=wSum(dep,g.blackPrograms);
+  const isr=isrScore(g.platforms,g.defLevels,g.intelInfra,g.blackPrograms);
+  const saps=Object.values(g.blackPrograms||{}).reduce((a,b)=>a+(+b||0),0);
+  const gl=g.globalDef?.[nid];const their=gl?40+Object.values(gl).reduce((a,b)=>a+(b||0),0)*2:(NATION_BLOC[nid]==='east'?45:30);
+  const t1=tier1Power(g.forces);
+  const mine=(g.stats?.military||0)+isr*2+saps*10+w*5+t1*SOF_RULES.t1Points;const ratio=mine/their;
+  const chance=Math.min(0.9,0.3+Math.max(0,ratio-2)*0.2+(g.embassies?.has(nid)?0.1:0)+(g.embassyMissions?.[nid]==='intel'?0.1:0)+Math.min(SOF_RULES.t1ChanceMax,t1*SOF_RULES.t1Chance));
+  return {home,dep,w,isr,saps,gl,their,t1,mine,ratio,chance};
 }

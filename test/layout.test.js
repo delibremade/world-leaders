@@ -58,6 +58,24 @@ test('390px: Resources minerals view with every row open stays inside the screen
   } finally { await ctx.close(); }
 });
 
+test('390px: Defense Forces panel (E8, #20) and the crew gap stay inside the screen; every mechanic has a control', async () => {
+  const { ctx, page, errors } = await openGame(browser, { width: 390 });
+  try {
+    await page.evaluate(() => { const h = window.__wl; h.field('f47', 2); h.forces({ crews: { land: 6, air: 0, sea: 6 } }); });
+    await go(page, 'defense');
+    await page.evaluate(() => document.querySelector('[data-forces]').scrollIntoView({ block: 'start' })); await settle(page, 200);
+    for (const sel of ['[data-forces-manpower]', '[data-forces-quality]', '[data-forces-training]', '[data-forces-crews]', '[data-forces-sof]']) {
+      const r = await rect(page, sel); assert.ok(r && r.x >= 0 && r.r <= 390.5, `${sel} ${JSON.stringify(r)}`);
+    }
+    const txt = await page.evaluate(() => document.querySelector('[data-forces]').innerText);
+    for (const re of [/Unfunded/, /Intensive/, /Train Tier 2/, /Tier 1 selection/, /1st SFOD-D/, /gap 4/, /Retention/]) assert.match(txt, re);
+    assert.ok(await page.evaluate(() => !!document.querySelector('input[type=range][min="0"][max="150"]')), 'pay slider reaches 0');
+    const o = await overflow(page, 390);
+    assert.ok(o.scrollWidth <= 390, `scrollWidth ${o.scrollWidth}`); assert.deepEqual(o.bad, [], 'elements past the right edge');
+    assert.deepEqual(errors, []);
+  } finally { await ctx.close(); }
+});
+
 test('390px: six map-mode chips fit inside the map card, equal width, none clipped', async () => {
   const { ctx, page } = await openGame(browser, { width: 390 });
   try {
