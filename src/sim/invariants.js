@@ -47,5 +47,12 @@ export const V57_INVARIANTS = [
   ['tension values finite and in [0,100]', (g) => Object.values(g.rivalTension || {}).every((v) => finite(v) && v >= 0 && v <= 100)],
   ['month counter is a non-negative integer', (g) => Number.isInteger(g.tickCount) && g.tickCount >= 0],
   ['pressure timer within its 3-month gate', (g) => Number.isInteger(g.pressureTimer) && g.pressureTimer <= 3],
+  // Event system (E2, #14)
+  ['event cooldowns are integers in [0,60]', (g) => Object.values(g.evState?.cd || {}).every((v) => Number.isInteger(v) && v >= 0 && v <= 60)],
+  ['in-effect rows have months left and a known kind', (g) => (g.evState?.fx || []).every((r) => Number.isInteger(r.mo) && r.mo > 0 && (r.kind === 'world' || r.kind === 'flashpoint'))],
+  ['a live world event has months left', (g) => !g.worldEvent || (Number.isInteger(g.worldEvent.mo) && g.worldEvent.mo > 0)],
+  ['an answered world event has its in-effect row', (g) => !g.worldEvent?.ans || (g.evState?.fx || []).some((r) => r.ev === g.worldEvent.id && r.kind === 'world')],
+  ['a live flashpoint has months left', (g) => !g.flashpoint || (Number.isInteger(g.flashpoint.t) && g.flashpoint.t > 0)],
+  ['queued follow-ups name real events', (g) => (g.evState?.q || []).every((q) => typeof q.id === 'string' && Number.isFinite(q.at))],
 ];
 export const checkV57 = (g) => V57_INVARIANTS.filter(([, ok]) => !ok(g)).map(([n]) => n);

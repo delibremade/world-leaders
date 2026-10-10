@@ -1,12 +1,14 @@
 import { NATIONS, BUYERS, DIP_TARGETS, NATION_BLOC, RD_MODS } from '../data/nations.js';
 import { REGIONS, POSTURE_LABELS } from '../data/regions.js';
-import { DOCTRINES } from '../data/world.js';
+import { DOCTRINES, WORLD_EVENTS } from '../data/world.js';
 import { PLATFORMS, BLACK_PROGRAMS, DV, DEPLOYABLE } from '../data/platforms.js';
+import { WORLD_RULES, FP_RESPONSES } from '../data/events.js';
+import { worldOptions, fpReason, FP_COST, pushFx, flashpointRow, setEv, stampEvent, absMonth } from './events.js';
 import { PA, ISSUES, SOCIAL_PROGRAMS, SECTOR_LABELS, IP_POLICY_LABELS } from '../data/economy.js';
 import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, INTEL_POSTURE_LABELS } from '../data/intel.js';
 import { BLOC_TRADE, CURRENCY_LABELS } from '../data/trade.js';
 import { RES_META, CONCESSIONS } from '../data/energy.js';
-import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRunCost, recapCost, getQualMult } from './formulas.js';
+import { panamaPriorityBlock, sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRunCost, recapCost, getQualMult } from './formulas.js';
 import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups, opOddsTerms } from './selectors.js';
 import { rng } from './rng.js';
 
@@ -368,6 +370,26 @@ function makeDecision(g,S,fx,optId){
   S.setUsedDecisions(prev=>new Set([...prev,d.id]));g.decisionTimer=7+Math.floor(rng()*6);
 }
 
+// E2 (#14): answer a world-event or flashpoint card in place. Order: engine-verb acts, then charge, then effects. Every
+// gate lives in the response's `req` (worldOptions), so an available response always lands; a refused one changes nothing.
+function eventResponse(g,S,fx,kind,response){
+  if(kind==='flashpoint'){const fp=g.flashpoint;if(!fp)return false;const reason=fpReason(g,fp.rid,response);if(reason){fx.toast('⚠ '+reason);return false;}return flashpointResponse(g,S,fx,fp.rid,response);}
+  const we=g.worldEvent;const rule=we&&WORLD_RULES[we.id];if(!rule||we.ans)return false;
+  const r=rule.responses.find(x=>x.id===response);if(!r)return false;
+  const opt=worldOptions(g).find(o=>o.id===response);if(!opt?.ok){fx.toast('⚠ '+(opt?.reason||'Unavailable'));return false;}
+  const acts=r.act?.(g)||[];
+  for(const a of acts){VERBS[a.verb](g,S,fx,a.payload);}
+  if(r.cost)S.setStats(p=>({...p,treasury:p.treasury-r.cost}));
+  if(r.now)S.setStats(p=>{const ns={...p};Object.entries(r.now).forEach(([k,v])=>{if(k in ns)ns[k]+=v;});return ns;});
+  applySfx(g,S,fx,r.sfx);
+  const mo=Math.max(1,we.mo-(r.cut||0));const ans={...we,mo,ans:r.id};g.worldEvent=ans;S.setWorldEvent(ans);
+  const dur=r.dur||null;
+  pushFx(g,S,{id:`fx_we_${we.id}`,kind:'world',ev:we.id,choice:r.label,mo:dur||mo,sync:!dur,mods:r.mods||{}});
+  if(r.chain){const ev=g.evState;setEv(g,S,{...ev,q:[...ev.q,{id:r.chain.id,at:absMonth(g)+r.chain.after}]});}
+  S.setLog(p=>[{msg:`${WORLD_EVENTS[we.id].i} ${WORLD_EVENTS[we.id].n}: ${r.label}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
+  fx.toast(`${WORLD_EVENTS[we.id].i} ${r.label}`);return true;
+}
+
 
 // ── Inline v57 handlers (render-time locals are recomputed from g with the same expressions; render-state values
 // are snapshotted at the start of the verb, exactly as the click-time closure saw them).
@@ -395,13 +417,22 @@ function confrontationResponse(g,S,fx,response){
 }
 
 // Map region panel: flashpoint responses, forward deployment +/-, posture, blockade, kinetic strike.
-function flashpointResponse(g,S,fx,selectedRegion,response){
+function flashpointResponseCore(g,S,fx,selectedRegion,response){
   const stats=g.stats;const forceDeployments=g.forceDeployments;const embassies=g.embassies;
   if(response==='intervene'){const dep=sumDep(forceDeployments[selectedRegion]);const canInt=dep>0||(stats?.military||0)>=70;
     if(!canInt){fx.toast('⚠ Requires deployed forces here or Military 70+');return;}if((g.stats?.treasury||0)<500){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-500,stability:p.stability-2}));S.setSphere(p=>{const n2={...p};const sph=n2[selectedRegion];if(sph){const top=Object.entries(sph.competitors||{}).sort((a,b)=>b[1]-a[1])[0];n2[selectedRegion]={...sph,player:Math.min(100,(sph.player||0)+15),competitors:top?{...sph.competitors,[top[0]]:Math.max(0,top[1]-8)}:sph.competitors};}return n2;});g.flashpoint=null;S.setFlashpoint(null);fx.toast('🪖 Intervention successful — region secured (+15 sphere)');S.setLog(p=>[{msg:`🪖 Intervened: ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
   else if(response==='mediate'){if((g.stats?.treasury||0)<300){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-300}));S.setSphere(p=>{const n2={...p};const sph=n2[selectedRegion];if(sph)n2[selectedRegion]={...sph,player:Math.min(100,(sph.player||0)+7)};return n2;});g.flashpoint=null;S.setFlashpoint(null);fx.toast('🕊 Mediation holds (+7 sphere)');S.setLog(p=>[{msg:`🕊 Mediated: ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
   else if(response==='diplomatic'){const embHere=DIP_TARGETS.some(d=>d.region===selectedRegion&&embassies.has(d.id));
     if(!embHere){fx.toast('⚠ Requires an embassy in this region — establish one via Trade');return;}if((g.stats?.treasury||0)<200){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-200}));S.setSphere(p=>{const n2={...p};const sph=n2[selectedRegion];if(sph){const top=Object.entries(sph.competitors||{}).sort((a,b)=>b[1]-a[1])[0];n2[selectedRegion]={...sph,player:Math.min(100,(sph.player||0)+6),competitors:top?{...sph.competitors,[top[0]]:Math.max(0,top[1]-4)}:sph.competitors};}return n2;});g.flashpoint=null;S.setFlashpoint(null);fx.toast('🏛️ Diplomatic resolution — embassy back-channels defused the crisis');S.setLog(p=>[{msg:`🏛️ Diplomatic resolution: ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
+  else if(response==='fund'){if((g.stats?.treasury||0)<FP_COST.fund){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-FP_COST.fund}));S.setSphere(p=>{const n2={...p};const sph=n2[selectedRegion];if(sph){const top=Object.entries(sph.competitors||{}).sort((a,b)=>b[1]-a[1])[0];n2[selectedRegion]={...sph,player:Math.min(100,(sph.player||0)+9),competitors:top?{...sph.competitors,[top[0]]:Math.max(0,top[1]-3)}:sph.competitors};}return n2;});g.flashpoint=null;S.setFlashpoint(null);fx.toast('💵 Local partners funded (+9 sphere)');S.setLog(p=>[{msg:`💵 Funded partners: ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
+  else if(response==='concede'){S.setStats(p=>({...p,stability:p.stability-1}));S.setSphere(p=>{const n2={...p};const sph=n2[selectedRegion];if(sph){const top=Object.entries(sph.competitors||{}).sort((a,b)=>b[1]-a[1])[0];n2[selectedRegion]={...sph,player:Math.max(0,(sph.player||0)-3),competitors:top?{...sph.competitors,[top[0]]:Math.min(100,top[1]+6)}:sph.competitors};}return n2;});g.flashpoint=null;S.setFlashpoint(null);fx.toast('🏳 Conceded — the region drifts (−3 you, +6 them)');S.setLog(p=>[{msg:`🏳 Conceded: ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
+}
+// Answered flashpoints leave an "in effect" row (E2, #14); the map panel and the inline card share this path.
+function flashpointResponse(g,S,fx,selectedRegion,response){
+  const fp=g.flashpoint;if(!fp||fp.rid!==selectedRegion||!FP_RESPONSES.some(r=>r.id===response))return false;
+  flashpointResponseCore(g,S,fx,selectedRegion,response);
+  if(g.flashpoint)return false;
+  pushFx(g,S,flashpointRow(g,selectedRegion,fp.type,response));return true;
 }
 // Map +/-: one deploy path (deployUnit / recallUnit), so the live state is written inside the updater (#6).
 function adjustDeployment(g,S,fx,selectedRegion,pid,delta){
@@ -474,8 +505,7 @@ function toggleEmbargo(g,S,fx,tg){
 }
 function panamaDeal(g,S,fx,deal){
   const cd=g.chokeDeals.panama||{};
-  if(deal==='priority'){const homeRid=Object.entries(REGIONS).find(([,r])=>r.homeFor?.includes(g.country?.id))?.[0];const naHome=homeRid==='NA'||homeRid==='SA';const nationRelations=g.nationRelations;const saRel=DIP_TARGETS.filter(d=>d.region==='SA').reduce((s,d)=>s+(nationRelations[d.id]||0),0)/Math.max(1,DIP_TARGETS.filter(d=>d.region==='SA').length);
-    if(cd.priority){fx.toast('Transit priority already in force');return;}if(!(naHome||saRel>=30)){fx.toast('⚠ Needs a hemispheric home or South American relations ≥30');return;}if((g.stats?.treasury||0)<800){fx.toast('⚠ $800M');return;}S.setStats(p=>({...p,treasury:p.treasury-800}));S.setChokeDeals(p=>{const n2={...p,panama:{...(p.panama||{}),priority:true}};g.chokeDeals=n2;return n2;});fx.toast('🇵🇦 Transit Priority Agreement — your hulls jump the queue; drought rationing no longer applies to you');}
+  if(deal==='priority'){const blk=panamaPriorityBlock(g);if(blk){fx.toast(blk.startsWith('Transit')?blk:'⚠ '+blk);return;}S.setStats(p=>({...p,treasury:p.treasury-800}));S.setChokeDeals(p=>{const n2={...p,panama:{...(p.panama||{}),priority:true}};g.chokeDeals=n2;return n2;});fx.toast('🇵🇦 Transit Priority Agreement — your hulls jump the queue; drought rationing no longer applies to you');}
   else if(deal==='locks'){if(cd.locks!==undefined){fx.toast(cd.locks>0?`Lock expansion — ${cd.locks}mo remaining`:'Third lane complete');return;}if((g.stats?.treasury||0)<2000){fx.toast('⚠ $2,000M');return;}S.setStats(p=>({...p,treasury:p.treasury-2000}));S.setChokeDeals(p=>{const n2={...p,panama:{...(p.panama||{}),locks:24}};g.chokeDeals=n2;return n2;});fx.toast('🏗️ Lock expansion financed — 24 months to a third lane. Capacity beats drought, and fees follow.');}
 }
 function signConcession(g,S,fx,ck){
@@ -558,7 +588,7 @@ function nuclearEmployment(g,S,fx,rid){
   S.setNationRelations(p=>{const n2={...p};DIP_TARGETS.forEach(t=>{n2[t.id]=Math.max(-100,(n2[t.id]||0)-60);});return n2;});
   S.setBlocTrade(p=>{const nb={eu:0,cn:0,opec:0};g.blocTrade=nb;return nb;});S.setBlocLock(p=>{const nl={eu:36,cn:36,opec:36};g.blocLock=nl;return nl;});
   g.pariah=36;S.setPariah(36);S.setRivalTension(p=>{const n2={...p};Object.keys(n2).forEach(k=>{n2[k]=Math.min(99,(n2[k]||0)+20);});n2[rid]=92;return n2;});g.rivalTension={...g.rivalTension,[rid]:92};
-  g.worldEvent={id:'nuclear_taboo',mo:24};S.setWorldEvent({id:'nuclear_taboo',mo:24});
+  g.worldEvent={id:'nuclear_taboo',mo:24};S.setWorldEvent({id:'nuclear_taboo',mo:24});stampEvent(g,S,'nuclear_taboo');
   recordNuke(g,S,fx,{actor:country?.id,target:rid,region:topRg?.[0],type:'employment'});S.setNationRelations(p=>({...p,[rid]:-100}));
   fx.toast(`☢️ TACTICAL EMPLOYMENT — ${REGIONS[topRg?.[0]]?.n||'the region'} is yours. You are a pariah for 36 months.`);S.setLog(p=>[{msg:`☢️ Tactical nuclear employment vs ${rname}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
 }
@@ -632,6 +662,7 @@ export const VERBS={
   deployPolicy:(g,S,fx,{issue,option})=>deployPolicy(g,S,fx,issue,option),
   executePolicy:(g,S,fx,{id})=>executeAction(g,S,fx,PA.find(a=>a.id===id)),
   makeDecision:(g,S,fx,{option})=>makeDecision(g,S,fx,option),
+  eventResponse:(g,S,fx,{kind,response})=>eventResponse(g,S,fx,kind,response),
   // forces
   deployUnit:(g,S,fx,{region,unit})=>deployUnit(g,S,fx,region,unit),
   recallUnit:(g,S,fx,{region,unit})=>recallUnit(g,S,fx,region,unit),

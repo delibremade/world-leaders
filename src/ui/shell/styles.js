@@ -37,6 +37,9 @@ export const SHELL_CSS = `
 .wl-opt b{display:block;color:${c.text.primary};font-size:${SIZE.body}px;margin-bottom:2px}
 .wl-opt small{display:block;color:${c.text.dim};font-size:${SIZE.caption}px}
 .wl-opt:hover{border-color:var(--ev,${c.accent.command})}
+button.wl-opt{text-align:left;font-family:inherit;width:100%}
+.wl-opt[aria-disabled=true]{opacity:.55;cursor:not-allowed}
+.wl-opt .wl-reason{color:${c.accent.alert}}
 .wl-main{grid-area:main;display:flex;min-height:0;overflow:hidden}
 .wl-body{grid-area:main;overflow-x:clip;min-width:0}
 .wl-body>*{min-width:0}

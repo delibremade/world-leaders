@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.64.3 (2026-10-10) — E2 (#14): answerable event cards, 60-month cooldown, no decision reset
+- Rule change (intentional, parity with v57 ends for the event system): `src/data/events.js` + `src/sim/events.js`. Every world event card has 2-3 responses wired to engine verbs (escort posture, reserve release, Panama deal) or to treasury/stat/relation effects; breakthrough has no card. Flashpoint cards carry Mediate / Deploy forces / Fund partners / Concede inline (Diplomatic stays on the map panel). Unavailable responses stay visible and say why.
+- Answering closes the card (`worldEvent.ans`, `flashpoint = null`) and leaves an outliner row: "in effect: <choice>" with months left; flashpoint answers keep swinging the region's sphere for 6 months. Responses can queue follow-ups (hormuz escort -> regional war, regional war broker -> peace accord, pandemic lockdown -> financial crisis, taboo summit -> peace accord); a follow-up respects cooldown and the single event slot.
+- Spawns: 60-month per-event cooldown, `when`/`w` context weighting (calm world: no Hormuz/Red Sea/war; Panama only in the dry season; nuclear taboo only after a nuclear employment), pick draws one rng call like v57. An empty pool is a quiet month.
+- Decisions: the pool never resets (v57 reset it whenever nothing was eligible, so conditions failing also replayed seen decisions). Empty means a 4-month retry (12 once all are used).
+- State: `evState {cd, fx, q, log}` (new field, old saves load without it); six invariants in `checkV57`.
+- Tests: `test/events.test.js` (every response changes state, refusals change nothing, chains, cooldown, 600-month fuzz x6 seeds: zero repeats inside 60 months, no card outliving its resolution; mutation-checked), 390/1280px layout test for the inline responses. Parity: seeds 1,2,3,10,11 stay byte-identical to v57 until the first random event (months 8-26 of 40 saves); from there the App's saves are pinned in `test/golden/parity-events.json` (`UPDATE_GOLDEN=1 npm test` rewrites it). Test hook: `__wl.flashpoint(rid,type,t)`.
+
 ## 0.64.2 (2026-10-10) — E1 (#13): F-47 deployable; deploy list is data
 - Rule change (intentional, parity with v57 ends for the deploy list): `deployable:true` + `dOrder` on the platform data, `DEPLOYABLE` derived in `src/data/platforms.js`. App deploy panel and Order of Battle read it; the literal lists are gone. F-47 stations and recalls by region like B-21, SR-72, SSN(X).
 - `deployUnit` rejects anything outside `DEPLOYABLE` (CCA, satellites, unknown ids); before, the engine accepted any owned id.

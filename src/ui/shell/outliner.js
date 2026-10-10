@@ -15,7 +15,9 @@ export function buildOutliner(v) {
   const rows = [];
   const push = (r) => rows.push(r);
   if (v.flashpoint) { const fp = FLASHPOINTS[v.flashpoint.type]; push({ id: 'fp', group: 'flashpoints', icon: fp?.i || '⚠', title: `${fp?.n || 'Flashpoint'} · ${REGIONS[v.flashpoint.rid]?.n}`, sub: 'Respond before the timer runs out', months: v.flashpoint.t, sev: 'alert', jump: { tab: 'overview', region: v.flashpoint.rid } }); }
-  if (v.worldEvent) { const we = WORLD_EVENTS[v.worldEvent.id]; push({ id: 'we', group: 'flashpoints', icon: we?.i || '🌐', title: we?.n || v.worldEvent.id, sub: we?.choke ? `Chokepoint: ${we.choke}` : 'World event', months: v.worldEvent.mo, jump: { tab: 'energy' } }); }
+  if (v.worldEvent) { const we = WORLD_EVENTS[v.worldEvent.id]; const row = (v.evState?.fx || []).find((r) => r.kind === 'world' && r.ev === v.worldEvent.id);
+    push({ id: 'we', group: 'flashpoints', icon: we?.i || '🌐', title: we?.n || v.worldEvent.id, sub: v.worldEvent.ans && row ? `in effect: ${row.choice}` : we?.choke ? `Chokepoint: ${we.choke}` : 'World event', months: v.worldEvent.mo, jump: { tab: 'energy' } }); }
+  for (const r of v.evState?.fx || []) if (r.kind === 'flashpoint') push({ id: r.id, group: 'flashpoints', icon: FLASHPOINTS[r.ev]?.i || '⚠', title: `${FLASHPOINTS[r.ev]?.n || 'Flashpoint'} · ${REGIONS[r.rid]?.n}`, sub: `in effect: ${r.choice}`, months: r.mo, sev: 'good', jump: { tab: 'overview', region: r.rid } });
   if (v.ultimatum) push({ id: 'ult', group: 'flashpoints', icon: '☢', title: `Nuclear ultimatum · ${nat(v.ultimatum.cid)}`, sub: 'Answer it to resume', sev: 'alert', jump: { tab: 'sitroom' } });
   if (v.confrontation) push({ id: 'conf', group: 'flashpoints', icon: '⚓', title: `Blockade confrontation · ${REGIONS[v.confrontation.rid]?.n}`, sub: `${nat(v.confrontation.target)} convoy`, sev: 'alert', jump: { tab: 'overview', region: v.confrontation.rid } });
   for (const [rid, b] of Object.entries(v.blockades || {})) push({ id: `bl_${rid}`, group: 'flashpoints', icon: '🚢', title: `Blockade · ${REGIONS[rid]?.n}`, sub: `vs ${nat(b?.target)}${b?.porous ? ' · porous' : ''}`, sev: 'warn', jump: { tab: 'overview', region: rid } });

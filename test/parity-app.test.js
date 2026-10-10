@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mount, BUNDLES } from './util/harness.js';
 import { script } from './util/parity-script.js';
 import { verbScript, rotatingAnswer } from './util/parity-clicks.js';
+import { assertEventParity } from './util/parity-events.js';
 
 // Zero-rule-change gate for P2: the extracted engine (src/ui/App.jsx on src/sim) must produce byte-identical
 // autosaves to the v57 bundle under the same seeded Math.random/Date.now, the same modal answers, and the same
@@ -31,15 +32,8 @@ for (const c of CASES) {
     const a = await play(BUNDLES.legacy, c);
     const b = await play(process.env.PARITY_SELF ? BUNDLES.legacy : BUNDLES.app, c);
     assert.ok(a.saves.length >= 3, `legacy produced ${a.saves.length} saves`);
-    assert.equal(b.months, a.months, 'months advanced');
-    assert.equal(b.saves.length, a.saves.length, 'save count');
-    for (let i = 0; i < a.saves.length; i++) {
-      if (a.saves[i] !== b.saves[i]) {
-        const x = JSON.parse(a.saves[i]), y = JSON.parse(b.saves[i]);
-        const diff = Object.keys({ ...x, ...y }).filter((k) => JSON.stringify(x[k]) !== JSON.stringify(y[k]));
-        assert.fail(`save #${i} (${x.date.mo + 1}/${x.date.yr}) differs in: ${diff.join(', ')} :: ${diff.slice(0, 2).map((k) => JSON.stringify(x[k]).slice(0, 300) + ' vs ' + JSON.stringify(y[k]).slice(0, 300)).join(' | ')}`);
-      }
-    }
+    // #14 (E2): parity with v57 ends at the first random event; see test/util/parity-events.js.
+    assertEventParity(`play-seed-${c.seed}`, a, b);
   });
 }
 
@@ -69,16 +63,10 @@ for (const c of VERB_CASES) {
     const b = await playVerbs(process.env.PARITY_SELF ? BUNDLES.legacy : BUNDLES.app, c);
     for (const re of MUST_HIT) assert.ok(a.hits.some((h) => re.test(h)), `verb not exercised: ${re}`);
     for (const [k, n] of Object.entries(a.seen)) modalsSeen[k] = (modalsSeen[k] || 0) + n;
-    assert.deepEqual(b.hits, a.hits, 'same clicks landed');
-    assert.equal(b.months, a.months, 'months advanced');
-    assert.equal(b.saves.length, a.saves.length, 'save count');
-    for (let i = 0; i < a.saves.length; i++) {
-      if (a.saves[i] !== b.saves[i]) {
-        const x = JSON.parse(a.saves[i]), y = JSON.parse(b.saves[i]);
-        const diff = Object.keys({ ...x, ...y }).filter((k) => JSON.stringify(x[k]) !== JSON.stringify(y[k]));
-        assert.fail(`save #${i} (${x.date.mo + 1}/${x.date.yr}) differs in: ${diff.join(', ')} :: ${diff.slice(0, 2).map((k) => JSON.stringify(x[k]).slice(0, 300) + ' vs ' + JSON.stringify(y[k]).slice(0, 300)).join(' | ')}`);
-      }
-    }
+    // #14 (E2): the click script reacts to cards, so clicks and saves match v57 only until the first random event.
+    assertEventParity(`verbs-seed-${c.seed}`, a, b);
+    let k = 0; while (k < a.hits.length && a.hits[k] === b.hits[k]) k++;
+    assert.ok(k >= 20, `clicks diverged from v57 after only ${k} hits`);
   });
 }
 

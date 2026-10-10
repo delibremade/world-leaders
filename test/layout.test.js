@@ -69,3 +69,36 @@ test('Overview: the map comes first (phone: above every card; desktop: main colu
     } finally { await ctx.close(); }
   }
 });
+
+// E2 (#14): world-event and flashpoint cards carry their responses inline. Every response button sits inside its
+// card, is at least 44px tall, and its text is not clipped, at phone and desktop width.
+for (const [W, H] of [[390, 844], [1280, 800]]) {
+  test(`${W}px: event cards show inline responses that fit (world event + flashpoint)`, async () => {
+    const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
+    try {
+      await page.evaluate(() => { const h = window.__wl; h.fund(20000); h.deploy('ME', 'carrier_group', 2); h.platforms({ carrier_group: 2 }); h.event('hormuz_closure', 6); h.flashpoint('ME', 'coup', 5); });
+      await settle(page, 600);
+      const cards = await page.evaluate(() => [...document.querySelectorAll('[data-event-card=world],[data-event-card=flashpoint]')].map((c) => ({ kind: c.dataset.eventCard, n: c.querySelectorAll('[data-response]').length })));
+      assert.deepEqual(cards.map((c) => c.kind).sort(), ['flashpoint', 'world']);
+      assert.equal(cards.find((c) => c.kind === 'world').n, 3); assert.equal(cards.find((c) => c.kind === 'flashpoint').n, 4);
+      const bad = await page.evaluate(() => [...document.querySelectorAll('[data-event-card] [data-response]')].flatMap((b) => {
+        const c = b.closest('[data-event-card]').getBoundingClientRect(); const r = b.getBoundingClientRect(); const out = [];
+        if (r.left < c.left - 0.5 || r.right > c.right + 0.5) out.push(`${b.dataset.response} outside its card`);
+        if (r.height < 44) out.push(`${b.dataset.response} ${Math.round(r.height)}px tall`);
+        if ([...b.querySelectorAll('b,small')].some((e) => e.scrollWidth > e.clientWidth + 1)) out.push(`${b.dataset.response} clipped text`);
+        return out; }));
+      assert.deepEqual(bad, []);
+      const o = await overflow(page, W); assert.ok(o.scrollWidth <= W, `scrollWidth ${o.scrollWidth}`); assert.deepEqual(o.bad, []);
+      // answering closes the card in place and the outliner says what is in effect
+      await page.evaluate(() => document.querySelector('[data-event-card=world] [data-response=escort]').click()); await settle(page, 300);
+      assert.equal(await page.evaluate(() => !!document.querySelector('[data-event-card=world]')), false, 'world card closed');
+      await page.evaluate(() => document.querySelector('[data-event-card=flashpoint] [data-response=mediate]').click()); await settle(page, 300);
+      assert.equal(await page.evaluate(() => !!document.querySelector('[data-event-card=flashpoint]')), false, 'flashpoint card closed');
+      await page.evaluate(() => document.querySelector('[data-outliner-handle]').click()); await settle(page, 400);
+      const rows = await page.evaluate(() => [...document.querySelectorAll('[data-outliner-row]')].map((r) => r.textContent));
+      assert.ok(rows.some((t) => /in effect: Escort convoys/.test(t)), 'world row: ' + rows.join(' | '));
+      assert.ok(rows.some((t) => /in effect: Mediate/.test(t)), 'flashpoint row');
+      assert.deepEqual(errors, []);
+    } finally { await ctx.close(); }
+  });
+}

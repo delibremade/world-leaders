@@ -14,6 +14,7 @@ import { RES_META, CONCESSIONS } from '../data/energy.js';
 import { sumDep, isAllyOf, topHostile, wSum, navalWeight, calcSCost, getEnergyTier, isDiversified, getRefineMult } from './formulas.js';
 import { naturalDrift } from './economy.js';
 import { rng } from './rng.js';
+import { pickWorldEvent, startWorldEvent, eventCooldowns, fireChain, eventEffects } from './events.js';
 
 // ── v57 monthly tick, extracted (P2). Zero rule changes: test/parity-app.test.js proves the App's autosaves are
 // byte-identical to v57 under a seeded stream. Phases run in v57 execution order; see reports/inventory-v57.md §5.
@@ -676,21 +677,14 @@ function market(g,S,fx,m){
     const target=1+ev;
     d2[v]=Math.max(0.7,Math.min(1.5,cur+(target-cur)*0.12+(rng()-0.5)*0.02));});
     g.demand=d2;S.setDemand(d2);}
+  // World events (E2, #14): cooldowns tick every month; context-weighted pick; queued follow-ups from answered cards.
+  eventCooldowns(g,S);
   if(g.worldEvent){const we={...g.worldEvent};const def=WORLD_EVENTS[we.id];
     Object.entries(def?.fx||{}).forEach(([k,v])=>{if(k in ns)ns[k]+=v;});
     we.mo--; if(we.mo<=0){fx.toast(`${def.i} ${def.n} — conditions normalize`);g.worldEvent=null;S.setWorldEvent(null);}else{g.worldEvent=we;S.setWorldEvent(we);}}
-  else if(g.gracePeriod<=0&&rng()<0.045){
-    const keys=Object.keys(WORLD_EVENTS);const id=keys[Math.floor(rng()*keys.length)];const def=WORLD_EVENTS[id];
-    if(id==='breakthrough'){
-      const rv=['russia','china','usa','germany'].filter(r=>r!==c.id);const tgt=rv[Math.floor(rng()*rv.length)];
-      S.setGlobalDef(p=>{const ng={...p};const lv=ng[tgt];if(lv){const top=Object.entries(lv).sort((a,b)=>b[1]-a[1])[0];if(top)ng[tgt]={...lv,[top[0]]:Math.min(7,top[1]+0.8)};}return ng;});
-      fx.toast(`💡 ${tgt.charAt(0).toUpperCase()+tgt.slice(1)} announces a major breakthrough — your lead narrows`);
-      S.setLog(l=>[{msg:`💡 Breakthrough abroad: ${tgt}`,yr:g.date.yr,mo:g.date.mo},...l.slice(0,19)]);
-    } else {
-      const we={id,mo:def.dur};g.worldEvent=we;S.setWorldEvent(we);
-      fx.toast(`${def.i} WORLD EVENT: ${def.n}`);
-      S.setLog(l=>[{msg:`${def.i} ${def.n}`,yr:g.date.yr,mo:g.date.mo},...l.slice(0,19)]);
-    }
+  else if(!fireChain(g,S,fx)&&g.gracePeriod<=0&&rng()<0.045){
+    const id=pickWorldEvent(g,rng());
+    if(id)startWorldEvent(g,S,fx,id);
   }
 }
 
@@ -921,6 +915,7 @@ function world(g,S,fx,m){
       S.setLog(p=>[{msg:`${FLASHPOINTS[type].i} ${FLASHPOINTS[type].n}: ${REGIONS[rid].n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
     }
   }
+  eventEffects(g,S,ns,m.cash);
   // Sphere momentum tracking (6-month deltas for map arrows)
   g.trendTimer=(g.trendTimer||0)+1;
   if(g.trendTimer>=6){
@@ -935,7 +930,7 @@ function world(g,S,fx,m){
     const dctx={ns,ten:g.rivalTension,rel:g.nationRelations,bt:g.blocTrade,ex:g.defExports,dl:g.defLevels};
     const avail=DECISIONS.filter(d=>!g.usedDecisions.has(d.id)&&(!d.when||d.when(dctx)));
     if(avail.length){const d=avail[Math.floor(rng()*avail.length)];S.setActiveDecision(d);g.activeDecision=d;fx.toast(`🎯 Decision: ${d.title}`);}
-    else{g.usedDecisions=new Set();S.setUsedDecisions(new Set());g.decisionTimer=6;}
+    else g.decisionTimer=g.usedDecisions.size>=DECISIONS.length?12:4; // the pool never resets: nothing eligible means quiet months
   }
 
   // ── Maturity + sector-level change detection ─────────────────────────────

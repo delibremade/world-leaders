@@ -12,3 +12,4 @@ Static registries only. No logic, no randomness. Moved verbatim from v57 (see re
 - `world.js` — DOCTRINES, COMP_RESPONSES, WORLD_EVENTS, DECISIONS.
 - `intel.js` — COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, crisis responses.
 - `stats.js` — MONTHS, vital-stat config (SC) and severity helpers.
+- `events.js` — world-event eligibility, context weights and in-place responses, flashpoint responses, the 60-month cooldown (E2, #14)
