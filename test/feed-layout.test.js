@@ -9,6 +9,12 @@ let browser;
 before(async () => { browser = await launch(); });
 after(async () => { await browser?.close(); });
 
+// A sheet has landed once it is inside the viewport and has stopped moving; slow runners animate for longer than one wait.
+async function landed(page, W, H) {
+  for (let i = 0; i < 40; i++) { const r = await stableRect(page, '[data-sheet]'); if (r && r.x >= -0.5 && r.y >= -0.5 && r.r <= W + 0.5 && r.b <= H + 0.5) return r; await settle(page, 150); }
+  return stableRect(page, '[data-sheet]');
+}
+
 const PHASES = ['intelOps', 'economy', 'world', 'forces', 'pressure', 'statecraft', 'research', 'minerals'];
 const TEXTS = ['🚨 Intelligence operation discovered! Response required.', '⚠ Treasury is low: the ministry stops shipping for 3 months while the budget is rebuilt', '🌐 WORLD EVENT: Pandemic', '🎖️ SEAL Teams: 12 new operators graduate', '⚓ russia blockade runners slipped the Western Europe cordon', '🏛️ Embassy established in Germany', '🔬 Cyber L2 complete — DARPA spillover applied', '🏭 Private lithium plant online'];
 
@@ -26,7 +32,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       assert.equal(await page.evaluate(() => document.querySelector('[data-bell-badge]').textContent), String(before0 + 20));
       await page.screenshot({ path: `docs/shots/41-hud-bell-${W}.png`, clip: { x: 0, y: 0, width: W, height: 150 } });
       await page.evaluate(() => document.querySelector('[data-bell]').click());
-      const sh = await stableRect(page, '[data-sheet]', { within: { W, H } });
+      const sh = await landed(page, W, H);
       assert.ok(sh && sh.x >= -0.5 && sh.r <= W + 0.5 && sh.b <= H + 0.5, `sheet ${JSON.stringify(sh)}`);
       const rows = await page.evaluate(() => [...document.querySelectorAll('[data-feed-row]')].map((e) => { const b = e.getBoundingClientRect(); return { h: b.height, r: b.right, x: b.x }; }));
       assert.equal(rows.length, before0 + 20); assert.ok(rows.every((r) => r.h >= 43.5 && r.r <= W + 0.5 && r.x >= -0.5), 'rows are 44px targets inside the sheet');
