@@ -90,3 +90,20 @@ test('1440px: hovering a HUD figure opens its breakdown without a click; leaving
     assert.ok(await page.$('[data-why-content^="Treasury"]'), 'click still opens and stays open');
   } finally { await ctx.close(); }
 });
+
+// D2 Overview: the map is the centerpiece. It is the largest block on the screen, shows the whole world (no crop,
+// 1000:520), and the situation cards sit under it rather than beside it.
+for (const [W, H, minW] of [[1280, 800, 560], [1440, 900, 700], [1920, 1080, 960]]) {
+  test(`${W}px: Overview map is dominant (>= ${minW}px wide, whole world, cards below, vitals and outliner flank)`, async () => {
+    const { ctx, page } = await openGame(browser, { width: W, height: H });
+    try {
+      await page.evaluate(() => document.querySelector('[data-tab=overview]').click()); await settle(page, 600);
+      const r = await page.evaluate(() => { const q = (s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, r: b.right, b: b.bottom, w: b.width, h: b.height }; }; return { host: q('.wl-mv-host') || q('[data-map] svg'), vitals: q('.wl-vitals'), outliner: q('[data-outliner]'), flank: q('.wl-flank'), card: q('.wl-map-card') }; });
+      assert.ok(r.host.w >= minW, `map ${Math.round(r.host.w)}px < ${minW}`);
+      assert.ok(Math.abs(r.host.w / r.host.h - 1000 / 520) < 0.08, `whole world, aspect ${(r.host.w / r.host.h).toFixed(2)}`);
+      assert.ok(r.vitals.r <= r.card.x + 1 && r.card.x + r.card.w <= r.outliner.x + 1, 'vitals left, outliner right of the map');
+      assert.ok(r.flank.y >= r.card.b - 1, 'situation cards sit under the map');
+      for (const k of ['vitals', 'outliner', 'flank', 'card']) assert.ok(r[k].r <= W + 0.5 && r[k].b <= H + 0.5, `${k} inside the viewport`);
+    } finally { await ctx.close(); }
+  });
+}
