@@ -5,7 +5,8 @@ import { runMonth } from '../src/sim/tick.js';
 import { applyVerb } from '../src/sim/actions.js';
 import { newCampaign, STATE_FIELDS } from '../src/sim/state.js';
 import { checkV57 } from '../src/sim/invariants.js';
-import { forceQuality, forceMult, tier1Odds, exportEdge, capWeight } from '../src/sim/formulas.js';
+import { forceQuality, forceMult, tier1Odds, exportEdge, capWeight, manPts } from '../src/sim/formulas.js';
+import { MANPOWER, manpowerCap } from '../src/data/orbat.js';
 import { crewStatus, forceView, newForces } from '../src/sim/forces.js';
 import { programSupply, inputsOf } from '../src/sim/minerals.js';
 import { SOF_UNITS, SOF_RULES, FORCE_RULES, TRAINING, crewOf, ALL_UNITS, BRANCH_IDS } from '../src/data/forces.js';
@@ -57,7 +58,7 @@ test('cohesion: force quality is one formula in formulas.js over the existing vi
 
 test('new campaign: manpower, quality, standard training, crews, SOF; invariants hold', () => {
   const h = headless('usa'); const f = h.g.forces;
-  assert.equal(f.active, FORCE_RULES.start.active);
+  assert.equal(f.active, MANPOWER.usa.active, 'F7 (#55): headcounts'); assert.equal(Math.round(manPts(f).active), FORCE_RULES.start.active);
   assert.equal(f.train, 2);
   for (const b of BRANCH_IDS) assert.equal(f.readiness[b], FORCE_RULES.start.readiness);
   assert.equal(Math.round(f.quality), Math.round(forceQuality(h.g.stats)));
@@ -103,7 +104,7 @@ test('done-when: an unpaid army loses retention and strength; pay is a Personnel
   unpaid.run('setPersonnelPay', { pay: -20 }); assert.equal(unpaid.g.personnelPay, 0, 'pay >= 0');
   months(paid, 24); months(unpaid, 24);
   assert.ok(unpaid.g.forces.retention < paid.g.forces.retention - 15, `retention ${unpaid.g.forces.retention} vs ${paid.g.forces.retention}`);
-  assert.ok(unpaid.g.forces.active < paid.g.forces.active - 3, `active ${unpaid.g.forces.active} vs ${paid.g.forces.active}`);
+  assert.ok(manPts(unpaid.g.forces).active < manPts(paid.g.forces).active - 3, `active ${unpaid.g.forces.active} vs ${paid.g.forces.active}`);
   assert.ok(paid.ui.ledger.Personnel < 0 && !(unpaid.ui.ledger.Personnel < 0), 'unpaid: no Personnel cost');
   assert.ok(paid.ui.ledger.Training < 0, 'training is a ledger line');
 });
@@ -162,7 +163,7 @@ test('SOF: Tier 2 pipeline, then Tier 1 selection draws on Tier 2; selection is 
 test('invariants: strength, readiness, quality in 0..100; crews <= trained pool; pay >= 0; named on violation', () => {
   const h = headless('usa');
   const bad = (o, re) => { const g = { ...h.g, forces: { ...h.g.forces, ...o } }; assert.ok(checkV57(g).some((n) => re.test(n)), JSON.stringify(o)); };
-  bad({ active: 101 }, /strength/); bad({ quality: -1 }, /quality/); bad({ readiness: { ...h.g.forces.readiness, air: 120 } }, /readiness/);
+  bad({ active: manpowerCap('usa') }, /strength/); // F7 (#55): headcounts within the population bound bad({ quality: -1 }, /quality/); bad({ readiness: { ...h.g.forces.readiness, air: 120 } }, /readiness/);
   bad({ crews: { ...h.g.forces.crews, sea: 999 } }, /crews/);
   assert.ok(checkV57({ ...h.g, personnelPay: -1 }).some((n) => /pay/.test(n)));
 });
@@ -194,13 +195,14 @@ test('E4 gap: regular platform builds draw mineral inputs; a shortfall queues th
 });
 
 // Found by #33's rhythm change (a decision drew in a new month): a reserve call-up could push active strength past 100 and trip the
-// force-strength invariant. The call-up now stops at the cap.
-test('regression: a reserve call-up never takes active strength past 100', async () => {
+// force-strength invariant. The call-up now stops at the cap. F7 (#55): strength is headcounts; the call-up moves at most what the
+// reserve holds, so active + reserve (and the population bound) never move.
+test('regression: a reserve call-up never takes more than the reserve holds', async () => {
   const { DECISIONS } = await import('../src/data/world.js');
   const h = headless('usa', 4); rich(h.g);
-  setF(h.g, { active: 98, reserve: 50 });
+  const a0 = h.g.forces.active; setF(h.g, { reserve: 1000 });
   h.g.activeDecision = DECISIONS.find((d) => d.id === 'crew_shortfall');
   h.run('makeDecision', { option: 'b' });
-  assert.equal(h.g.forces.active, 100); assert.equal(h.g.forces.reserve, 48);
+  assert.equal(h.g.forces.active, a0 + 1000); assert.equal(h.g.forces.reserve, 0);
   assert.deepEqual(checkV57(h.g), []);
 });

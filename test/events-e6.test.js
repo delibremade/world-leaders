@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { manPts } from '../src/sim/formulas.js';
 import { runMonth } from '../src/sim/tick.js';
 import { applyVerb } from '../src/sim/actions.js';
 import { newCampaign, STATE_FIELDS } from '../src/sim/state.js';
@@ -216,7 +217,7 @@ test('world responses drive the right engine: reserve release, recycling, lift, 
   assert.equal(memberOf(h.g), null);
   h = go('owner_leak_scare', 'expel', 'usa', WSCEN.owner_leak_scare[1]); assert.equal(ownedMembers(h.g).length, 0);
   h = go('readiness_grounding', 'retrain', 'usa', WSCEN.readiness_grounding[1]); assert.equal(h.g.forces.train, 3); assert.equal(h.g.forces.readiness.air, 48);
-  h = go('recruitment_slump', 'callup', 'usa', WSCEN.recruitment_slump[1]); assert.equal(h.g.forces.active, 66); assert.equal(h.g.forces.reserve, 30);
+  h = go('recruitment_slump', 'callup', 'usa', WSCEN.recruitment_slump[1]); assert.equal(Math.round(manPts(h.g.forces).active), 66); assert.equal(Math.round(manPts(h.g.forces).reserve), 30); // F7 (#55): headcounts, read as index points
   h = go('hostage_crisis', 'raid', 'usa', WSCEN.hostage_crisis[1]); assert.equal(h.g.forces.readiness.land, 65);
   h = go('false_alarm', 'hotline', 'usa', WSCEN.false_alarm[1]); assert.equal(h.g.rivalTension.russia, 60); assert.deepEqual(h.g.evState.q.map((q) => q.id), ['peace_accord']);
 });

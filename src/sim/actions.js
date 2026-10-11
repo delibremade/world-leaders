@@ -158,7 +158,7 @@ function applySfx(g,S,fx,ops){
     else if(op.k==='mineral'&&g.minerals?.own?.[op.id]){const o=g.minerals.own[op.id];g.minerals={...g.minerals,own:{...g.minerals.own,[op.id]:{...o,stock:Math.max(0,o.stock+op.d)}}};S.setMinerals(g.minerals);}
     else if(op.k==='devSlip'&&g.arsenal?.dev?.[op.id]){const d=g.arsenal.dev[op.id];g.arsenal={...g.arsenal,dev:{...g.arsenal.dev,[op.id]:{...d,prog:Math.max(0,Math.min(d.mo-1,d.prog-op.mo))}}};S.setArsenal(g.arsenal);}
     else if(op.k==='suspend'){const pid=op.pid==='$member'?memberOf(g)?.pid:op.pid;const a=pid&&myAccess(g,pid);if(a?.status==='active'){setAccess(g,S,pid,g.country.id,{...a,status:'suspended',susp:ACCESS_RULES.suspendMo});bumpRel(g,S,{[ALLIED_PROGRAMS[pid].owner]:-ACCESS_RULES.breachRel});}}
-    else if(op.k==='manpower'&&g.forces){const f=g.forces;const d=Math.max(-f.active,Math.min(f.reserve,100-f.active,op.d));g.forces={...f,active:f.active+d,reserve:f.reserve-d};S.setForces(g.forces);} // reserve call-up (+) or stand-down (-)
+    else if(op.k==='manpower'&&g.forces){const f=g.forces;const u=f.base?f.base.active/FORCE_RULES.start.active:1;const d=Math.max(-f.active,Math.min(f.reserve,(f.base?Infinity:100-f.active),op.d*u));g.forces={...f,active:f.active+d,reserve:f.reserve-d};S.setForces(g.forces);} // reserve call-up (+) or stand-down (-); op.d in index points (F7: x 2024 active / 60 heads)
     else if(op.k==='tradeDeal'){S.setTradeAgreements(p=>{const n2=new Set(p);n2.add(op.id);g.tradeAgreements=n2;return n2;});}
   });
 }

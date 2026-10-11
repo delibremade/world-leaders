@@ -1,6 +1,9 @@
 import { MONTHLY_SYSTEMS } from './systems.js';
 import { BLACK_PROGRAMS, PLATFORMS } from '../data/platforms.js';
-import { BRANCH_IDS, TRAINING, SOF_RULES, FORCE_RULES } from '../data/forces.js';
+import { BRANCH_IDS, TRAINING, SOF_RULES, FORCE_RULES, FLEET_RULES as FL } from '../data/forces.js';
+import { ORBAT, manpowerCap } from '../data/orbat.js';
+import { REGIONS } from '../data/regions.js';
+import { manPts } from './formulas.js';
 import { NATIONS } from '../data/nations.js';
 import { ALLIED_PROGRAMS, TIERS, ACCESS_RULES } from '../data/alliance.js';
 import { WORLD_EVENTS, DECISIONS } from '../data/world.js';
@@ -83,10 +86,18 @@ export const V57_INVARIANTS = [
   ['AI export controls never keyed by the player', (g) => !g.minerals || !(pid(g) in (g.minerals.against || {}))],
   ['queued tranches are known programs or platforms with 0 < left <= need', (g) => !g.minerals || g.minerals.queue.every((q) => (BLACK_PROGRAMS[q.id] || PLATFORMS[q.id]) && Object.keys(q.left).length > 0 && Object.entries(q.left).every(([m, u]) => finite(u) && u > 0 && u <= (q.need?.[m] || 0) + 1e-9))],
   // Troops, training, quality, SOF (E8, #20)
-  ['force strength (active, reserve) and retention in [0,100]', (g) => !g.forces || ['active', 'reserve', 'retention'].every((k) => in01(g.forces[k]))],
+  // F7 (#55): strength is headcounts once a force has its 2024 `base`; the index bound still holds for pre-F7 forces.
+  ['force strength (active, reserve) and retention in [0,100]; F7 headcounts non-negative within the population bound (active + reserve <= military-age x eligibility)', (g) => !g.forces || (in01(g.forces.retention) && (g.forces.base
+    ? ['active', 'reserve'].every((k) => finite(g.forces[k]) && g.forces[k] >= 0) && g.forces.active + g.forces.reserve <= manpowerCap(g.forces.nid) + 1e-6
+    : ['active', 'reserve'].every((k) => in01(g.forces[k]))))],
   ['force quality in [0,100]', (g) => !g.forces || in01(g.forces.quality)],
   ['readiness per branch in [0,100]', (g) => !g.forces || BRANCH_IDS.every((b) => in01(g.forces.readiness?.[b]))],
-  ['crews non-negative and <= the trained pool (active x crewPer)', (g) => !g.forces || BRANCH_IDS.every((b) => { const c = g.forces.crews?.[b]; return finite(c) && c >= 0 && c <= g.forces.active * FORCE_RULES.crewPer[b] + 1e-9; })],
+  ['crews non-negative and <= the trained pool (active x crewPer)', (g) => !g.forces || BRANCH_IDS.every((b) => { const c = g.forces.crews?.[b]; return finite(c) && c >= 0 && c <= manPts(g.forces).active * FORCE_RULES.crewPer[b] + 1e-9; })],
+  ['fleet (F7): lines from the nation\'s order of battle; integer counts >= 0 placed in known theaters summing to the count; MC in [0,100]; maintenance in [0,200]; blocks and depot months integers in range; depot throughput in [0,200]', (g) => !g.forces?.fleet || (in01(g.forces.depot / 2) && Object.entries(g.forces.fleet).every(([id, s]) => (ORBAT[g.forces.nid] || []).some((l) => l.id === id)
+    && Number.isInteger(s.n) && s.n >= 0 && in01(s.mc) && finite(s.mx) && s.mx >= 0 && s.mx <= FL.pctMax && Number.isInteger(s.blk) && s.blk >= 0 && s.blk <= FL.maxBlk
+    && Number.isInteger(s.mod) && s.mod >= 0 && finite(s.loss) && s.loss >= 0 && s.loss < 1 && Object.entries(s.at).every(([r, k]) => REGIONS[r] && Number.isInteger(k) && k > 0)
+    && Object.values(s.at).reduce((a, k) => a + k, 0) === s.n))],
+  ['fleet (F7): units already fielded into the fleet are integer counts >= 0', (g) => !g.forces?.fleet || Object.values(g.forces.fielded || {}).every((k) => Number.isInteger(k) && k >= 0)],
   ['crew pipeline and SOF pipelines: known branch/tier with integer months > 0', (g) => !g.forces || (g.forces.pipe.every((p) => BRANCH_IDS.includes(p.b) && Number.isInteger(p.mo) && p.mo > 0) && g.forces.sof.pipes.length <= SOF_RULES.maxPipes && g.forces.sof.pipes.every((p) => (p.t === 1 || p.t === 2) && Number.isInteger(p.mo) && p.mo > 0))],
   ['SOF tiers are integers within their ceilings; training level is known', (g) => !g.forces || (['t1', 't2'].every((k) => Number.isInteger(g.forces.sof[k]) && g.forces.sof[k] >= 0 && g.forces.sof[k] <= SOF_RULES.max[k]) && !!TRAINING[g.forces.train])],
   ['personnel pay >= 0 and finite', (g) => g.personnelPay == null || (finite(g.personnelPay) && g.personnelPay >= 0)],

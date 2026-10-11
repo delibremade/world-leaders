@@ -4,7 +4,8 @@ const NATIONS_REGION=(nid)=>NATIONS[nid]?.region;
 import { REGIONS } from '../data/regions.js';
 import { DEP_W, DV, NAV_W, BLACK_PROGRAMS, BUY_PREMIUM } from '../data/platforms.js';
 import { BASE_SECTOR } from '../data/economy.js';
-import { FORCE_RULES as FR, SOF_RULES, crewOf } from '../data/forces.js';
+import { FORCE_RULES as FR, SOF_RULES, FLEET_RULES as FL, BRANCH_IDS, crewOf } from '../data/forces.js';
+import { ORBAT, crewHeads } from '../data/orbat.js';
 import { baseIsr, theaterMult, t1Bonus } from './reach.js';
 
 // Units deployed in one region, unweighted.
@@ -101,8 +102,45 @@ export const forceQuality=(s)=>Math.max(0,Math.min(100,0.30*(s?.education||0)+0.
 export const qualityF=(q)=>0.6+0.8*(q||0)/100;                      // 0.6..1.4; 50 = 1
 export const readinessF=(r)=>0.7+0.3*(r||0)/FR.start.readiness;     // 0.7..1.13; standard (70) = 1
 const S0=FR.start.active+0.25*FR.start.reserve;
-export const strengthF=(f)=>Math.min(1.1,0.4+0.6*((f.active||0)+0.25*(f.reserve||0))/S0); // 0.4..1.1; a fully manned force = 1
-export const forceMult=(f,b)=>f?strengthF(f)*qualityF(f.quality)*readinessF(f.readiness?.[b]):1;
+// F7 (#55): strength is headcounts; manPts maps them onto the index (60 = the nation's 2024 active, 36 = its 2024 reserve). Pre-F7 forces
+// (no `base`) are already index points.
+export const manPts=(f)=>{const b=f?.base;if(!b)return {active:f?.active||0,reserve:f?.reserve||0};return {active:FR.start.active*(f.active||0)/b.active,reserve:FR.start.reserve*(f.reserve||0)/Math.max(1,b.reserve)};};
+export const strengthF=(f)=>{const p=manPts(f);return Math.min(1.1,0.4+0.6*(p.active+0.25*p.reserve)/S0);}; // 0.4..1.1; a fully manned force = 1
+// ── F7 (#55), spec Part 9: the order of battle. Capability per type = platforms x mission-capable rate x crews x quality x block.
+export const lineW=(l)=>(FL.roleW[l.role]??1)*(FL.genF[l.gen]??1);
+const sensOf=(l)=>FL.sens[l.cls==='airframe'?`gen${Math.min(6,Math.max(3,l.gen||4))}`:l.cls]??0.8;
+// Force quality applied per type: complex kit feels it most.
+export const typeQ=(q,l)=>Math.pow(qualityF(q),sensOf(l));
+// The MC target's quality term, relative to the force's quality at the start (q0): 2024 MC rates are the 2024 equilibrium.
+export const qualMC=(f,l)=>Math.pow(qualityF(f.quality)/qualityF(f.q0??f.quality),sensOf(l)/2);
+export const fleetLines=(f)=>(ORBAT[f?.nid]||[]).filter((l)=>f.fleet?.[l.id]);
+// Crew fill per branch: crew heads its share of active strength provides / heads its fleet needs (reserve lines: reserve vs 2024 reserve).
+// Platforms beyond the fill sit unready; they never vanish.
+export function fleetFill(f){
+  const need=Object.fromEntries(BRANCH_IDS.map((b)=>[b,0]));
+  for(const l of fleetLines(f))if(!l.reserve)need[l.b]+=crewHeads(l,f.fleet[l.id].n);
+  const fill=Object.fromEntries(BRANCH_IDS.map((b)=>[b,need[b]>0?Math.min(1,(f.active||0)*(f.crewShare?.[b]||0)/need[b]):1]));
+  fill.reserve=f.base?.reserve?Math.min(1,(f.reserve||0)/f.base.reserve):1;
+  return {fill,need};
+}
+export const fillOf=(fill,l)=>l.reserve?fill.reserve:fill[l.b];
+export const lineAvail=(s)=>1-(s.mod>0?FL.modShare:0);
+export const blkF=(s)=>1+FL.blkGain*(s.blk||0);
+// Ready capability of n platforms of one line (default: the whole line).
+export const lineReady=(f,l,fill,n=f.fleet[l.id].n)=>{const s=f.fleet[l.id];return n*s.mc/100*fillOf(fill,l)*lineAvail(s)*typeQ(f.quality,l)*blkF(s)*lineW(l);};
+// The branch's 2024 capability at reference quality (50), full crews, block 0: the equipment factor's denominator.
+export const eqBase=(nid,b)=>(ORBAT[nid]||[]).filter((l)=>l.b===b).reduce((a,l)=>a+l.count*l.mc/100*lineW(l),0);
+// Equipment factor per branch (Part 7's equipment term, now the fleet's): ready capability / 2024 capability. Quality enters per type here.
+// A branch with no 2024 fleet, and pre-F7 forces, read the global quality multiplier as before.
+const EQ=new WeakMap();
+export function equipF(f,b){
+  if(!f?.fleet||!f.nid)return qualityF(f?.quality);
+  const e0=eqBase(f.nid,b);if(!(e0>0))return qualityF(f.quality);
+  let c=EQ.get(f);if(!c){c={};EQ.set(f,c);}
+  if(c[b]==null){const fill=fleetFill(f).fill;let r=0;for(const l of fleetLines(f))if(l.b===b)r+=lineReady(f,l,fill);c[b]=Math.max(FL.eqMin,Math.min(FL.eqMax,r/e0));}
+  return c[b];
+}
+export const forceMult=(f,b)=>f?strengthF(f)*equipF(f,b)*readinessF(f.readiness?.[b]):1;
 // Capability-weighted regional weight: wSum per unit x its branch multiplier (posture: sphere suppression, escort tension, pressure).
 export const capWeight=(o,black,f)=>Object.entries(o||{}).reduce((a,[k,v])=>a+wSum({[k]:v},black)*forceMult(f,crewOf(k).b),0);
 // F9c (#57): the same weight in a theater, with each unit's branch raised by the bases within reach (air base: sorties; naval base: sustainment; garrison; hub).
