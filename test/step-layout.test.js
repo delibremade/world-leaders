@@ -21,6 +21,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
   test(`${W}px: speed group with the step button: five 44px targets, all on screen, nation name still readable; sheet-open chip fits`, async () => {
     const { ctx, page, errors } = await openGame(browser, { width: W, height: H }); // openGame leaves the game paused
     try {
+      await page.emulateMedia({ reducedMotion: 'reduce' }); // sheets land at once (same CI slide-in stall as feed-layout)
       const btns = await box(page, '[data-speed] button');
       assert.deepEqual(btns.map((b) => b.t), ['▶ 1×', '1×', '2×', '4×', '⏭'], 'pause/resume, three speeds, Next');
       assert.ok(btns.every((b) => b.w >= 43.5 && b.h >= 43.5 && b.x >= 0 && b.r <= W + 0.5), `speed targets ${JSON.stringify(btns.map((b) => [Math.round(b.w), Math.round(b.h)]))}`);
