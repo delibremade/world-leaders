@@ -22,6 +22,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
   test(`${W}px: bell is a 44px target in the HUD row; the feed with 20 entries and the routing view fit the screen`, async () => {
     const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
     try {
+      await page.emulateMedia({ reducedMotion: 'reduce' }); // sheets land at once; CI never finished the slide-in at 1280px
       const hud = await page.evaluate(() => { const r = (s) => { const e = document.querySelector(s); const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, r: b.right, b: b.bottom, w: b.width, h: b.height }; }; return { bell: r('[data-bell]'), speed: r('[data-speed]'), quit: r('[aria-label="Quit to nation select"]') }; });
       assert.ok(hud.bell.w >= 43.5 && hud.bell.h >= 43.5 && hud.bell.r <= W + 0.5 && hud.bell.x >= 0, `bell ${JSON.stringify(hud.bell)}`);
       assert.ok(hud.quit.r <= W + 0.5 && hud.speed.r <= W + 0.5, 'speed group and quit stay on screen');
