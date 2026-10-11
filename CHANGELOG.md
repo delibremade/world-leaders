@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.83.0 (2026-10-11) — Q2 (#42): step mode and auto-pause on sheets
+## 0.84.0 (2026-10-11) — Q2 (#42): step mode and auto-pause on sheets
 - UI only, no rule change; parity goldens untouched.
 - `src/ui/shell/clock.js` (`clockPlan`) is the one place that decides run vs step and the chip's reason; the interval gate and the HUD chip both read it. Precedence: your pause or a Q1 pause rule, hard engine gate (ultimatum, confrontation, intel crisis, game over, victory), crisis briefing, open confirm, open sheet.
 - Next (⏭) in the speed group runs exactly one month through the same `tick` the interval uses, while the clock is stopped: paused, sheet or confirm open, or a crisis briefing. Off while the clock runs and under a hard gate. Speed is never touched, so resume goes back to the remembered 1x/2x/4x.
@@ -9,7 +9,7 @@
 - Test hook: `window.__wl.phases()` (phase ids run, last 240), `.confirm(act)`.
 - Tests: `test/step.test.js` (11: planner precedence, headless `lastRun` stamped every month for 36 stepped months, Next at 1x/2x/4x runs all 12 phases once per tap, sheet pause at 1x/2x/4x and resume, confirm pause, per-class pause then step), `test/step-layout.test.js` (390 and 1280px). Screens: `docs/shots/42-{hud-step,sheet-pause}-{390,1280}.png`.
 
-## 0.82.0 (2026-10-11) — Q1 (#41): notification feed
+## 0.83.0 (2026-10-11) — Q1 (#41): notification feed
 - UI only, no rule change; parity goldens untouched (autosave bytes identical).
 - `fx.toast(msg)` stays the engine seam (existing tests and sim code unchanged). `src/ui/shell/feed.js` turns every call into a feed entry {class, severity, month, jump, count, read}. Class comes from the monthly phase `runMonth` is in (it now calls an optional `fx.phase(id)`); a toast outside a phase is the player's own order. Nine classes: Economy, Research, Resources, Forces & bases, Escalation, Intelligence, Diplomacy, World events, Your orders.
 - Every notice is kept; per class the player picks Toast (popup + kept), Feed (kept only) or Pause (stops the clock, chip reads "Paused: <class> notice", the pause toggle resumes at the same speed). Orders cannot pause. Defaults are all Toast, so play looks as before until changed. Popups hide while the feed is open.
@@ -19,6 +19,15 @@
 - Persistence: the feed is written beside the autosave (`wl_feed`, same moments), routes under `wl_feed_routes` (settings outlive a game). Kept out of `wl_save` so v57 save parity stays byte-identical.
 - Test hook: `window.__wl.notify(msg, meta)`, `.feed()`, `.phase(id)`.
 - Tests: `test/feed.test.js` (10, incl. 240 months x 3 nations headless), `test/feed-ui.test.js` (6), `test/feed-layout.test.js` (390 and 1280px). Screens: `docs/shots/41-{feed,routing,hud-bell}-{390,1280}.png`.
+
+## 0.82.0 (2026-10-11) — F10 (#58): tangible minerals
+- Data and view only; the sim still runs on game units, so behavior is identical and no parity case moved. One conversion: tonnes = units x tPerUnit, tPerUnit = 2024 world refined output / 1200 (1 unit/mo = 1% of world per year).
+- `MINERAL_UNITS`: unit label, 2024 world output and `status_source` for all ten rows (USGS MCS 2025, IEA 2025, WNA; owner corrects). Enrichment in kSWU.
+- `FACILITIES`: named plants per nation and mineral with shares of start capacity (Mountain Pass CA; Urenco Eunice; Norilsk; VSMPO-AVISMA; Georges Besse II; Kokkola; Nikkelverk; China by province in aggregate; everything else one aggregate line). Lynas Seadrift TX listed as planned at 0 t; the US's first private rare-earth build takes that name.
+- Engine: `tonnes`, `plantsOf`, `trancheDemand`; `programSupply` rows add `needT`, `inflowT`, `haveT`; `mineralView` rows add capT, oreT, stockT, years, plants, unit, status_source.
+- Resources tab: Reserves show ore t, refined t/yr, years to zero and the source; Processing shows t/yr, % of world, plant names; Stockpile shows t.
+- Caveats (documented, not fixed): ore is game-scaled feedstock, not USGS reserves; per-tranche demand inherits the game's unit scale and is far above real per-airframe content.
+- Tests: `test/minerals-tonnes.test.js` (4); layout test checks tonnes, plant names and sources at 390 and 1280. Screens: `reports/screens/f10-{reserves,processing}-390.png`.
 
 ## 0.81.0 (2026-10-11) — F8 (#56): Tier 1 / Tier 2 as named real units
 - Intentional rule change (spec Part 10). `g.forces.sof` is `{units: {id: {ops, out}}, pipes: [{u, t, mo, n}]}` over `src/data/sof.js`: named units per playable nation with operators, total personnel, sub-units, role and `status_source` (US: CAG/Delta 300, DEVGRU 300, 24th STS 100; 75th Rangers 3,600, Army SF groups 4,500, SEAL Teams 2,500, MARSOC 900). China and Brazil generic.

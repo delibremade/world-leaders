@@ -52,6 +52,57 @@ export const MINERAL_START = {
   saudi: { titanium: [0, 2, 0] },
   skorea: { germanium: [0, 1, 0], nickel: [0, 2, 0], cobalt: [0, 1, 0] },
 };
+// ── F10 (#58, spec Part 12): tangible minerals. The sim still runs on game units (unchanged ratios, behavior identical);
+// this block is the one conversion to real tonnes, so every number on screen is units x tPerUnit and auditable.
+//  1 unit/month of capacity = 1% of 2024 world refined output per year, so tPerUnit = world / 100 / 12 tonnes per unit-month.
+//  Capacity t/yr = cap x 12 x tPerUnit = cap% x world. Stock and tranche demand (units) x tPerUnit. Ore is feedstock in
+//  refined-equivalent tonnes (ore unit-months x tPerUnit): game-scaled to give a play-length horizon, NOT USGS reserves.
+// world = 2024 world refined output (t/yr; enrichment in thousand SWU/yr). Orders of magnitude from USGS Mineral Commodity Summaries 2025,
+// IEA Global Critical Minerals Outlook 2025 and WNA; the owner corrects. status_source is on every row and shown in the tab.
+export const MINERAL_UNITS = {
+  rareEarth: { u: 't REO', world: 390000, status_source: 'USGS MCS 2025: ~390,000 t REO mined 2024, refining taken as equal; China ~70% of separation (IEA 2025)' },
+  gallium: { u: 't Ga', world: 750, status_source: 'USGS MCS 2025: ~750 t primary refined gallium 2024; China ~98% (IEA 2025)' },
+  germanium: { u: 't Ge', world: 220, status_source: 'USGS MCS 2025: ~220 t refined germanium; China ~68% (IEA 2025)' },
+  graphite: { u: 't', world: 1600000, status_source: 'USGS MCS 2025: ~1.6 Mt natural graphite 2024; China ~93% of anode-grade processing (IEA 2025)' },
+  lithium: { u: 't Li', world: 240000, status_source: 'USGS MCS 2025: ~240,000 t Li content 2024; China ~65% of chemical refining (IEA 2025)' },
+  cobalt: { u: 't Co', world: 250000, status_source: 'Cobalt Institute 2024 / USGS MCS 2025: ~250,000 t refined cobalt; China ~75%' },
+  nickel: { u: 't Ni', world: 3400000, status_source: 'USGS MCS 2025 / INSG: ~3.4 Mt refined nickel 2024; Indonesia (ROW) and China lead' },
+  tungsten: { u: 't W', world: 81000, status_source: 'USGS MCS 2025: ~81,000 t W content 2024; China ~80%' },
+  titanium: { u: 't sponge', world: 300000, status_source: 'USGS MCS 2025: ~300,000 t titanium sponge 2024; China ~55%, Japan, Russia, Kazakhstan' },
+  enrichment: { u: 'kSWU', world: 60000, status_source: 'WNA 2024: ~60 million SWU/yr world enrichment capacity (60,000 kSWU); Rosatom ~44%, Urenco, Orano, CNNC' },
+};
+export const tPerUnit = (m) => MINERAL_UNITS[m].world / 1200;
+
+// Named facilities per nation and mineral: [name, share of the nation's start capacity]. Shares sum to 1. China is by province in aggregate.
+// A nation/mineral with capacity and no entry here reads as one aggregate line (see plantsOf). status_source applies to the whole table:
+// public plant lists (company reports, WNA, USGS, IEA); shares are the game's allocation of the abstract capacity, owner to correct.
+export const FACILITY_SOURCE = 'Company reports, WNA, USGS MCS 2025, IEA 2025; shares of national capacity are a game allocation (owner to correct)';
+export const FACILITIES = {
+  usa: { rareEarth: [['Mountain Pass, CA (MP Materials)', 1]], lithium: [['Silver Peak, NV (Albemarle)', 1]], enrichment: [['Urenco USA, Eunice NM', 0.9], ['Centrus, Piketon OH', 0.1]] },
+  china: {
+    rareEarth: [['Inner Mongolia (Baotou)', 0.5], ['Jiangxi (Ganzhou)', 0.25], ['Sichuan (Mianning)', 0.15], ['Guangdong and Fujian', 0.1]],
+    gallium: [['Henan', 0.4], ['Shanxi', 0.3], ['Guangxi', 0.3]], germanium: [['Yunnan (Lincang)', 0.6], ['Inner Mongolia (Xilinhot)', 0.4]],
+    graphite: [['Heilongjiang', 0.5], ['Inner Mongolia', 0.25], ['Shandong', 0.25]], lithium: [['Sichuan', 0.45], ['Jiangxi (Yichun)', 0.35], ['Qinghai', 0.2]],
+    cobalt: [['Zhejiang', 0.3], ['Jiangsu', 0.3], ['Guangdong', 0.2], ['Hunan', 0.2]], nickel: [['Gansu (Jinchuan)', 0.5], ['Jiangsu', 0.3], ['Guangxi', 0.2]],
+    tungsten: [['Jiangxi', 0.5], ['Hunan', 0.3], ['Henan', 0.2]], titanium: [['Liaoning (Fushun)', 0.4], ['Guizhou (Zunyi)', 0.35], ['Yunnan', 0.25]],
+    enrichment: [['CNNC Lanzhou, Gansu', 0.6], ['CNNC Hanzhong, Shaanxi', 0.4]],
+  },
+  russia: { nickel: [['Norilsk Nickel, Krasnoyarsk', 0.8], ['Kola MMC, Murmansk', 0.2]], titanium: [['VSMPO-AVISMA, Verkhnyaya Salda', 1]], enrichment: [['Novouralsk', 0.3], ['Zelenogorsk', 0.3], ['Seversk', 0.2], ['Angarsk', 0.2]] },
+  japan: { titanium: [['Toho Titanium, Chigasaki', 0.5], ['Osaka Titanium, Amagasaki', 0.5]], nickel: [['Sumitomo Niihama', 1]], cobalt: [['Sumitomo Niihama', 1]], enrichment: [['Rokkasho, Aomori', 1]] },
+  germany: { enrichment: [['Urenco Gronau', 1]] },
+  norway: { nickel: [['Glencore Nikkelverk, Kristiansand', 1]], cobalt: [['Glencore Nikkelverk, Kristiansand', 1]] },
+  cuba: { nickel: [['Moa Nickel (Sherritt)', 1]] },
+  australia: { rareEarth: [['Lynas Kalgoorlie, WA', 1]], lithium: [['Kwinana and Kemerton, WA', 1]], nickel: [['Kwinana, WA (BHP Nickel West)', 1]] },
+  finland: { cobalt: [['Kokkola', 1]] },
+  france: { enrichment: [['Orano Georges Besse II, Tricastin', 1]] },
+  uk: { enrichment: [['Urenco Capenhurst', 1]] },
+  netherlands: { enrichment: [['Urenco Almelo', 1]] },
+  skorea: { nickel: [['SNNC Gwangyang', 1]] },
+  india: { rareEarth: [['IREL, Kerala and Odisha', 1]] },
+};
+// Named plant for the first private build in that mineral (announced projects); later builds read as generic new capacity.
+export const PLANNED_PLANTS = { usa: { rareEarth: 'Lynas Seadrift, TX (heavy-RE separation, planned)' } };
+
 // Rest-of-world processing (units/month), outside NATIONS and outside anyone's export controls.
 export const ROW_CAP = { rareEarth: 2, gallium: 1, germanium: 10, graphite: 3, lithium: 25, cobalt: 8, nickel: 40, tungsten: 10, titanium: 10, enrichment: 0 };
 
