@@ -85,7 +85,7 @@ export const checkFeed = (feed) => FEED_INVARIANTS.filter(([, ok]) => !ok(feed))
 
 // The notifier the App and the headless tests share. deps: tick() -> months elapsed, date() -> {yr, mo},
 // onChange(feed), onToast(entry) for toast and pause routes, onPause(entry) for the pause route only.
-export function createNotifier({ tick = () => 0, date = () => ({ yr: 0, mo: 0 }), onChange = () => {}, onToast = () => {}, onPause = () => {} } = {}) {
+export function createNotifier({ tick = () => 0, date = () => ({ yr: 0, mo: 0 }), onChange = () => {}, onToast = () => {}, onPause = () => {}, onPhase = () => {} } = {}) {
   let feed = [], seq = 1, phase = null, routes = defaultRoutes();
   const notify = (text, meta = {}) => {
     const cls = meta.cls || (phase ? (PHASE_CLASS[phase] || 'world') : 'orders');
@@ -98,7 +98,7 @@ export function createNotifier({ tick = () => 0, date = () => ({ yr: 0, mo: 0 })
     return e;
   };
   return {
-    fx: { toast: notify, phase: (p) => { phase = p; } },
+    fx: { toast: notify, phase: (p) => { phase = p; onPhase(p); } },
     notify,
     get feed() { return feed; },
     get routes() { return routes; },

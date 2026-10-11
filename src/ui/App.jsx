@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, Component } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, Component } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { MONTHS, GOOD, SC, ss, sc } from '../data/stats.js';
 import { NATIONS, COUNTRIES, BUYERS, DIP_TARGETS, INTEL_TARGETS, NATION_BLOC, NATION_TRAITS, INTEL_AGENCIES, GDB, RD_MODS } from '../data/nations.js';
@@ -33,6 +33,8 @@ import { SITES } from '../data/bases.js';
 import { nationName } from './shell/nation-verbs.js';
 import { Outliner } from './shell/Outliner.jsx';
 import { Feed } from './shell/Feed.jsx';
+import { ClockGateContext } from './shell/ClockGate.jsx';
+import { clockPlan } from './shell/clock.js';
 import { createNotifier, defaultRoutes, unreadCount, CLASSES } from './shell/feed.js';
 import { buildOutliner } from './shell/outliner.js';
 import { newEvState } from '../sim/events.js';
@@ -179,7 +181,7 @@ function WorldLeadersInner({resumeSignal}){
   const [paused,setPaused]=useState(false);
   const [log,setLog]=useState([]);
   const [toasts,setToasts]=useState([]);
-  const [feed,setFeed]=useState([]);const [routes,setRoutes]=useState(defaultRoutes);const [feedOpen,setFeedOpen]=useState(false);const [pauseWhy,setPauseWhy]=useState(null);const notifierR=useRef(null);
+  const [feed,setFeed]=useState([]);const [routes,setRoutes]=useState(defaultRoutes);const [feedOpen,setFeedOpen]=useState(false);const [pauseWhy,setPauseWhy]=useState(null);const [holds,setHolds]=useState({sheet:0,confirm:0});const notifierR=useRef(null);const phaseLogR=useRef([]);
   const [statsTrend,setStatsTrend]=useState({});
   const [gameOver,setGameOver]=useState(null);
   const [saveInfo,setSaveInfo]=useState(null);
@@ -366,7 +368,7 @@ function WorldLeadersInner({resumeSignal}){
     setToasts(p=>[...p.slice(-2),{id,msg:e.text,sev:e.sev}]);
     setTimeout(()=>setToasts(p=>p.filter(t=>t.id!==id)),e.sev==='alert'?4600:e.sev==='warn'?3400:2400);
   },[]);
-  if(!notifierR.current)notifierR.current=createNotifier({tick:()=>tickCountR.current,date:()=>dateR.current,onChange:setFeed,onToast:pushToast,onPause:e=>{setPaused(true);setPauseWhy(`${CLASSES[e.cls].label} notice`);}});
+  if(!notifierR.current)notifierR.current=createNotifier({tick:()=>tickCountR.current,date:()=>dateR.current,onChange:setFeed,onPhase:p=>{if(p)phaseLogR.current.push(p);if(phaseLogR.current.length>240)phaseLogR.current.shift();},onToast:pushToast,onPause:e=>{setPaused(true);setPauseWhy(`${CLASSES[e.cls].label} notice`);}});
   const showToast=useCallback((msg,meta)=>notifierR.current.notify(msg,meta),[]);
   const setRoute=useCallback((cls,route)=>{const r=notifierR.current.setRoute(cls,route);setRoutes(r);try{window.storage&&window.storage.set('wl_feed_routes',JSON.stringify(r));}catch(e){}},[]);
   useEffect(()=>{(async()=>{try{if(!window.storage)return;const r=await window.storage.get('wl_feed_routes');setRoutes(notifierR.current.setRoutes(JSON.parse(r.value)));}catch(e){}})();},[]);
@@ -404,7 +406,7 @@ function WorldLeadersInner({resumeSignal}){
     setActiveTab('overview');setPhase('play');setLastSaved(`${MONTHS[g.date.mo]} ${g.date.yr}`);return true;}catch(e){try{console.error('restore failed',e);}catch(x){}return false;}};
   useEffect(()=>{(async()=>{try{if(!window.storage)return;const r=await window.storage.get('wl_save');const g=JSON.parse(r.value);if(g&&g.ver===SAVE_VER&&g.countryId){const cc=COUNTRIES.find(x=>x.id===g.countryId);setSaveInfo({flag:cc?.flag,name:cc?.n||g.countryId,when:`${MONTHS[g.date.mo]} ${g.date.yr}`});}}catch(e){}})();},[resumeSignal]);
   useEffect(()=>{if(phase==='play'&&date.mo%3===0&&tickCountR.current>0)saveGame();},[date.mo,date.yr,phase]);
-  useEffect(()=>{try{if(typeof window!=='undefined'&&window.__WL_TEST){window.__wl={month:()=>tick(),notify:(msg,meta)=>showToast(msg,meta),feed:()=>notifierR.current.feed,phase:p=>notifierR.current.fx.phase(p),region:rid=>setSelectedRegion(rid),nation:id=>setSelNation(id),extract:(k,v)=>{extR.current={...extR.current,[k]:v};setResExtraction({...extR.current});},setTension:(cid,v)=>{setRivalTension(p=>({...p,[cid]:v}));tenR.current={...tenR.current,[cid]:v};},field:(id,n)=>{blackR.current={...blackR.current,[id]:n};setBlackPrograms({...blackR.current});},fund:v=>setStats(p=>({...p,treasury:v})),platforms:o=>{platformsR.current={...platformsR.current,...o};setPlatforms({...platformsR.current});},levels:o=>{dlR.current={...dlR.current,...o};setDefLevels({...dlR.current});},event:(id,mo,why)=>{const we={id,mo,why:why||whyFor('world',id,{g:liveState()})};wEvR.current=we;setWorldEvent(we);},flashpoint:(rid,type,t)=>{const fp={rid,type,t};fpR.current=fp;setFlashpoint(fp);},deploy:(rid,pid,n)=>{setForceDeployments(pr=>{const n2={...pr,[rid]:{...(pr[rid]||{}),[pid]:n}};fdR.current=n2;return n2;});},stat:(k,v)=>{setStats(p=>({...p,[k]:v}));if(sR.current)sR.current={...sR.current,[k]:v};},rel:(id,v)=>{setNationRelations(p=>({...p,[id]:v}));relR.current={...relR.current,[id]:v};},unfreeze:()=>{setBlocLock({});bLockR.current={};},embargoBy:(by,mo)=>{const e={by,mo};embByR.current=e;setEmbargoedBy(e);},imports:(ks)=>{const n2=new Set(ks);impCR.current=n2;setImportContracts(n2);},minerals:(o)=>{minR.current={...minR.current,...o};setMinerals(minR.current);},forces:(o)=>{forR.current={...forR.current,...o};setForces(forR.current);},sof:(id,o)=>{const f=forR.current;forR.current={...f,sof:{...f.sof,units:{...f.sof.units,[id]:{...f.sof.units[id],...o}}}};setForces(forR.current);},bases:(o)=>{basR.current={...basR.current,...o};setBases(basR.current);},site:(id)=>{setSelNation(null);setSelectedRegion(null);setSelSite(id);},build:(on)=>setBuildMode(!!on),mineral:(m,o)=>{const own={...minR.current.own,[m]:{...minR.current.own[m],...o}};minR.current={...minR.current,own};setMinerals(minR.current);},sanction:(id)=>{setSanctions(prev=>{const n2=new Set(prev);n2.add(id);sanctR.current=n2;return n2;});},decision:(id,why,urgent)=>{const d0=DECISIONS.find(x=>x.id===id);if(d0){const d={...d0,at:0,urgentNow:!!urgent,why:why||'test hook'};decR.current=d;setActiveDecision(d);}},arsenal:(o)=>{arsR.current={...arsR.current,...o};setArsenal(arsR.current);}};}}catch(e){}},[]);
+  useEffect(()=>{try{if(typeof window!=='undefined'&&window.__WL_TEST){window.__wl={month:()=>tick(),phases:()=>[...phaseLogR.current],confirm:a=>setAct(a),notify:(msg,meta)=>showToast(msg,meta),feed:()=>notifierR.current.feed,phase:p=>notifierR.current.fx.phase(p),region:rid=>setSelectedRegion(rid),nation:id=>setSelNation(id),extract:(k,v)=>{extR.current={...extR.current,[k]:v};setResExtraction({...extR.current});},setTension:(cid,v)=>{setRivalTension(p=>({...p,[cid]:v}));tenR.current={...tenR.current,[cid]:v};},field:(id,n)=>{blackR.current={...blackR.current,[id]:n};setBlackPrograms({...blackR.current});},fund:v=>setStats(p=>({...p,treasury:v})),platforms:o=>{platformsR.current={...platformsR.current,...o};setPlatforms({...platformsR.current});},levels:o=>{dlR.current={...dlR.current,...o};setDefLevels({...dlR.current});},event:(id,mo,why)=>{const we={id,mo,why:why||whyFor('world',id,{g:liveState()})};wEvR.current=we;setWorldEvent(we);},flashpoint:(rid,type,t)=>{const fp={rid,type,t};fpR.current=fp;setFlashpoint(fp);},deploy:(rid,pid,n)=>{setForceDeployments(pr=>{const n2={...pr,[rid]:{...(pr[rid]||{}),[pid]:n}};fdR.current=n2;return n2;});},stat:(k,v)=>{setStats(p=>({...p,[k]:v}));if(sR.current)sR.current={...sR.current,[k]:v};},rel:(id,v)=>{setNationRelations(p=>({...p,[id]:v}));relR.current={...relR.current,[id]:v};},unfreeze:()=>{setBlocLock({});bLockR.current={};},embargoBy:(by,mo)=>{const e={by,mo};embByR.current=e;setEmbargoedBy(e);},imports:(ks)=>{const n2=new Set(ks);impCR.current=n2;setImportContracts(n2);},minerals:(o)=>{minR.current={...minR.current,...o};setMinerals(minR.current);},forces:(o)=>{forR.current={...forR.current,...o};setForces(forR.current);},sof:(id,o)=>{const f=forR.current;forR.current={...f,sof:{...f.sof,units:{...f.sof.units,[id]:{...f.sof.units[id],...o}}}};setForces(forR.current);},bases:(o)=>{basR.current={...basR.current,...o};setBases(basR.current);},site:(id)=>{setSelNation(null);setSelectedRegion(null);setSelSite(id);},build:(on)=>setBuildMode(!!on),mineral:(m,o)=>{const own={...minR.current.own,[m]:{...minR.current.own[m],...o}};minR.current={...minR.current,own};setMinerals(minR.current);},sanction:(id)=>{setSanctions(prev=>{const n2=new Set(prev);n2.add(id);sanctR.current=n2;return n2;});},decision:(id,why,urgent)=>{const d0=DECISIONS.find(x=>x.id===id);if(d0){const d={...d0,at:0,urgentNow:!!urgent,why:why||'test hook'};decR.current=d;setActiveDecision(d);}},arsenal:(o)=>{arsR.current={...arsR.current,...o};setArsenal(arsR.current);}};}}catch(e){}},[]);
   const startGame=useCallback(c=>{
     const {stats:s,issues:pre,resources:initRes,sphere:initSphere,globalDef:excGDB,defLevels:sd,nationRelations:baseRel,prevSectorLevels}=openingPosition(c);
     notifierR.current.reset();setPauseWhy(null);
@@ -484,11 +486,16 @@ function WorldLeadersInner({resumeSignal}){
    }catch(err){try{console.error('tick fault',err);showToast(`⚠ Simulation fault caught: ${String(err?.message||err).slice(0,70)}`,{cls:'world'});}catch(e){}}
   },[showToast]);
 
-  useEffect(()=>{if(phase!=='play'||paused||gameOver||intelCrisis||(victory&&!victoryShown)||confrontation||ultimatum||(activeTab==='overview'&&selectedRegion&&flashpoint&&flashpoint.rid===selectedRegion))return;const id=setInterval(tick,2000/gameSpeed);return()=>clearInterval(id);},[phase,paused,gameOver,intelCrisis,victory,victoryShown,confrontation,ultimatum,activeTab,selectedRegion,flashpoint,tick,gameSpeed]);
-  // Pause toggle. gameSpeed is never zeroed, so resuming restores the last speed. A soft engine gate (crisis briefing) resumes
-  // through the same toggle by closing the briefing; hard gates (ultimatum, confrontation, intel crisis, end screens) are resolved by their own choices.
+  // Q2 (#42): one planner decides run vs step and the chip's reason; open sheets and confirms hold the clock.
   const crisisBrief=!!(activeTab==='overview'&&selectedRegion&&flashpoint&&flashpoint.rid===selectedRegion);
   const hardGate=!!(ultimatum||confrontation||intelCrisis||gameOver||(victory&&!victoryShown));
+  const clockGate=useMemo(()=>({hold:k=>{setHolds(h=>({...h,[k]:(h[k]||0)+1}));return()=>setHolds(h=>({...h,[k]:Math.max(0,(h[k]||0)-1)}));}}),[]);
+  const plan=clockPlan({inPlay:phase==='play',paused,pauseWhy,hard:{ultimatum,confrontation,intelCrisis,gameOver,victory:victory&&!victoryShown},crisisBrief,held:holds});
+  useEffect(()=>{if(!plan.running)return;const id=setInterval(tick,2000/gameSpeed);return()=>clearInterval(id);},[plan.running,tick,gameSpeed]);
+  // Next (step mode): exactly one month through the same tick the interval runs; never past a hard gate.
+  const stepMonth=()=>{if(plan.canStep&&!plan.running)tick();};
+  // Pause toggle. gameSpeed is never zeroed, so resuming restores the last speed. A soft engine gate (crisis briefing) resumes
+  // through the same toggle by closing the briefing; hard gates (ultimatum, confrontation, intel crisis, end screens) are resolved by their own choices.
   const togglePause=()=>{if(paused){setPaused(false);setPauseWhy(null);}else if(hardGate)return;else if(crisisBrief)setSelectedRegion(null);else setPaused(true);};
   useEffect(()=>{const onKey=e=>{if(e.code!=='Space'||e.repeat||e.ctrlKey||e.metaKey||e.altKey)return;const t=e.target;const tag=t&&t.tagName;if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||tag==='BUTTON'||(t&&t.isContentEditable))return;if(typeof window!=='undefined'&&window.innerWidth<900)return;e.preventDefault();togglePause();};window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);},[paused,hardGate,crisisBrief]);
   // ── HELPERS ────────────────────────────────────────────────────────────────
@@ -710,7 +717,7 @@ function WorldLeadersInner({resumeSignal}){
   };
 
   return(
-    <div className="wl-app" style={{backgroundImage:'radial-gradient(1100px 540px at 72% -8%,rgba(59,130,246,.07),transparent 62%),radial-gradient(900px 480px at -4% 108%,rgba(167,139,250,.05),transparent 58%)'}}>
+    <ClockGateContext.Provider value={clockGate}><div className="wl-app" style={{backgroundImage:'radial-gradient(1100px 540px at 72% -8%,rgba(59,130,246,.07),transparent 62%),radial-gradient(900px 480px at -4% 108%,rgba(167,139,250,.05),transparent 58%)'}}>
       <style>{SHELL_CSS}</style>
       <style>{`
         *{font-variant-numeric:tabular-nums}
@@ -779,8 +786,8 @@ function WorldLeadersInner({resumeSignal}){
       {intelCrisis&&(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1500}}><div style={{background:'#111827',border:'2px solid #ef4444',borderRadius:'10px',padding:'28px',maxWidth:'480px',width:'90%'}}><div style={{fontSize:'11px',color:'#ef4444',textTransform:'uppercase',letterSpacing:'2px',marginBottom:'8px'}}>🚨 Intelligence Crisis</div><div style={{fontSize:'14px',fontWeight:700,color:'#f9fafb',marginBottom:'8px'}}>{intelCrisis.type==='friendly'?'Operation Discovered by Ally':intelCrisis.type==='stolen'?'Foreign Operation Against You Detected':'Operation Discovered by Adversary'}</div><div style={{fontSize:'12px',color:'#9ca3af',marginBottom:'14px'}}>Target: {intelCrisis.targetId} · Op: {INTEL_OPS.find(o=>o.id===intelCrisis.opId)?.n}. Choose your response carefully — consequences are real.</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>{intelCrisis.responses.map(r=><div key={r.id} onClick={()=>dispatch({type:'respondIntelCrisis',payload:{response:r.id,crisis:intelCrisis}})} style={{background:'#0d1117',border:'1px solid #374151',borderRadius:'7px',padding:'10px',cursor:'pointer'}}><div style={{fontSize:'12px',fontWeight:700,color:'#f9fafb',marginBottom:'4px'}}>{r.label}</div>{r.tags.map((t,i)=><div key={i} style={{fontSize:'10px',color:'#6b7280'}}>· {t}</div>)}</div>)}</div></div></div>)}
 
       <Hud version={VERSION} country={country} date={date} stats={stats} ledger={ledger} history={history} hegScore={hegScore} pillars={{e:pillarE,m:pillarM,i:pillarI,t:pillarT}} activeEffects={activeEffects}
-        pauseReason={paused?{kind:'you',label:pauseWhy?`Paused: ${pauseWhy}`:'Paused by you'}:ultimatum?{kind:'engine',label:'Nuclear ultimatum'}:confrontation?{kind:'engine',label:'Blockade confrontation'}:intelCrisis?{kind:'engine',label:'Intel crisis'}:gameOver?{kind:'engine',label:'Game over'}:(victory&&!victoryShown)?{kind:'engine',label:'Victory'}:(activeTab==='overview'&&selectedRegion&&flashpoint&&flashpoint.rid===selectedRegion)?{kind:'engine',soft:true,label:'Crisis briefing'}:null}
-        unread={unreadCount(feed)} onFeed={()=>setFeedOpen(true)} paused={paused} onPause={v=>{setPaused(v);if(!v)setPauseWhy(null);}} onTogglePause={togglePause} pauseLocked={hardGate&&!paused} gameSpeed={gameSpeed} onSpeed={setGameSpeed} lastSaved={lastSaved} onQuit={()=>{setPhase('select');setGameOver(null);}} doctrineLabel={doctrine?`${DOCTRINES[doctrine].i} ${DOCTRINES[doctrine].n}`:null}/>
+        pauseReason={plan.reason}
+        unread={unreadCount(feed)} onFeed={()=>setFeedOpen(true)} canStep={plan.canStep&&!plan.running} onStep={stepMonth} paused={paused} onPause={v=>{setPaused(v);if(!v)setPauseWhy(null);}} onTogglePause={togglePause} pauseLocked={hardGate&&!paused} gameSpeed={gameSpeed} onSpeed={setGameSpeed} lastSaved={lastSaved} onQuit={()=>{setPhase('select');setGameOver(null);}} doctrineLabel={doctrine?`${DOCTRINES[doctrine].i} ${DOCTRINES[doctrine].n}`:null}/>
       <EventCards doctrine={doctrine} activeDecision={activeDecision} decisionDesc={activeDecision?(typeof activeDecision.desc==='function'?activeDecision.desc({ten:rivalTension,bt:blocTrade,ns:stats||{},country}):activeDecision.desc):''} worldEvent={evOpen.world} flashpoint={evOpen.flashpoint} worldOpts={eventOptions(evView,'world')} decisionOpts={activeDecision?eventOptions(evView,'decision'):null} country={country} fpOpts={eventOptions(evView,'flashpoint')} dispatch={dispatch} fxBadge={fxBadge} readyBriefs={issues.filter(i=>i.status==='briefed'&&briefs[i.type]).map(i=>({type:i.type,ttl:i.ttl,title:ISSUES[i.type]?.title,icon:ISSUES[i.type]?.icon,rc:briefs[i.type].rc,n:(briefs[i.type].opts||[]).length}))} onOpenBrief={t=>{setActiveTab('intel');setIntelIssue(t);}} onOpenRegion={rid=>{setActiveTab('overview');setSelNation(null);setSelectedRegion(rid);}}/>
 
       <div className="wl-body" style={{flex:1,display:'flex',overflow:'hidden'}}>
@@ -1805,7 +1812,7 @@ function WorldLeadersInner({resumeSignal}){
         </>}
       </Sheet>
       <ConfirmSheet act={act} onClose={()=>{const a=act;setAct(null);if(a?.back)setSelSite(a.back);}}/>
-    </div>
+    </div></ClockGateContext.Provider>
   );
 }
 

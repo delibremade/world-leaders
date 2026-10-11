@@ -87,7 +87,7 @@ test('App: shell renders (HUD, speed, nav badges, doctrine card, sheet, outliner
     assert.ok(!qa('div').some((d) => d.style.position === 'fixed' && d.style.inset && /Doctrine/.test(d.textContent)), 'no doctrine scrim');
     assert.equal(q('[data-badge=overview]')?.textContent, '1', 'doctrine pending badge');
     // speed control: pause shows its reason; 2x sets speed and clears the pause
-    const speed = qa('[data-speed] button'); assert.equal(speed.length, 4);
+    const speed = qa('[data-speed] button'); assert.equal(speed.length, 5, 'pause, 1x, 2x, 4x, Next (Q2, #42)');
     speed[0].click(); await flush(); assert.match(q('[data-pause-reason]').textContent, /Paused by you/);
     speed[2].click(); await flush(); assert.equal(q('[data-pause-reason]'), null); assert.equal(speed[2].getAttribute('aria-pressed'), 'true');
     // why-breakdowns open from the HUD figures

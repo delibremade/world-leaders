@@ -15,7 +15,7 @@ export function Spark({ data, k, color, w = 52, h = 20 }) {
   );
 }
 
-export function Hud({ version, country, date, stats, ledger = {}, history = [], hegScore = 0, pillars = {}, activeEffects = [], pauseReason, paused, onPause, onTogglePause, pauseLocked, gameSpeed, onSpeed, lastSaved, onQuit, doctrineLabel, unread = 0, onFeed }) {
+export function Hud({ version, country, date, stats, ledger = {}, history = [], hegScore = 0, pillars = {}, activeEffects = [], pauseReason, paused, onPause, onTogglePause, pauseLocked, gameSpeed, onSpeed, lastSaved, onQuit, doctrineLabel, unread = 0, onFeed, canStep = false, onStep }) {
   const net = Object.values(ledger).reduce((s, v) => s + v, 0);
   const stabTerms = activeEffects.filter((e) => e.stat === 'stability').map((e) => ({ key: e.id, label: `${e.name || e.policyName || e.id} (${e.monthsLeft}mo)`, value: e.d }));
   const stabNet = stabTerms.reduce((s, t) => s + t.value, 0);
@@ -29,11 +29,12 @@ export function Hud({ version, country, date, stats, ledger = {}, history = [], 
           <span style={{ fontSize: 22 }} aria-hidden="true">{country?.flag}</span>
           <div style={{ minWidth: 0 }}><b>{country?.name}</b><small>{MONTHS[date.mo]} {date.yr} · v{version}{doctrineLabel ? ` · ${doctrineLabel}` : ''}{lastSaved ? ` · 💾 ${lastSaved}` : ''}</small></div>
         </div>
-        {pauseReason && <span className="wl-pause-chip" data-pause-reason data-kind={pauseReason.kind}>⏸ {pauseReason.label}{pauseReason.kind === 'you' ? ` · tap ▶ or Space to resume at ${gameSpeed}×` : pauseReason.soft ? ` · tap ⏸ to close and resume at ${gameSpeed}×` : ''}</span>}
+        {pauseReason && <span className="wl-pause-chip" data-pause-reason data-kind={pauseReason.kind}>⏸ {pauseReason.label}{pauseReason.kind === 'you' ? ` · tap ▶ or Space to resume at ${gameSpeed}×` : pauseReason.soft ? ` · tap ⏸ to close and resume at ${gameSpeed}×` : pauseReason.kind === 'ui' ? ` · close it to resume at ${gameSpeed}×` : ''}</span>}
         <div className="wl-speed" role="group" aria-label="Game speed" data-speed>
           {speeds.map(([v, l, t]) => v === 0
             ? <button key={v} type="button" title={paused ? `Resume at ${gameSpeed}×` : t} data-pause data-resume-speed={gameSpeed} aria-pressed={!!paused} aria-disabled={pauseLocked || undefined} onClick={() => onTogglePause()}>{paused ? `▶ ${gameSpeed}×` : l}</button>
             : <button key={v} type="button" title={t} aria-pressed={!paused && gameSpeed === v} onClick={() => (onPause(false), onSpeed(v))}>{l}</button>)}
+          {onStep && <button type="button" data-step title={canStep ? 'Next month' : 'Pause to step one month'} aria-label="Next month" aria-disabled={!canStep || undefined} onClick={() => canStep && onStep()}>⏭</button>}
         </div>
         {onFeed && <button type="button" className="wl-bell" data-bell data-unread={unread} title="Notifications" aria-label={`Notifications, ${unread} unread`} onClick={onFeed}>🔔{unread > 0 && <span className="wl-bell-b" data-bell-badge>{unread > 99 ? '99+' : unread}</span>}</button>}
         <button type="button" className="wl-btn wl-btn-sm" title="New nation" aria-label="Quit to nation select" onClick={onQuit} style={{ minWidth: 36 }}>✕</button>

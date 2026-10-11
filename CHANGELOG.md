@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.84.0 (2026-10-11) — Q2 (#42): step mode and auto-pause on sheets
+- UI only, no rule change; parity goldens untouched.
+- `src/ui/shell/clock.js` (`clockPlan`) is the one place that decides run vs step and the chip's reason; the interval gate and the HUD chip both read it. Precedence: your pause or a Q1 pause rule, hard engine gate (ultimatum, confrontation, intel crisis, game over, victory), crisis briefing, open confirm, open sheet.
+- Next (⏭) in the speed group runs exactly one month through the same `tick` the interval uses, while the clock is stopped: paused, sheet or confirm open, or a crisis briefing. Off while the clock runs and under a hard gate. Speed is never touched, so resume goes back to the remembered 1x/2x/4x.
+- Any `Sheet` or `ConfirmSheet` holds the clock while open, including the ones tabs own (Forces, Resources), through `useClockHold` in the shared primitives; no per-tab wiring. Chip reads "Paused: sheet open" or "Paused: confirm open ... close it to resume at N×". Closing resumes. Q1's per-class Pause route already persists with the routes; it uses the same chip.
+- HUD at phone width: the speed group is its own full-width row of five 44px targets (it was 36px tall, 38px wide); the nation name keeps the first row with the bell and quit button. Desktop stays one row.
+- Test hook: `window.__wl.phases()` (phase ids run, last 240), `.confirm(act)`.
+- Tests: `test/step.test.js` (11: planner precedence, headless `lastRun` stamped every month for 36 stepped months, Next at 1x/2x/4x runs all 12 phases once per tap, sheet pause at 1x/2x/4x and resume, confirm pause, per-class pause then step), `test/step-layout.test.js` (390 and 1280px). Screens: `docs/shots/42-{hud-step,sheet-pause}-{390,1280}.png`.
+
 ## 0.83.0 (2026-10-11) — Q1 (#41): notification feed
 - UI only, no rule change; parity goldens untouched (autosave bytes identical).
 - `fx.toast(msg)` stays the engine seam (existing tests and sim code unchanged). `src/ui/shell/feed.js` turns every call into a feed entry {class, severity, month, jump, count, read}. Class comes from the monthly phase `runMonth` is in (it now calls an optional `fx.phase(id)`); a toast outside a phase is the player's own order. Nine classes: Economy, Research, Resources, Forces & bases, Escalation, Intelligence, Diplomacy, World events, Your orders.

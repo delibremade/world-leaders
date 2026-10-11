@@ -3,6 +3,7 @@
 import { Drawer } from 'vaul';
 import { useEffect, useState } from 'react';
 import { BREAK } from '../tokens.js';
+import { useClockHold } from './ClockGate.jsx';
 
 // Desktop (>= BREAK.tablet): a right-side panel that never spans or clips under the outliner column; phone: bottom sheet.
 const wideQuery = `(min-width:${BREAK.tablet}px)`;
@@ -17,8 +18,9 @@ function useWide() {
   return wide;
 }
 
-export function Sheet({ open, onClose, title, subtitle, back, onBack, children }) {
+export function Sheet({ open, onClose, title, subtitle, back, onBack, children, hold = 'sheet' }) {
   const wide = useWide();
+  useClockHold(open, hold);
   return (
     <Drawer.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }} shouldScaleBackground={false} direction={wide ? 'right' : 'bottom'}>
       <Drawer.Portal>
