@@ -5,6 +5,7 @@ import { REGIONS } from '../data/regions.js';
 import { DEP_W, DV, NAV_W, BLACK_PROGRAMS, BUY_PREMIUM } from '../data/platforms.js';
 import { BASE_SECTOR } from '../data/economy.js';
 import { FORCE_RULES as FR, SOF_RULES, crewOf } from '../data/forces.js';
+import { baseIsr, theaterMult, t1Bonus } from './reach.js';
 
 // Units deployed in one region, unweighted.
 export const sumDep=o=>Object.values(o||{}).reduce((a,b)=>a+(b||0),0);
@@ -26,6 +27,8 @@ export const airMult=(black)=>ownsBonus(black,'multiplier')?1.15:1;
 // ISR score: satellites x2, RQ-170 x2, RQ-180 x4, Space R&D level, ISR fusion cell +4, program `isr` (SR-72 +6, WZ-8 +4), drone swarms x1.
 // Was duplicated at 8 sites in v57 (4 tick/handler sites on refs, 4 render sites on state).
 export const isrScore=(platforms,levels,infra,black)=>(platforms.satellite_net||0)*2+(platforms.rq170||0)*2+(platforms.rq180||0)*4+(levels.space||0)+(infra.isr_fusion?4:0)+blackIsr(black)+(platforms.drone_swarm||0);
+// F9c (#57): the ISR every consumer reads: platforms and programs plus your radar and forward sites. Takes any object carrying the five fields.
+export const isrOf=(g)=>isrScore(g.platforms||{},g.defLevels||{},g.intelInfra||{},g.blackPrograms)+baseIsr(g.bases,g.country?.id);
 // Naval weight of the forces stationed in one region: carriers + subs + SSN(X) x2 + frigates x0.5 + Zumwalts x1.2.
 // Was duplicated at 7 sites in v57.
 export const navalWeight=o=>{o=o||{};return (o.carrier_group||0)+(o.sub_fleet||0)+(o.ssnx||0)*2+(o.frigate||0)*0.5+(o.zumwalt||0)*1.2+navExtra(o);};
@@ -102,6 +105,8 @@ export const strengthF=(f)=>Math.min(1.1,0.4+0.6*((f.active||0)+0.25*(f.reserve|
 export const forceMult=(f,b)=>f?strengthF(f)*qualityF(f.quality)*readinessF(f.readiness?.[b]):1;
 // Capability-weighted regional weight: wSum per unit x its branch multiplier (posture: sphere suppression, escort tension, pressure).
 export const capWeight=(o,black,f)=>Object.entries(o||{}).reduce((a,[k,v])=>a+wSum({[k]:v},black)*forceMult(f,crewOf(k).b),0);
+// F9c (#57): the same weight in a theater, with each unit's branch raised by the bases within reach (air base: sorties; naval base: sustainment; garrison; hub).
+export const theaterWeight=(g,rid)=>Object.entries(g.forceDeployments?.[rid]||{}).reduce((a,[k,v])=>a+wSum({[k]:v},g.blackPrograms)*forceMult(g.forces,crewOf(k).b)*(1+theaterMult(g,rid,crewOf(k).b)),0);
 // Tier-1 strength: squadrons x quality x land readiness.
 export const tier1Power=(f)=>f?(f.sof?.t1||0)*qualityF(f.quality)*readinessF(f.readiness?.land):0;
 // Export buyer advantage: buyers pay more for kit fielded by a well-trained force (training packages, combat credibility). 50 = 1.
@@ -109,11 +114,11 @@ export const exportEdge=(f)=>f?0.9+0.2*(f.quality||0)/100:1;
 // Tier-1 operation (regime change) overmatch and odds: the v57 math plus the Tier-1 term. One implementation for the verb and the card.
 export function tier1Odds(g,nid){
   const home=NATIONS_REGION(nid);const dep=g.forceDeployments?.[home]||{};const w=wSum(dep,g.blackPrograms);
-  const isr=isrScore(g.platforms,g.defLevels,g.intelInfra,g.blackPrograms);
+  const isr=isrOf(g);
   const saps=Object.values(g.blackPrograms||{}).reduce((a,b)=>a+(+b||0),0);
   const gl=g.globalDef?.[nid];const their=gl?40+Object.values(gl).reduce((a,b)=>a+(b||0),0)*2:(NATION_BLOC[nid]==='east'?45:30);
   const t1=tier1Power(g.forces);
   const mine=(g.stats?.military||0)+isr*2+saps*10+w*5+t1*SOF_RULES.t1Points;const ratio=mine/their;
-  const chance=Math.min(0.9,0.3+Math.max(0,ratio-2)*0.2+(g.embassies?.has(nid)?0.1:0)+(g.embassyMissions?.[nid]==='intel'?0.1:0)+Math.min(SOF_RULES.t1ChanceMax,t1*SOF_RULES.t1Chance));
+  const chance=Math.min(0.9,0.3+Math.max(0,ratio-2)*0.2+(g.embassies?.has(nid)?0.1:0)+(g.embassyMissions?.[nid]==='intel'?0.1:0)+Math.min(SOF_RULES.t1ChanceMax,t1*SOF_RULES.t1Chance)+t1Bonus(g,home)); // F9c: SOF staging in reach
   return {home,dep,w,isr,saps,gl,their,t1,mine,ratio,chance};
 }

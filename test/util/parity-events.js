@@ -27,6 +27,8 @@ const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activ
 // #57 (F9): `bases` likewise (nodes, consent, AI placement; guarded by test/bases.test.js). F9 is an intentional rule change: every nation starts with
 // its real bases, so upkeep and basing agreements land on the treasury from month 1 and the AI draws on the rng after the grace period; all five
 // pinned cases are re-baselined citing #37 and #57 together (F5 merged first; F9 re-ran the baseline on top of it).
+// F9c wires bases into chokepoint control, deployed weight, ISR, flashpoints, pressure and sphere (Bahrain secures Hormuz from month 1), so all five
+// are re-baselined again citing #57.
 const NEW_KEYS = ['arsenal', 'minerals', 'forces', 'bases'];
 const dropNew = (s) => { if (!NEW_KEYS.some((k) => s.includes(`"${k}"`))) return s; const o = JSON.parse(s); for (const k of NEW_KEYS) delete o[k]; return JSON.stringify(o); };
 const strip = (s) => { const o = JSON.parse(dropNew(s)); delete o.evState; return JSON.stringify(o); };

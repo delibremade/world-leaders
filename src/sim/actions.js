@@ -8,7 +8,7 @@ import { PA, ISSUES, SOCIAL_PROGRAMS, SECTOR_LABELS, IP_POLICY_LABELS } from '..
 import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, INTEL_POSTURE_LABELS } from '../data/intel.js';
 import { BLOC_TRADE, CURRENCY_LABELS } from '../data/trade.js';
 import { RES_META, CONCESSIONS } from '../data/energy.js';
-import { panamaPriorityBlock, sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRunCost, trancheCost, devCost, recapCost, getQualMult, tier1Odds, exportEdge } from './formulas.js';
+import { panamaPriorityBlock, sumDep, isAllyOf, topHostile, wSum, isrOf, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRunCost, trancheCost, devCost, recapCost, getQualMult, tier1Odds, exportEdge } from './formulas.js';
 import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups, opOddsTerms, programStage, programBlock, playerEntry, myAccess, accessGates, memberGates, shareCost, orderPrice, productionOpen } from './selectors.js';
 import { ALLIED_PROGRAMS, TIERS, TIER_ORDER, ACCESS_RULES } from '../data/alliance.js';
 import { rng } from './rng.js';
@@ -16,6 +16,7 @@ import { memberOf } from '../data/event-ctx.js';
 import { startTranche, MINERAL_VERBS, authorizeRetort } from './minerals.js';
 import { crewBlock, FORCE_VERBS } from './forces.js';
 import { BASE_VERBS } from './bases.js';
+import { responseAt } from './reach.js';
 import { FORCE_RULES } from '../data/forces.js';
 
 // ── Toy-engine action vocabulary (scaffold for the pure tick(state, actions, rng) API in tick.js). Not used by the v57 UI.
@@ -83,7 +84,7 @@ function establishEmbassy(g,S,fx,nid){
 function launchIntervention(g,S,fx,ck){
   const cp=CONCESSIONS[ck];const iv=cp?.intervention;const s=g.stats;const c=g.country;if(!iv||!s||!c)return;
   const nat=NATIONS[cp.nation];const dep=g.forceDeployments?.[cp.region]||{};const nw=navalWeight(dep);
-  const isrSc=isrScore(g.platforms,g.defLevels,g.intelInfra,g.blackPrograms);
+  const isrSc=isrOf(g);
   const icd=g.actionCooldowns[`interv_${ck}`]||0;const hostile=Math.max(g.sphere[cp.region]?.competitors?.china||0,g.sphere[cp.region]?.competitors?.russia||0);
   const chance=Math.min(0.95,0.5+isrSc*0.03+nw*0.05-hostile/200);
   if(icd>0){fx.toast(`Forces regrouping — ${icd}mo`);return;}
@@ -344,7 +345,7 @@ function applyRegionAction(g,S,fx,regionId,actionType){
   if(cost>0)S.setStats(p=>({...p,treasury:p.treasury-cost}));
   // Intel op is special: ISR-scaled, suppresses the local rival, and grants lasting collection
   if(actionType==='intel'){
-    const isrSc=isrScore(g.platforms,g.defLevels,g.intelInfra,g.blackPrograms);
+    const isrSc=isrOf(g);
     const youGain=8+Math.round(isrSc/2);const rivalLoss=6+Math.round(isrSc/3);
     S.setSphere(p=>{const ns={...p};const sph=ns[regionId];if(sph){const top=Object.entries(sph.competitors||{}).sort((a,b)=>b[1]-a[1])[0];ns[regionId]={...sph,player:Math.min(100,(sph.player||0)+youGain),competitors:top&&top[1]>3?{...sph.competitors,[top[0]]:Math.max(0,top[1]-rivalLoss)}:sph.competitors};}return ns;});
     // Lasting intel network: small ongoing sphere + intercept boost is represented as a covert effect
@@ -435,8 +436,8 @@ function confrontationResponse(g,S,fx,response){
 // Map region panel: flashpoint responses, forward deployment +/-, posture, blockade, kinetic strike.
 function flashpointResponseCore(g,S,fx,selectedRegion,response){
   const stats=g.stats;const forceDeployments=g.forceDeployments;const embassies=g.embassies;
-  if(response==='intervene'){const dep=sumDep(forceDeployments[selectedRegion]);const canInt=dep>0||(stats?.military||0)>=70;
-    if(!canInt){fx.toast('⚠ Requires deployed forces here or Military 70+');return;}if((g.stats?.treasury||0)<500){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-500,stability:p.stability-2}));S.setSphere(p=>{const n2={...p};const sph=n2[selectedRegion];if(sph){const top=Object.entries(sph.competitors||{}).sort((a,b)=>b[1]-a[1])[0];n2[selectedRegion]={...sph,player:Math.min(100,(sph.player||0)+15),competitors:top?{...sph.competitors,[top[0]]:Math.max(0,top[1]-8)}:sph.competitors};}return n2;});g.flashpoint=null;S.setFlashpoint(null);fx.toast('🪖 Intervention successful — region secured (+15 sphere)');S.setLog(p=>[{msg:`🪖 Intervened: ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
+  if(response==='intervene'){const dep=sumDep(forceDeployments[selectedRegion]);const canInt=dep>0||(stats?.military||0)>=70||responseAt(g,selectedRegion)>0; // F9c: a base in reach can answer
+    if(!canInt){fx.toast('⚠ Requires deployed forces or a base in reach, or Military 70+');return;}if((g.stats?.treasury||0)<500){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-500,stability:p.stability-2}));S.setSphere(p=>{const n2={...p};const sph=n2[selectedRegion];if(sph){const top=Object.entries(sph.competitors||{}).sort((a,b)=>b[1]-a[1])[0];n2[selectedRegion]={...sph,player:Math.min(100,(sph.player||0)+15),competitors:top?{...sph.competitors,[top[0]]:Math.max(0,top[1]-8)}:sph.competitors};}return n2;});g.flashpoint=null;S.setFlashpoint(null);fx.toast('🪖 Intervention successful — region secured (+15 sphere)');S.setLog(p=>[{msg:`🪖 Intervened: ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
   else if(response==='mediate'){if((g.stats?.treasury||0)<300){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-300}));S.setSphere(p=>{const n2={...p};const sph=n2[selectedRegion];if(sph)n2[selectedRegion]={...sph,player:Math.min(100,(sph.player||0)+7)};return n2;});g.flashpoint=null;S.setFlashpoint(null);fx.toast('🕊 Mediation holds (+7 sphere)');S.setLog(p=>[{msg:`🕊 Mediated: ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
   else if(response==='diplomatic'){const embHere=DIP_TARGETS.some(d=>d.region===selectedRegion&&embassies.has(d.id));
     if(!embHere){fx.toast('⚠ Requires an embassy in this region — establish one via Trade');return;}if((g.stats?.treasury||0)<200){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-200}));S.setSphere(p=>{const n2={...p};const sph=n2[selectedRegion];if(sph){const top=Object.entries(sph.competitors||{}).sort((a,b)=>b[1]-a[1])[0];n2[selectedRegion]={...sph,player:Math.min(100,(sph.player||0)+6),competitors:top?{...sph.competitors,[top[0]]:Math.max(0,top[1]-4)}:sph.competitors};}return n2;});g.flashpoint=null;S.setFlashpoint(null);fx.toast('🏛️ Diplomatic resolution — embassy back-channels defused the crisis');S.setLog(p=>[{msg:`🏛️ Diplomatic resolution: ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);}
@@ -477,7 +478,7 @@ function declareBlockade(g,S,fx,selectedRegion){
 function kineticStrike(g,S,fx,selectedRegion){
   const hereObj=g.forceDeployments[selectedRegion]||{};const topR=topHostile(g.sphere[selectedRegion]?.competitors,g.country?.id);const kcd=g.actionCooldowns[`kin_${selectedRegion}`]||0;
   if(sumDep(hereObj)<3||!topR||topR[1]<10)return;
-  const kDmg=kineticDamage(isrScore(g.platforms,g.defLevels,g.intelInfra,g.blackPrograms),hereObj);
+  const kDmg=kineticDamage(isrOf(g),hereObj);
   if(kcd>0){fx.toast(`⚠ Forces regrouping — ${kcd} months`);return;}if((g.stats?.treasury||0)<400){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-400,stability:p.stability-3}));S.setSphere(p=>{const n2={...p};const sph=n2[selectedRegion];if(sph){n2[selectedRegion]={...sph,player:Math.min(100,(sph.player||0)+6),competitors:{...sph.competitors,[topR[0]]:Math.max(0,(sph.competitors?.[topR[0]]||0)-kDmg)}};}return n2;});g.actionCooldowns={...g.actionCooldowns,[`kin_${selectedRegion}`]:8};S.setActionCooldowns(p=>({...p,[`kin_${selectedRegion}`]:8}));pushTension(g,S,fx,topR[0],15,'kinetic strike');fx.toast(`🎯 Kinetic strike: ${topR[0]} assets degraded in ${REGIONS[selectedRegion]?.n} (−${kDmg} their sphere)`);S.setLog(p=>[{msg:`🎯 Kinetic strike vs ${topR[0]} — ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
 }
 

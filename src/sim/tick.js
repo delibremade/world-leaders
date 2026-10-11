@@ -12,7 +12,7 @@ import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, CRISIS_FRIENDLY, CRISIS_HOSTIL
 import { BLOC_TRADE } from '../data/trade.js';
 import { CHOKEPOINTS, IMPORT_ROUTES } from '../data/chokepoints.js';
 import { RES_META, CONCESSIONS } from '../data/energy.js';
-import { sumDep, isAllyOf, topHostile, wSum, navalWeight, calcSCost, getEnergyTier, isDiversified, getRefineMult, triadLegs as legsOf, airMult, interceptChance, cnExposure, forceMult, capWeight } from './formulas.js';
+import { sumDep, isAllyOf, topHostile, wSum, navalWeight, calcSCost, getEnergyTier, isDiversified, getRefineMult, triadLegs as legsOf, airMult, interceptChance, cnExposure, forceMult, theaterWeight } from './formulas.js';
 import { stepForces, payrollOf } from './forces.js';
 import { crewOf } from '../data/forces.js';
 import { naturalDrift } from './economy.js';
@@ -21,6 +21,7 @@ import { stepIssues, ISSUE_TTL } from './issues.js';
 import { pickWorldEvent, startWorldEvent, eventCooldowns, fireChain, eventEffects, decisionsDue, openDecision, markWorldEvent } from './events.js';
 import { stepMinerals, rivalSupplyFactor } from './minerals.js';
 import { stepBases } from './bases.js';
+import { chokeWeight, responseAt, shieldAt, sphereGains, laneCut } from './reach.js';
 
 // ── v57 monthly tick, extracted (P2). Zero rule changes: test/parity-app.test.js proves the App's autosaves are
 // byte-identical to v57 under a seeded stream. Phases run in v57 execution order; see reports/inventory-v57.md §5.
@@ -63,11 +64,13 @@ function economy(g,S,fx,m){
   ns.gdpGrowth+=(retNow-60)/100*0.12;
   // ── CHOKEPOINTS: status = disrupted (event / blockade in governing region) | secured (your naval weight ≥2 there) | open
   const homeRid=Object.entries(REGIONS).find(([,r])=>r.homeFor?.includes(c.id))?.[0];
+  // F9c (#57): the weight at a chokepoint is the ships in its theater plus your bases within reach, less half of the rivals' (reach.js).
   const navalW=rid=>navalWeight(g.forceDeployments?.[rid]);
   const cs={};Object.entries(CHOKEPOINTS).forEach(([k,cp])=>{
     const disrupted=(g.worldEvent&&WORLD_EVENTS[g.worldEvent.id]?.choke===k)||!!g.blockades[cp.region];
-    const escort=g.forcePosture[cp.region]==='escort'&&navalW(cp.region)>=2;
-    cs[k]=disrupted?(escort?'escorted':'disrupted'):(navalW(cp.region)>=2?'secured':'open');});
+    const w=navalW(cp.region)+chokeWeight(g,k);
+    const escort=g.forcePosture[cp.region]==='escort'&&w>=2;
+    cs[k]=disrupted?(escort?'escorted':'disrupted'):(w>=2?'secured':'open');});
   g.chokeStatus=cs;S.setChokeStatus(cs);
   const myRoutes=IMPORT_ROUTES[homeRid]||[];
   const fossilImports=['oil','gas','coal'].some(k=>g.importContracts.has(k));
@@ -294,14 +297,16 @@ function economy(g,S,fx,m){
     const tribute=Math.min(g.dominance.count,fdTot)*Math.round((ns.military/100)*22);
     cash('Security tribute',tribute);
   }
-  if((projUnits>0||fdTot>0)&&g.gracePeriod<=0){
+  const nodeSphere=sphereGains(g); // F9c: garrisons and ports pull their host region
+  if((projUnits>0||fdTot>0||Object.keys(nodeSphere).length)&&g.gracePeriod<=0){
     const projRate=Math.min(0.6,projUnits*0.05);
     const sphP={...g.sphere};let projHit=false;
     Object.entries(sphP).forEach(([rid,sph])=>{
       const pv=sph.player||0;let gain=0;
       if(projRate>0&&pv>25&&pv<60)gain+=projRate;
+      if(nodeSphere[rid]&&pv<95)gain+=nodeSphere[rid];
       const dep=sumDep(g.forceDeployments?.[rid]);
-      const wdep=capWeight(g.forceDeployments?.[rid],g.blackPrograms,g.forces); // E8: posture weight reads capability
+      const wdep=theaterWeight(g,rid); // E8: posture weight reads capability; F9c: and the bases within reach
       if((g.forceDeployments?.[rid]?.sr72||0)>0&&pv<95)gain+=0.04; // SR-72 on station: persistent regional reconnaissance
       const post=g.forcePosture[rid]||'deter';
       const perUnit=post==='deter'?0.12:post==='humanitarian'?((g.flashpoint?.rid===rid||(g.worldEvent&&WORLD_EVENTS[g.worldEvent.id]?.choke&&CHOKEPOINTS[WORLD_EVENTS[g.worldEvent.id].choke]?.region===rid))?0.2:0.04):0.06;
@@ -360,7 +365,7 @@ function economy(g,S,fx,m){
   if(g.importContracts.size>0){
     const blocCut=(g.blocTrade.eu>=1?0.9:1)*(g.blocTrade.cn>=1?0.85:1);
     const secured=myRoutes.length&&myRoutes.every(k=>cs[k]==='secured'||cs[k]==='escorted');
-    let impCost=g.importContracts.size*80*(g.dominanceLeverage.importCut||1)*blocCut*(routeHit&&!sprShield?1.5:1)*(secured?0.9:1)*(g.embargoedBy&&!isDiversified(g)&&!sprShield?1.3:1);
+    let impCost=g.importContracts.size*80*(g.dominanceLeverage.importCut||1)*blocCut*(routeHit&&!sprShield?1.5:1)*(secured?0.9-laneCut(g,myRoutes):1)*(g.embargoedBy&&!isDiversified(g)&&!sprShield?1.3:1); // F9c: lane protection from bases on the route
     if(Object.keys(g.stewardship).length&&g.importContracts.has('oil'))impCost-=40; // you market their crude
     if((g.chokeDeals.panama||{}).priority&&myRoutes.includes('panama'))impCost*=0.85;
     if(g.blocTrade.opec>=1){let foss=0;['oil','gas','coal'].forEach(k=>{if(g.importContracts.has(k))foss++;});impCost-=foss*16;}
@@ -579,8 +584,8 @@ function pressure(g,S,fx,m){
       const scale=Math.min(1.6,1+0.2*(rids.length-1))*((g.rivalTension[compId]||0)>=40?1.25:1)*Math.max(0.4,1-0.3*isrDamp)*(g.embargoes.has(compId)?0.75:1);
       S.setStats(p=>{const ns2={...p};Object.entries(resp.effect||{}).forEach(([k,v])=>{if(k in ns2&&typeof v==='number')ns2[k]+=((k==='stability'||k==='inflation')?v*shockMult:v)*detM*scale;});return ns2;});
       rids.forEach(rid=>{
-        const wHere=capWeight(g.forceDeployments?.[rid],g.blackPrograms,g.forces);
-        const detS=Math.min(nm,milM)*(wHere>0?0.5:1)*moleM;
+        const wHere=theaterWeight(g,rid);
+        const detS=Math.min(nm,milM)*(wHere>0?0.5:1)*moleM*(1-shieldAt(g,rid)); // F9c: missile defense in reach softens the swing
         const ps=sphCopy[rid]?.player||0;
         if(sphCopy[rid]){sphCopy[rid]={...sphCopy[rid],player:Math.max(0,ps-6*detS),competitors:{...sphCopy[rid].competitors,[compId]:Math.min(90,(sphCopy[rid].competitors?.[compId]||0)+8*detS)}};}
       });
@@ -970,7 +975,7 @@ function world(g,S,fx,m){
     if(rids.length){
       const rid=rids[Math.floor(rng()*rids.length)];
       const types=Object.keys(FLASHPOINTS);const type=types[Math.floor(rng()*types.length)];
-      const fp={rid,type,t:6+(g.intelInfra.isr_fusion?3:0)};g.flashpoint=fp;S.setFlashpoint(fp);
+      const fp={rid,type,t:6+(g.intelInfra.isr_fusion?3:0)+responseAt(g,rid)};g.flashpoint=fp; // F9c: bases in reach buy response timeS.setFlashpoint(fp);
       fx.toast(`${FLASHPOINTS[type].i} ${FLASHPOINTS[type].n} — ${REGIONS[rid].n}. Respond on the map.`);
       S.setLog(p=>[{msg:`${FLASHPOINTS[type].i} ${FLASHPOINTS[type].n}: ${REGIONS[rid].n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
     }

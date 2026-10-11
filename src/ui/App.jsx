@@ -10,7 +10,7 @@ import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, CRISIS_FRIENDLY, CRISIS_HOSTIL
 import { BLOC_TRADE, CURRENCY_LABELS } from '../data/trade.js';
 import { CHOKEPOINTS, IMPORT_ROUTES } from '../data/chokepoints.js';
 import { RES_META, CONCESSIONS } from '../data/energy.js';
-import { sumDep, isAllyOf, topHostile, wSum, isrScore, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRate, sapRunCost, recapCost, calcSCost, getEnergyTier, getQualMult, getRefineMult, getDefLeverage, tier1Odds, exportEdge } from '../sim/formulas.js';
+import { sumDep, isAllyOf, topHostile, wSum, isrOf, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRate, sapRunCost, recapCost, calcSCost, getEnergyTier, getQualMult, getRefineMult, getDefLeverage, tier1Odds, exportEdge } from '../sim/formulas.js';
 import { SOF_RULES } from '../data/forces.js';
 import { naturalDrift } from '../sim/economy.js';
 import { runMonth } from '../sim/tick.js';
@@ -1196,7 +1196,7 @@ function WorldLeadersInner({resumeSignal}){
                     {!have&&<div style={{fontSize:'9px',marginBottom:'5px'}}>{reqs.map(([l,o])=><span key={l} style={{color:o?'#4ade80':'#ef4444',marginRight:'8px'}}>{o?'✓':'✗'} {l}</span>)}</div>}
                     {!have&&<button onClick={()=>dispatch({type:'signConcession',payload:{concession:ck}})} style={{width:'100%',background:ok?'#1e3a8a':'rgba(0,0,0,.35)',border:`1px solid ${ok?'#3b82f6':'#374151'}`,color:ok?'white':'#4b5563',padding:'5px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>Sign concession — ${cp.cost}M</button>}
                     {have&&!stewardship[ck]&&<div style={{fontSize:'9px',color:'#9ca3af'}}>Income scales with Materials level · SA sphere +0.1/mo · at risk if a hostile power out-spheres you in {REGIONS[cp.region]?.n} by 25+ · suspended if you sanction {nat?.n}</div>}
-                    {cp.intervention&&(()=>{const iv=cp.intervention;const st=stewardship[ck];const nw=navalWeight(forceDeployments[cp.region]);const isrSc=isrScore(platforms,defLevels,intelInfra,blackPrograms);const icd=actionCooldowns[`interv_${ck}`]||0;
+                    {cp.intervention&&(()=>{const iv=cp.intervention;const st=stewardship[ck];const nw=navalWeight(forceDeployments[cp.region]);const isrSc=isrOf({platforms,defLevels,intelInfra,blackPrograms,bases,country});const icd=actionCooldowns[`interv_${ck}`]||0;
                       const hostile=Math.max(sphere[cp.region]?.competitors?.china||0,sphere[cp.region]?.competitors?.russia||0);const chance=Math.min(0.95,0.5+isrSc*0.03+nw*0.05-hostile/200);
                       const ireqs=[[`Military ≥${iv.req.military} (${Math.round(stats?.military||0)})`,(stats?.military||0)>=iv.req.military],[`Naval weight ≥${iv.req.naval} in ${REGIONS[cp.region]?.n} (${nw})`,nw>=iv.req.naval],[`ISR ≥${iv.req.isr} (${isrSc})`,isrSc>=iv.req.isr]];const iok=ireqs.every(r=>r[1]);
                       if(st){const ramp=1+Math.min(1,st.mo/24);const inc=Math.round(iv.income*ramp*(1+0.25*(st.tiers||0))*(1+Math.max(0,(defLevels.materials||4)-4)*0.15)*(nw>=2?1:0.5));const tierCost=1000;const canTier=(st.tiers||0)<3&&(defLevels.materials||0)>=4+(st.tiers||0);
@@ -1390,7 +1390,7 @@ function WorldLeadersInner({resumeSignal}){
             🕵️ {INTEL_AGENCIES[country?.id||'']||'Intelligence Services'} Command — fund standing programs, set the budget, and run operations. Foreign services are running ops against you; interception depends on Cyber R&D, budget, Counter-Intel ops, and the Counter-Intelligence Grid.
           </div>
           {renderIssues()}
-          {(()=>{const isrSc=isrScore(platforms,defLevels,intelInfra,blackPrograms);return <div style={{marginBottom:'12px'}}>
+          {(()=>{const isrSc=isrOf({platforms,defLevels,intelInfra,blackPrograms,bases,country});return <div style={{marginBottom:'12px'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'7px'}}>
               <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px'}}>Strategic Intelligence Dossier · ISR reveals the adversary</div>
               <span style={{fontSize:'10px',color:isrSc>=10?'#4ade80':isrSc>=5?'#f0c040':'#ef4444'}}>ISR {isrSc} — {isrSc>=14?'total clarity':isrSc>=10?'strong coverage':isrSc>=5?'partial picture':'limited sight'}</span>
@@ -1768,7 +1768,7 @@ function WorldLeadersInner({resumeSignal}){
                     const can=navalW>=4;
                     return <button onClick={()=>dispatch({type:'declareBlockade',payload:{region:selectedRegion}})}
                       style={{width:'100%',marginTop:'6px',background:can?'rgba(96,165,250,.1)':'rgba(0,0,0,.3)',border:`1px solid ${can?'#60a5fa':'#374151'}`,color:can?'#60a5fa':'#4b5563',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>⚓ Declare Blockade vs {topR2[0]} — $120M/mo · their sphere strangled · arms lanes cut{can?'':` · need naval 4+ (have ${navalW})`}</button>;})()}
-                  {hereTot>=3&&(()=>{const topR=topHostile(sphere[selectedRegion]?.competitors,country?.id);const kcd=actionCooldowns[`kin_${selectedRegion}`]||0;if(!topR||topR[1]<10)return null;const isrSc=isrScore(platforms,defLevels,intelInfra,blackPrograms);const kDmg=kineticDamage(isrSc,hereObj);return <button onClick={()=>dispatch({type:'kineticStrike',payload:{region:selectedRegion}})} style={{width:'100%',marginTop:'6px',background:kcd>0?'rgba(0,0,0,.3)':'rgba(239,68,68,.12)',border:`1px solid ${kcd>0?'#374151':'#ef4444'}`,color:kcd>0?'#4b5563':'#ef4444',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{kcd>0?`🎯 Regrouping — ${kcd}mo`:`🎯 Kinetic Strike vs ${topR[0]} — $400M · their sphere −${kDmg}, yours +6, stability −3`}</button>;})()}
+                  {hereTot>=3&&(()=>{const topR=topHostile(sphere[selectedRegion]?.competitors,country?.id);const kcd=actionCooldowns[`kin_${selectedRegion}`]||0;if(!topR||topR[1]<10)return null;const isrSc=isrOf({platforms,defLevels,intelInfra,blackPrograms,bases,country});const kDmg=kineticDamage(isrSc,hereObj);return <button onClick={()=>dispatch({type:'kineticStrike',payload:{region:selectedRegion}})} style={{width:'100%',marginTop:'6px',background:kcd>0?'rgba(0,0,0,.3)':'rgba(239,68,68,.12)',border:`1px solid ${kcd>0?'#374151':'#ef4444'}`,color:kcd>0?'#4b5563':'#ef4444',padding:'6px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{kcd>0?`🎯 Regrouping — ${kcd}mo`:`🎯 Kinetic Strike vs ${topR[0]} — $400M · their sphere −${kDmg}, yours +6, stability −3`}</button>;})()}
                 </div>;})()}
                 <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:'6px'}}>
                   {(()=>{const iaW2=influenceAlloc||{};const iTot=Object.values(iaW2).reduce((a,b)=>a+(b||0),0);const pool=(influenceBudget||0)*50;

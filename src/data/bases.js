@@ -19,7 +19,7 @@ export function distanceKm(a, b) {
 // mult: what a well-placed node multiplies (F9c wires each into its system):
 //   choke    control weight added at every chokepoint within reach (naval base at Bab al-Mandab: +1.5, the 'secured' line is 2)
 //   sortie   deployed air-unit weight in theaters within reach (+35%)        sustain  deployed naval (or any, for a hub) unit weight
-//   land     deployed land-unit weight                                       isr      ISR score, global (radar site +3)
+//   land     deployed land-unit weight                                       isr      ISR score, global (radar +2; air, SOF, missile defense +0.25; capped 6 in src/sim/reach.js)
 //   response flashpoint months and the intervene gate in theaters within reach
 //   sphere   monthly sphere gain in the host region                          lane     import-cost cut when a route's chokepoint is in reach
 //   shield   rival pressure response in theaters within reach, scaled down   t1       Tier-1 operation odds when the target's home is in reach
@@ -28,12 +28,12 @@ export function distanceKm(a, b) {
 // min(maxPace, margin) months per month; once online it pays `income` $M/mo to the treasury (port fees, royalties and tax), no upkeep.
 export const NODE_TYPES = {
   naval:     { n: 'Naval base',          i: '⚓', reach: 1500, capex: 1500, mo: 24, upkeep: 10, host: 4, mult: { choke: 1.5, sustain: 0.25, lane: 0.05 }, d: 'Pier, fuel and repair for the fleet. Holds the chokepoints it can reach; escorts bite.' },
-  air:       { n: 'Air base',            i: '✈️', reach: 1200, capex: 1000, mo: 18, upkeep: 7,  host: 3, mult: { sortie: 0.35, response: 1, isr: 1 }, d: 'Sortie generation in theater. Air units within reach weigh more; faster flashpoint response.' },
+  air:       { n: 'Air base',            i: '✈️', reach: 1200, capex: 1000, mo: 18, upkeep: 7,  host: 3, mult: { sortie: 0.35, response: 1, isr: 0.25 }, d: 'Sortie generation in theater. Air units within reach weigh more; faster flashpoint response.' },
   garrison:  { n: 'Army garrison',       i: '🪖', reach: 600,  capex: 500,  mo: 12, upkeep: 5,  host: 3, mult: { land: 0.3, response: 2, sphere: 0.05 }, d: 'Boots in the host region. Land units weigh more, flashpoints wait longer, the region leans your way.' },
   logistics: { n: 'Logistics hub',       i: '📦', reach: 2000, capex: 400,  mo: 12, upkeep: 3,  host: 2, mult: { sustain: 0.15, choke: 0.5, response: 1 }, d: 'Prepositioned stock. Sustains every branch within a long reach; a little chokepoint weight.' },
-  radar:     { n: 'Radar / ISR site',    i: '📡', reach: 2500, capex: 350,  mo: 9,  upkeep: 2,  host: 1, mult: { isr: 3 }, d: 'Early warning and collection. +3 ISR, which every op, strike and Tier-1 odds reads.' },
-  bmd:       { n: 'Missile defense site', i: '🛡️', reach: 800,  capex: 800,  mo: 15, upkeep: 4,  host: 2, mult: { shield: 0.25, isr: 1 }, d: 'Interceptors over the host region. Rival pressure responses there land softer.' },
-  sof:       { n: 'SOF forward staging', i: '🥷', reach: 1500, capex: 200,  mo: 6,  upkeep: 1,  host: 1, mult: { response: 2, t1: 0.05, isr: 1 }, d: 'A quiet compound for Tier 1. Faster flashpoint response; better odds on regime change nearby.' },
+  radar:     { n: 'Radar / ISR site',    i: '📡', reach: 2500, capex: 350,  mo: 9,  upkeep: 2,  host: 1, mult: { isr: 2 }, d: 'Early warning and collection. +2 ISR, which every op, strike and Tier-1 odds reads.' },
+  bmd:       { n: 'Missile defense site', i: '🛡️', reach: 800,  capex: 800,  mo: 15, upkeep: 4,  host: 2, mult: { shield: 0.25, isr: 0.25 }, d: 'Interceptors over the host region. Rival pressure responses there land softer.' },
+  sof:       { n: 'SOF forward staging', i: '🥷', reach: 1500, capex: 200,  mo: 6,  upkeep: 1,  host: 1, mult: { response: 2, t1: 0.05, isr: 0.25 }, d: 'A quiet compound for Tier 1. Faster flashpoint response; better odds on regime change nearby.' },
   port:      { n: 'Port / processing node', i: '🏗️', reach: 0, capex: 1200, mo: 18, upkeep: 0,  host: 0, private: true, income: 6, mult: { sphere: 0.03, lane: 0.05 }, d: 'Private capital builds it, you authorize and enable it. Port fees to the treasury, trade-lane access, a slow pull on the host region.' },
 };
 export const NODE_IDS = Object.keys(NODE_TYPES);
