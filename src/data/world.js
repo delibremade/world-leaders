@@ -1,10 +1,10 @@
 import { seat, cap1, maxTen, hottest, memberOf, ownedMembers, squeezed, tightest, strongest, offtakeCandidate, mineralName, lowestReadiness, sofRoom } from './event-ctx.js';
 import { ALLIED_PROGRAMS, ACCESS_RULES } from './alliance.js';
 import { NATIONS } from './nations.js';
-import { SOF_RULES } from './forces.js';
 import { MINERALS, MINERAL_RULES } from './minerals.js';
 import { accessGates, memberGates, shareCost, myAccess } from '../sim/selectors.js';
-import { crewStatus } from '../sim/forces.js';
+import { crewStatus, classBlock } from '../sim/forces.js';
+import { sofFree, sofEq } from './sof.js';
 // National Doctrines — strategic identity. Pick one path; it shapes everything.
 export const DOCTRINES={
   hegemon: {n:'Economic Hegemon',i:'💰',col:'#fbbf24',
@@ -221,26 +221,26 @@ export const DECISIONS=[
     {id:'b',label:'Send Observers Only',cost:100,tags:['Readiness +2 everywhere'],effects:{},sfx:[{k:'readiness',b:'all',d:2}]},
     {id:'c',label:'Decline',tags:['Relations −2 inside your bloc','Saves the budget'],effects:{treasury:150},sfx:[{k:'relBloc',bloc:'$own',d:-2}]}]},
   // Special operations
-  {id:'sof_raid',title:'Raid on a Courier Network',icon:'🎯',when:({g,ten})=>(g.forces?.sof?.t1||0)>=1&&Math.max(0,...Object.values(ten))>=20&&!(g.nukeLog||[]).length,
+  {id:'sof_raid',title:'Raid on a Courier Network',icon:'🎯',when:({g,ten})=>sofFree(g.forces,1)>=1&&Math.max(0,...Object.values(ten))>=20&&!(g.nukeLog||[]).length,
    desc:ctx=>seat(ctx.country,{china:'Intelligence locates a courier cell moving a rival’s sensitive files through a third country. A deniable team could reach it.',russia:'Security services trace a rival’s courier line to a villa abroad. Spetsnaz could be there in a night.',usa:'The Agency has a window on a courier cell carrying a rival’s weapons data. The task force can be there in 48 hours.'},'Intelligence has a window on a rival’s courier cell. A Tier 1 team could hit it, if you accept the exposure.'),
    options:[
-    {id:'a',label:'Authorize the Raid',cost:250,tags:['Their program set back','Tension +5','Land readiness −4'],effects:{stability:1},sfx:[{k:'tension',id:'$hottest',d:5},{k:'gdbTop',id:'$hottest',d:-0.3},{k:'readiness',b:'land',d:-4}]},
+    {id:'a',label:'Authorize the Raid',cost:250,tags:['Their program set back','Tension +5','Land readiness −4','A Tier 1 sub-unit out 6 months'],effects:{stability:1},sfx:[{k:'tension',id:'$hottest',d:5},{k:'gdbTop',id:'$hottest',d:-0.3},{k:'readiness',b:'land',d:-4},{k:'sofOp',op:'raid'}]},
     {id:'b',label:'Pass the Intel to a Partner',tags:['Relations +3 inside your bloc','No exposure'],effects:{},sfx:[{k:'relBloc',bloc:'$own',d:3}]},
     {id:'c',label:'Shelve It',tags:['Retention −2','Keeps tension flat'],effects:{},sfx:[{k:'retention',d:-2}]}]},
-  {id:'sof_selection',title:'Selection Course Oversubscribed',icon:'🥾',when:({g,ten})=>Math.max(0,...Object.values(ten))>=15&&(g.forces?.sof?.t2||0)>=1&&sofRoom(g)&&(g.forces.sof.t1+g.forces.sof.pipes.filter(p=>p.t===1).length)<SOF_RULES.max.t1,
+  {id:'sof_selection',title:'Selection Course Oversubscribed',icon:'🥾',when:({g,ten})=>Math.max(0,...Object.values(ten))>=15&&sofEq(g.forces,2)>=1&&sofRoom(g)&&!classBlock(g,1,null,false),
    desc:'More Tier 2 operators qualify for selection than the course takes. Tier 1 takes two to three years to grow, so the decision is also a bet on where the threat will be.',
    options:[
-    {id:'a',label:'Open a Tier 1 Selection Course',tags:['A Tier 1 pipeline starts','24 to 36 months','$20M/month'],effects:{},
-     req:g=>((g.forces.sof.t2<1)?'No Tier 2 candidates':(g.stats?.treasury||0)<SOF_RULES.t1Cost?`Need $${SOF_RULES.t1Cost}M/mo`:null),act:()=>[{verb:'selectTier1',payload:{}}]},
-    {id:'b',label:'Grow the Tier 2 Base',tags:['A Tier 2 pipeline starts','24 months','$10M/month'],effects:{},
-     req:g=>((g.forces.sof.t2+g.forces.sof.pipes.filter(p=>p.t===2).length)>=SOF_RULES.max.t2?'Tier 2 at its ceiling':(g.stats?.treasury||0)<SOF_RULES.t2Cost?`Need $${SOF_RULES.t2Cost}M/mo`:null),act:()=>[{verb:'trainSof',payload:{}}]},
+    {id:'a',label:'Open a Tier 1 Selection Course',tags:['A Tier 1 class starts, drawn mostly from Tier 2','24 to 36 months','Charged per trainee to Training'],effects:{},
+     req:g=>classBlock(g,1),act:()=>[{verb:'selectTier1',payload:{}}]},
+    {id:'b',label:'Grow the Tier 2 Base',tags:['A Tier 2 class starts','24 months','Charged per trainee to Training'],effects:{},
+     req:g=>classBlock(g,2),act:()=>[{verb:'trainSof',payload:{}}]},
     {id:'c',label:'Bank the Savings',tags:['+$200M now','Same force'],effects:{treasury:200}}]},
-  {id:'sof_scandal',title:'Operators Accused of Abuses',icon:'📰',when:({g})=>(g.usedDecisions?.has('sof_raid'))&&(g.forces?.sof?.t1||0)>=1,
+  {id:'sof_scandal',title:'Operators Accused of Abuses',icon:'📰',when:({g})=>(g.usedDecisions?.has('sof_raid'))&&sofEq(g.forces,1)>0,
    desc:'After the raid, a leaked review alleges unlawful killings by the Tier 1 team. The press has names. Allies want a response and the unit wants protection.',
    options:[
     {id:'a',label:'Independent Inquiry',cost:300,tags:['Stability +2'],effects:{stability:2}},
     {id:'b',label:'Cover It Up',tags:['Stability −3','Relations −3 inside your bloc'],effects:{stability:-3},sfx:[{k:'relBloc',bloc:'$own',d:-3}]},
-    {id:'c',label:'Stand Down a Squadron',tags:['Tier 1 −1 squadron (24 to 36 months to rebuild)','Stability +3'],effects:{stability:3},req:g=>((g.forces.sof.t1<1)?'No Tier 1 squadron':null),sfx:[{k:'sof',t:1,d:-1}]}]},
+    {id:'c',label:'Stand Down a Squadron',tags:['Tier 1 −1 squadron of operators (about 3 years to rebuild)','Stability +3'],effects:{stability:3},req:g=>(sofFree(g.forces,1)<1?'No Tier 1 squadron free':null),sfx:[{k:'sof',t:1,d:-1}]}]},
   // Energy, intel, escalation
   {id:'reserve_window',title:'A Window to Refill the Reserve',icon:'🛢️',when:({g,ten,ns})=>(g.spr||0)<4&&!g.embargoedBy&&Math.max(0,...Object.values(ten))<40&&(ns.inflation??0)<4,
    desc:'Prices dip and the lanes are quiet. Strategists say a refilled reserve is the cheapest insurance you will be offered before the next chokepoint closes.',

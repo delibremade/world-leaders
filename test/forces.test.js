@@ -5,7 +5,7 @@ import { runMonth } from '../src/sim/tick.js';
 import { applyVerb } from '../src/sim/actions.js';
 import { newCampaign, STATE_FIELDS } from '../src/sim/state.js';
 import { checkV57 } from '../src/sim/invariants.js';
-import { forceQuality, forceMult, tier1Odds, exportEdge, capWeight, manPts } from '../src/sim/formulas.js';
+import { forceQuality, forceMult, tier1Odds, exportEdge, capWeight, manPts, qualityF, readinessF } from '../src/sim/formulas.js';
 import { MANPOWER, manpowerCap } from '../src/data/orbat.js';
 import { crewStatus, forceView, newForces } from '../src/sim/forces.js';
 import { programSupply, inputsOf } from '../src/sim/minerals.js';
@@ -38,7 +38,7 @@ test('data: every unit declares a branch and crew sets; drone wings fly with the
   assert.equal(crewOf('cca').n, 0, 'CCA attaches to F-47 crews');
   assert.deepEqual(crewOf('f47'), { b: 'air', n: 2 });
   for (const c of COUNTRIES) { const u = SOF_UNITS[c.id]; assert.ok(u && u.t1 && u.t2 && u.status_source, c.id); }
-  assert.equal(SOF_UNITS.usa.t1, '1st SFOD-D (Delta)');
+  assert.equal(SOF_UNITS.usa.t1, 'CAG / 1st SFOD-D (Delta)');
   for (const n of ['china', 'brazil']) assert.match(SOF_UNITS[n].status_source, /generic/);
   assert.ok(SOF_RULES.t1MoMin >= 24 && SOF_RULES.t1MoMax <= 36 && SOF_RULES.t2Mo >= 24 && SOF_RULES.t2Mo <= 36, 'pipelines 24-36 months');
 });
@@ -62,7 +62,7 @@ test('new campaign: manpower, quality, standard training, crews, SOF; invariants
   assert.equal(f.train, 2);
   for (const b of BRANCH_IDS) assert.equal(f.readiness[b], FORCE_RULES.start.readiness);
   assert.equal(Math.round(f.quality), Math.round(forceQuality(h.g.stats)));
-  assert.deepEqual([f.sof.t2, f.sof.t1], [3, 2]);
+  assert.deepEqual(Object.keys(f.sof.units), ['cag', 'devgru', 'sts24', 'rangers', 'sf', 'seals', 'marsoc'], 'F8 (#56): named units'); assert.equal(Math.round(tier1Odds(h.g, 'cuba').t1 / (qualityF(f.quality) * readinessF(f.readiness.land)) * 100) / 100, 2, 'US 2024 Tier 1 = 2 squadron-equivalents');
   assert.deepEqual(checkV57(h.g), []);
 });
 
@@ -138,25 +138,18 @@ test('training: readiness decays unfunded, holds at standard, Joint Exercises po
   assert.ok(forceView(none.g).branches.find((b) => b.id === 'air').decayMo != null, 'decay countdown shown');
 });
 
-test('SOF: Tier 2 pipeline, then Tier 1 selection draws on Tier 2; selection is faster with higher quality; Tier 1 drives odds', () => {
+test('SOF: classes graduate into named units; selection is faster with higher quality; more Tier 1 operators raise odds (F8 detail: test/sof.test.js)', () => {
   const h = headless('usa'); rich(h.g);
-  const t2 = h.g.forces.sof.t2, t1 = h.g.forces.sof.t1;
-  h.run('trainSof', {});
-  assert.equal(h.g.forces.sof.pipes.length, 1);
-  months(h, SOF_RULES.t2Mo);
-  assert.equal(h.g.forces.sof.t2, t2 + 1);
   const mil = h.g.stats.military; const odds0 = tier1Odds(h.g, 'cuba');
-  h.run('selectTier1', {});
-  assert.equal(h.g.forces.sof.t2, t2, 'a candidate leaves Tier 2 for selection');
+  h.run('selectTier1', { unit: 'devgru' });
   const mo = h.g.forces.sof.pipes[0].mo; assert.ok(mo >= SOF_RULES.t1MoMin && mo <= SOF_RULES.t1MoMax);
   months(h, mo);
-  assert.equal(h.g.forces.sof.t1, t1 + 1);
   h.g.stats = { ...h.g.stats, military: mil }; const odds1 = tier1Odds(h.g, 'cuba');
   assert.ok(odds1.t1 > odds0.t1 && odds1.mine > odds0.mine, 'Tier 1 strength raises overmatch');
   const dull = headless('usa'); rich(dull.g); setF(dull.g, { quality: 10 }); dull.run('selectTier1', {});
   const sharp = headless('usa'); rich(sharp.g); setF(sharp.g, { quality: 95 }); sharp.run('selectTier1', {});
   assert.ok(dull.g.forces.sof.pipes[0].mo > sharp.g.forces.sof.pipes[0].mo);
-  const none = headless('cuba'); rich(none.g); setF(none.g, { sof: { ...none.g.forces.sof, t2: 0 } }); none.run('selectTier1', {});
+  const none = headless('cuba'); rich(none.g); setF(none.g, { sof: { ...none.g.forces.sof, units: { ...none.g.forces.sof.units, avispas: { ops: 0, out: [] } } } }); none.run('selectTier1', {});
   assert.equal(none.g.forces.sof.pipes.length, 0, 'no Tier 2 candidates, no selection');
 });
 
@@ -172,7 +165,10 @@ test('old saves without forces still run (multipliers 1, forces created on the f
   const h = headless('usa'); h.g.forces = undefined;
   assert.equal(forceMult(undefined, 'air'), 1);
   h.month(); assert.ok(h.g.forces && h.g.forces.active > 0);
-  assert.deepEqual(newForces('china', h.g.stats).sof.t1, 1);
+  assert.equal(newForces('china', h.g.stats).sof.units.t1.ops, 350, 'China: the generic Tier 1 unit');
+  // F8 (#56): a pre-F8 force (abstract t1/t2 counts) converts to the named 2024 units on its next month.
+  h.g.forces = { ...h.g.forces, sof: { t2: 3, t1: 2, pipes: [{ t: 1, mo: 4 }] } }; h.month();
+  assert.ok(h.g.forces.sof.units.cag.ops > 290); assert.deepEqual(checkV57(h.g), []);
 });
 
 test('E4 gap: regular platform builds draw mineral inputs; a shortfall queues the build, minerals deliver it', () => {

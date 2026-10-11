@@ -4,6 +4,7 @@
 // 0..100: 70 = standard training. Crews are trained crew sets (one fills one unit's crew requirement); the trained pool caps
 // them at active strength x CREW_PER. Money in $M/month, on the scale of the v57 ledger (Personnel was $3M per unit).
 import { PLATFORMS, BLACK_PROGRAMS } from './platforms.js';
+import { SOF_ORBAT, SOF_RULES } from './sof.js';
 
 export const BRANCHES = [['land', 'Land'], ['air', 'Air'], ['sea', 'Sea']];
 export const BRANCH_IDS = BRANCHES.map(([b]) => b);
@@ -37,8 +38,8 @@ export const FORCE_RULES = {
   // Retention target = 40 + (pay - 100) x payW + (stability - 50) x stabW - civilian pull (growth above 2%) + slack labor market; moves retLag/month.
   payW: 0.6, stabW: 0.5, civW: 5, unempW: 1, retLag: 0.1,
   payMax: 200,
-  // Payroll $M/mo at 100% pay (scaled by pay): per point of active and reserve strength, per SOF unit.
-  payroll: { active: 0.25, reserve: 0.05, t2: 2, t1: 4 },
+  // Payroll $M/mo at 100% pay (scaled by pay): per point of active and reserve strength (SOF pay premium per operator: SOF_RULES.pay).
+  payroll: { active: 0.25, reserve: 0.05 },
   // Quality lags its vitals target by qualityLag/month (a cohort trains for years): neglect shows up years later.
   qualityLag: 1 / 36,
   // Readiness rises at most riseMo/month toward the training target (pipeline months), decays decayMo/month when above it.
@@ -48,26 +49,11 @@ export const FORCE_RULES = {
   crewAttrition: 0.01,
 };
 
-// SOF: Tier 2 feeds Tier 1 through selection. Pipelines charge monthly to Training while they run; units draw Personnel pay.
-// Tier-1 selection takes t1MoMax - (t1MoMax - t1MoMin) x quality/100 months (24..36): better recruits pass faster.
-export const SOF_RULES = { t2Mo: 24, t2Cost: 10, t1MoMin: 24, t1MoMax: 36, t1Cost: 20, maxPipes: 2, max: { t2: 12, t1: 8 },
-  // Tier-1 overmatch: each squadron adds odds points to `mine`, plus a capped chance bonus (existing overmatch math, intel Tier-1 ops).
-  t1Points: 8, t1Chance: 0.03, t1ChanceMax: 0.15 };
-
-// Nation-specific unit names. status_source: where the name comes from; China and Brazil stay generic until the owner supplies names.
-const GK = 'general knowledge, owner to verify';
-export const SOF_UNITS = {
-  usa: { t2: '75th Ranger Regiment', t1: '1st SFOD-D (Delta)', status_source: GK },
-  germany: { t2: 'Division Schnelle Kräfte paratroopers', t1: 'KSK', status_source: GK },
-  brazil: { t2: 'Tier 2 special forces', t1: 'Tier 1 special mission unit', status_source: 'generic until the owner supplies names' },
-  japan: { t2: '1st Airborne Brigade', t1: 'Special Forces Group (SFGp)', status_source: GK },
-  russia: { t2: 'GRU Spetsnaz brigades', t1: 'KSSO', status_source: GK },
-  cuba: { t2: 'Avispas Negras', t1: 'Tier 1 special mission unit', status_source: `${GK}; Tier 1 generic` },
-  norway: { t2: 'Telemark Battalion', t1: 'FSK', status_source: GK },
-  china: { t2: 'Tier 2 special forces', t1: 'Tier 1 special mission unit', status_source: 'generic until the owner supplies names' },
-};
-export const SOF_START = { usa: { t2: 3, t1: 2 }, russia: { t2: 3, t1: 1 }, china: { t2: 3, t1: 1 }, cuba: { t2: 1, t1: 0 } };
-export const SOF_DEFAULT = { t2: 2, t1: 1 };
+// SOF: F8 (#56) moves the Tier 1 / Tier 2 units, their rules and selectors to src/data/sof.js (named units with operator counts).
+// SOF_UNITS keeps the lead unit name per tier for text that names one.
+export { SOF_RULES };
+export const SOF_UNITS = Object.fromEntries(Object.entries(SOF_ORBAT).map(([nid, us]) => [nid, { t1: us.find((u) => u.tier === 1).n, t2: us.find((u) => u.tier === 2).n,
+  status_source: [...new Set(us.map((u) => u.status_source))].join('; ') }]));
 
 // ── F7 (#55), spec Part 9: the tangible order of battle (inventories in src/data/orbat.js). Game rules, tuned for play, on the v57
 // money scale. Manpower is headcounts; `manPts` (formulas.js) maps them back to the 0..100 index above (60 = the nation's 2024 active).

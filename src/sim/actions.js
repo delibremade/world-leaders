@@ -14,7 +14,8 @@ import { ALLIED_PROGRAMS, TIERS, TIER_ORDER, ACCESS_RULES } from '../data/allian
 import { rng } from './rng.js';
 import { memberOf } from '../data/event-ctx.js';
 import { startTranche, MINERAL_VERBS, authorizeRetort } from './minerals.js';
-import { crewBlock, FORCE_VERBS } from './forces.js';
+import { crewBlock, FORCE_VERBS, tier1Plan, intelPlan, commitPlan, sofAdjust, sofPlan } from './forces.js';
+import { SOF_RULES } from '../data/sof.js';
 import { BASE_VERBS } from './bases.js';
 import { responseAt } from './reach.js';
 import { FORCE_RULES } from '../data/forces.js';
@@ -114,10 +115,13 @@ function regimeChange(g,S,fx,nid){
   if(isr<10){fx.toast(`⚠ ISR ≥10 required (have ${isr})`);return;}
   if(w<3){fx.toast(`⚠ Naval/air weight ≥3 stationed in ${REGIONS[home]?.n} required (have ${w.toFixed(1)})`);return;}
   if(ratio<2){fx.toast(`⚠ Overmatch insufficient — ${ratio.toFixed(2)}× (need 2×). Yours ${Math.round(mine)} vs theirs ${Math.round(their)}`);return;}
+  // F8 (#56): the raid commits named sub-units (tier1Plan, the same plan the Tier-1 card shows); none free, no raid.
+  const plan=tier1Plan(g);if(!plan.ok){fx.toast('⚠ No Tier 1 unit free — every Tier 1 sub-unit is deployed or recovering');return;}
   if(s.treasury<6000){fx.toast('⚠ $6,000M required');return;}
   S.setStats(p=>({...p,treasury:p.treasury-6000}));g.actionCooldowns={...g.actionCooldowns,[`regime_${nid}`]:24};S.setActionCooldowns(p=>({...p,[`regime_${nid}`]:24}));
   const nm=NATIONS[nid]?.n||nid;
-  if(rng()<chance){
+  const won=rng()<chance;commitPlan(g,S,fx,plan,nid,won?SOF_RULES.loss.ok:SOF_RULES.loss.fail);
+  if(won){
     S.setSphere(p=>{const n2={...p};Object.keys(n2).forEach(rid=>{const v=n2[rid].competitors?.[nid]||0;if(v>0)n2[rid]={...n2[rid],competitors:{...n2[rid].competitors,[nid]:Math.max(0,v-(rid===home?40:10))}};});if(!gl&&n2[home])n2[home]={...n2[home],player:Math.min(100,(n2[home].player||0)+30)};return n2;});
     if(gl)S.setGlobalDef(p=>{const ng={...p};const lv={...ng[nid]};Object.keys(lv).forEach(v=>{lv[v]=Math.max(0,lv[v]-0.5);});ng[nid]=lv;return ng;});
     S.setNationRelations(p=>{const n2={...p};DIP_TARGETS.forEach(t=>{n2[t.id]=Math.max(-100,(n2[t.id]||0)-(ally?30:20));});n2[nid]=60;return n2;});
@@ -154,7 +158,8 @@ function applySfx(g,S,fx,ops){
     // E6 (#18): effects on the E4/E7/E8 systems. Each writes one field through the same setter the month uses.
     else if(op.k==='readiness'&&g.forces){const rd={...g.forces.readiness};(op.b==='all'?Object.keys(rd):[op.b]).forEach(b=>{if(b in rd)rd[b]=Math.max(0,Math.min(100,rd[b]+op.d));});g.forces={...g.forces,readiness:rd};S.setForces(g.forces);}
     else if(op.k==='retention'&&g.forces){g.forces={...g.forces,retention:Math.max(0,Math.min(100,g.forces.retention+op.d))};S.setForces(g.forces);}
-    else if(op.k==='sof'&&g.forces){const key=op.t===1?'t1':'t2';g.forces={...g.forces,sof:{...g.forces.sof,[key]:Math.max(0,g.forces.sof[key]+op.d)}};S.setForces(g.forces);}
+    else if(op.k==='sof'&&g.forces)sofAdjust(g,S,op.t,op.d); // F8: d sub-units' worth of operators
+    else if(op.k==='sofOp'&&g.forces){const sp=SOF_RULES.ops[op.op];const plan=sofPlan(g.forces,op.op,sp);const tgt=hot();if(plan.picks.length&&tgt)commitPlan(g,S,fx,plan,tgt,SOF_RULES.loss.ok);}
     else if(op.k==='mineral'&&g.minerals?.own?.[op.id]){const o=g.minerals.own[op.id];g.minerals={...g.minerals,own:{...g.minerals.own,[op.id]:{...o,stock:Math.max(0,o.stock+op.d)}}};S.setMinerals(g.minerals);}
     else if(op.k==='devSlip'&&g.arsenal?.dev?.[op.id]){const d=g.arsenal.dev[op.id];g.arsenal={...g.arsenal,dev:{...g.arsenal.dev,[op.id]:{...d,prog:Math.max(0,Math.min(d.mo-1,d.prog-op.mo))}}};S.setArsenal(g.arsenal);}
     else if(op.k==='suspend'){const pid=op.pid==='$member'?memberOf(g)?.pid:op.pid;const a=pid&&myAccess(g,pid);if(a?.status==='active'){setAccess(g,S,pid,g.country.id,{...a,status:'suspended',susp:ACCESS_RULES.suspendMo});bumpRel(g,S,{[ALLIED_PROGRAMS[pid].owner]:-ACCESS_RULES.breachRel});}}
@@ -277,10 +282,11 @@ function runIntelOp(g,S,fx,opId,targetId){
   if(opId==='sabotage'&&!(g.intelInfra.paramilitary>0)){fx.toast('⚠ Requires Special Activities Wing (Intel infrastructure)');return;}
   if(opId==='mole'&&(g.intelInfra.overseas_stations||0)<3){fx.toast('⚠ Requires 3+ Overseas Stations');return;}
   const opCost=Math.round(op.cost*(g.doctrine==='shadow'?0.75:1));
+  const plan=intelPlan(g,op);if(plan&&!plan.picks.length){fx.toast('⚠ No Tier 2 element free — every sub-unit is deployed or recovering');return;} // F8 (#56)
   if(s.treasury<opCost){fx.toast('⚠ Insufficient treasury');return;}
   const {successRate,discoverRate,cyberLvl,budgetBonus,lpD}=opOddsTerms(g,opId); // one implementation with the op card why-breakdown
   if(g.absorbBonus>0)g.absorbBonus--;
-  S.setStats(p=>({...p,treasury:p.treasury-opCost}));
+  S.setStats(p=>({...p,treasury:p.treasury-opCost}));if(plan)commitPlan(g,S,fx,plan,targetId);
   S.setIntelOps(p=>[...p,{id:`${opId}_${targetId}_${fx.now()}`,opId,targetId,monthsLeft:op.mo,successRate,discoverRate,type:op.type}]);
   S.setLog(p=>[{msg:`${op.i} Op launched vs ${targetId} — ${op.mo}mo`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
   fx.toast(`${op.i} ${op.n} operation underway`);

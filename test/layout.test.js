@@ -102,7 +102,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
         quality: [/Force quality index/, /Education/, /Healthcare/, /Food security/, /Stability/, /Equality/],
         training: [/Unfunded/, /Intensive/, /Readiness by branch/, /Crew pipelines/, /Fleet crews and readiness/, /Air: [\d,]+ of [\d,]+ ready/],
         equipment: [/Crews vs airframes/, /gap 4/, /Theater summary/, /Maintenance/, /F-47/, /Order of battle/, /F-22A Raptor/, /Depot throughput/],
-        specialized: [/Train Tier 2/, /Tier 1 selection/, /1st SFOD-D/, /ISR score/, /Cyber Command/, /Nuclear crews/],
+        specialized: [/Train Tier 2/, /Tier 1 selection/, /1st SFOD-D/, /DEVGRU/, /24th Special Tactics/, /75th Ranger Regiment/, /MARSOC/, /SEAL Teams/, /300 operators/, /4\/4 squadrons free/, /ISR score/, /Cyber Command/, /Nuclear crews/],
       };
       for (const [id, res] of Object.entries(want)) {
         await seg(page, id);
@@ -171,7 +171,25 @@ test('390px: Forces why-popover on retention and the confirm sheet for Tier 1 se
     await page.keyboard.press('Escape'); await seg(page, 'specialized');
     await page.evaluate(() => [...document.querySelectorAll('[data-forces] button')].find((b) => /Tier 1 selection/.test(b.textContent)).click()); await settle(page, 400);
     const c = await rect(page, '[data-confirm]'); assert.ok(c && c.x >= 0 && c.r <= 390.5, JSON.stringify(c));
-    assert.match(await page.evaluate(() => document.querySelector('[data-confirm]').innerText), /\$20M\/mo/);
+    assert.match(await page.evaluate(() => document.querySelector('[data-confirm]').innerText), /\$18M\/mo/); // F8 (#56): 12 trainees x $1.5M
+    assert.deepEqual(errors, []);
+  } finally { await ctx.close(); }
+});
+
+// F8 (#56): a committed unit shows on Specialized with the op, target and months left; the Tier-1 card names the unit it would send.
+test('390px: Specialized lists named SOF units with counts; a committed squadron shows its op and months; the Tier-1 card names the unit', async () => {
+  const { ctx, page, errors } = await openGame(browser, { width: 390 });
+  try {
+    await page.evaluate(() => { const h = window.__wl; h.sof('cag', { out: [{ op: 'regime', tgt: 'cuba', mo: 3, rec: 9 }, { op: 'regime', tgt: 'cuba', mo: 3, rec: 9 }] }); });
+    await go(page, 'forces'); await seg(page, 'specialized');
+    const row = await page.evaluate(() => { const e = document.querySelector('[data-sof-unit=cag]'); const r = e.getBoundingClientRect(); return { t: e.innerText, r: r.right, h: r.height }; });
+    assert.match(row.t, /Delta/); assert.match(row.t, /2\/4 squadrons free/); assert.ok(row.r <= 390.5 && row.h >= 43.5, JSON.stringify(row));
+    const out = await page.evaluate(() => [...document.querySelectorAll('[data-sof-out]')].map((e) => e.innerText).join(' | '));
+    assert.match(out, /Regime change · Cuba/); assert.match(out, /12 ?mo/);
+    const o = await overflow(page, 390); assert.ok(o.scrollWidth <= 390); assert.deepEqual(o.bad, []);
+    await go(page, 'intel');
+    const card = await page.evaluate(() => document.querySelector('[data-t1-plan]')?.innerText || '');
+    assert.match(card, /Commits .*DEVGRU.*2 squadrons.*3 mo.*9 mo recovery/);
     assert.deepEqual(errors, []);
   } finally { await ctx.close(); }
 });

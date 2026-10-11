@@ -4,6 +4,7 @@
 // registered id has one and that it returns a non-empty string on a live game.
 import { cap1, maxTen, hottest, memberOf, ownedMembers, squeezed, tightest, strongest, mineralName, lowestReadiness } from './event-ctx.js';
 import { crewStatus } from '../sim/forces.js';
+import { sofFree, sofOps } from './sof.js';
 import { myAccess } from '../sim/selectors.js';
 
 const n1 = (v) => (Math.round((v ?? 0) * 10) / 10).toFixed(1);
@@ -36,8 +37,8 @@ export const DECISION_WHY = {
   crew_shortfall: (c) => { const b = Object.entries(crewStatus(c.g)).find(([, s]) => s.gap > 0); return `${cap1(b?.[0])} is ${n0(b?.[1].gap)} crew short of its hulls`; },
   quality_warning: (c) => `Force quality ${n0(c.g.forces.quality)}, below 48`,
   joint_exercise: (c) => `${c.g.defensePacts?.size || 0} defense pact(s) and readiness down to ${n0(lowestReadiness(c.g))}`,
-  sof_raid: (c) => `${rival(c)} and ${c.g.forces.sof.t1} Tier-1 operator unit(s) ready`,
-  sof_selection: (c) => `${rival(c)} and a Tier-2 pool of ${c.g.forces.sof.t2} to draw from`,
+  sof_raid: (c) => `${rival(c)} and ${sofFree(c.g.forces, 1)} Tier-1 sub-unit(s) free`,
+  sof_selection: (c) => `${rival(c)} and a Tier-2 pool of ${Math.round(sofOps(c.g.forces, 2)).toLocaleString('en-US')} operators to draw from`,
   sof_scandal: (c) => 'The raid is on record and Tier-1 units are fielded',
   reserve_window: (c) => `Reserve at ${n1(c.g.spr)}, inflation ${n1(c.ns.inflation)}%, ${rival(c)}: a cheap refill window`,
   double_agent: (c) => `${(c.g.intelOps || []).length} intel op(s) running with ${rival(c)}`,
@@ -60,7 +61,7 @@ export const WORLD_WHY = {
   owner_leak_scare: (g) => `${ownedMembers(g).length} partner(s) admitted to your programs`,
   readiness_grounding: (g) => `Readiness down to ${n0(lowestReadiness(g))}, below 55`,
   recruitment_slump: (g) => `Retention ${n0(g.forces?.retention)}%, active manpower ${n0(g.forces?.active)}`,
-  hostage_crisis: (g) => `${g.forces?.sof?.t1 || 0} Tier-1 unit(s) abroad and tension ${n0(maxTen(g))}`,
+  hostage_crisis: (g) => `${sofFree(g.forces, 1)} Tier-1 sub-unit(s) free and tension ${n0(maxTen(g))}`,
   sanctions_wave: (g) => `${g.sanctions?.size || 0} sanction(s) of yours and tension ${n0(maxTen(g))}`,
   grid_attack: (g) => `Cyber level ${n0(g.defLevels?.cyber)} and tension ${n0(maxTen(g))}`,
   false_alarm: (g) => `${cap1(hottest(g))} tension ${n0(maxTen(g))}, on the brink`,

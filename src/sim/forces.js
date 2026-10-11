@@ -2,11 +2,13 @@
 // shared by the month (tick.js), the deploy verb (actions.js) and the Defense tab. Multipliers live in formulas.js.
 // State g.forces: active, reserve, retention (0..100), recruits, attrition (last month), quality (0..100, lags forceQuality),
 // train (TRAINING index), readiness {land,air,sea}, crews {land,air,sea} (trained crew sets), pipe [{b,mo}] (crews in training),
-// sof {t2, t1, pipes:[{t,mo}]}.
+// sof {units:{id:{ops, out:[{op, tgt, mo, rec}]}}, pipes:[{u, t, mo, n}]} over src/data/sof.js (F8, #56: named units, operators).
 // F7 (#55, spec Part 9) adds the tangible order of battle: active and reserve become headcounts (base: the 2024 strength they are
 // measured against), nid, q0 (quality at the start), crewShare {branch: share of active that crews its fleet}, depot (throughput %),
 // fleet {line: {n, mc, mx, blk, mod, loss, lost, at:{region:n}}} over src/data/orbat.js, fielded {unit: count already in the fleet}.
-import { FORCE_RULES as R, FLEET_RULES as FL, TRAINING, SOF_RULES, SOF_UNITS, SOF_START, SOF_DEFAULT, BRANCHES, BRANCH_IDS, crewOf } from '../data/forces.js';
+import { FORCE_RULES as R, FLEET_RULES as FL, TRAINING, SOF_UNITS, BRANCHES, BRANCH_IDS, crewOf } from '../data/forces.js';
+import { SOF_RULES, OP_NAMES, sofOrbat, sofUnit, unitCap, freeSubs, freeOps, sofOps, sofFree, pickUnit, subsN } from '../data/sof.js';
+import { INTEL_OPS } from '../data/intel.js';
 import { ORBAT, MANPOWER, UNIT_PLATFORMS, crewHeads, crewOfLine, manpowerCap } from '../data/orbat.js';
 import { NATIONS } from '../data/nations.js';
 import { PLATFORMS, BLACK_PROGRAMS } from '../data/platforms.js';
@@ -15,9 +17,9 @@ import { forceQuality, forceMult, tier1Power, qualityF, manPts, lineW, typeQ, qu
 const cl = (v, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
 const per = (b) => Object.fromEntries(BRANCH_IDS.map((k) => [k, b(k)]));
 export function newForces(nid, stats) {
-  const s = R.start; const sof = SOF_START[nid] || SOF_DEFAULT;
-  const f = { active: s.active, reserve: s.reserve, retention: s.retention, recruits: 0, attrition: 0, quality: forceQuality(stats),
-    train: s.train, readiness: per(() => s.readiness), crews: per((b) => R.spare[b]), pipe: [], sof: { t2: sof.t2, t1: sof.t1, pipes: [] } };
+  const s = R.start;
+  const f = { nid, active: s.active, reserve: s.reserve, retention: s.retention, recruits: 0, attrition: 0, quality: forceQuality(stats),
+    train: s.train, readiness: per(() => s.readiness), crews: per((b) => R.spare[b]), pipe: [], sof: newSof(nid) };
   return withFleet(f, nid, {}, stats);
 }
 // F7: headcounts from MANPOWER and the 2024 fleet from ORBAT. A pre-F7 force (index strength) converts in place of its index points.
@@ -31,7 +33,10 @@ function withFleet(f, nid, fielded, ns) {
     q0: f.quality, depot: 100, crewShare: per((b) => need[b] / m.active * (1 + FL.crewSlack)), prop: Math.min(1, propensity0(m)),
     fleet: Object.fromEntries(ls.map((l) => [l.id, newLine(l, nid)])), fielded: { ...fielded } };
 }
-const F = (g) => { const f = g.forces || newForces(g.country?.id, g.stats); return f.base || !g.country ? f : withFleet(f, g.country.id, ownedOf(g), g.stats); };
+// F8: every named SOF unit at its 2024 operator strength. A pre-F8 force (abstract t1/t2 counts) converts to the 2024 units.
+export const newSof = (nid) => ({ units: Object.fromEntries(sofOrbat(nid).map((u) => [u.id, { ops: u.ops, out: [] }])), pipes: [] });
+const withSof = (f, nid) => (f.sof?.units ? f : { ...f, nid: f.nid ?? nid, sof: newSof(f.nid ?? nid) });
+const F = (g) => { const f0 = g.forces || newForces(g.country?.id, g.stats); const f = g.country ? withSof(f0, g.country.id) : f0; return f.base || !g.country ? f : withFleet(f, g.country.id, ownedOf(g), g.stats); };
 export const crewPool = (f, b) => manPts(f).active * R.crewPer[b];
 
 // Units owned (domestic + imported + programs) and deployed, as crew sets needed per branch.
@@ -59,8 +64,10 @@ export function crewBlock(g, pid) {
   return `${nm} has no trained crews — ${c.b} crews ${Math.max(0, st.free)}/${c.n} free (${st.pipe} in training)`;
 }
 
-export const payrollOf = (f) => { if (!f) return 0; const p = manPts(f); return p.active * R.payroll.active + p.reserve * R.payroll.reserve + f.sof.t2 * R.payroll.t2 + f.sof.t1 * R.payroll.t1; };
-export const trainingCost = (f) => TRAINING[f.train].cost + f.sof.pipes.reduce((a, p) => a + (p.t === 2 ? SOF_RULES.t2Cost : SOF_RULES.t1Cost), 0);
+export const sofPay = (f) => sofOps(f, 1) * SOF_RULES.pay.t1 + sofOps(f, 2) * SOF_RULES.pay.t2;
+export const payrollOf = (f) => { if (!f) return 0; const p = manPts(f); return p.active * R.payroll.active + p.reserve * R.payroll.reserve + sofPay(f); };
+const classCost = (p) => p.n * (p.t === 1 ? SOF_RULES.costPer.t1 : SOF_RULES.costPer.t2);
+export const trainingCost = (f) => TRAINING[f.train].cost + (f.sof.pipes || []).reduce((a, p) => a + classCost(p), 0);
 // Retention target as signed terms (the UI's why-breakdown); the target is their sum, clamped. Same operations in the same order as before.
 export const retentionTerms = (pay, ns) => [
   { key: 'base', label: 'Baseline', value: 40 },
@@ -106,16 +113,41 @@ export function stepForces(g, S, fx, cash, ns) {
     for (let i = 0; i < Math.min(rate, want); i++) pipe.push({ b, mo: R.pipeMo[b] });
     crews[b] = Math.min(crews[b], crewPool({ ...f0, active }, b));
   }
-  // SOF pipelines.
-  const sof = { ...f0.sof, pipes: [] };
-  for (const p of f0.sof.pipes) {
-    if (p.mo > 1) { sof.pipes.push({ ...p, mo: p.mo - 1 }); continue; }
-    const k = p.t === 2 ? 't2' : 't1'; sof[k] = Math.min(SOF_RULES.max[k], sof[k] + 1);
-    const u = SOF_UNITS[g.country.id] || {}; fx.toast(`🎖️ ${p.t === 2 ? u.t2 || 'Tier 2' : u.t1 || 'Tier 1'}: a new ${p.t === 2 ? 'Tier 2 unit' : 'Tier 1 squadron'} is operational`);
-  }
+  const sof = stepSof(f0, quality, fx);
   const f1 = { ...f0, active, reserve, retention, recruits, attrition, quality, readiness, crews, pipe, sof, ...(mp.prop != null ? { prop: mp.prop } : {}) };
   setF(g, S, f0.fleet ? stepFleet(g, f1, fx, cash) : f1);
 }
+// ── F8 SOF month: turnover, the standing pipeline, surge classes graduating, committed sub-units counting down to rotation.
+// Turnover takes turnYr a year; the standing pipeline replaces it at the 2024 rate x quality (capped at 1) and closes refill of any gap
+// below the 2024 strength a month, never above it. Tier 1 replacements come t2Share from Tier 2. Surge classes can lift a unit to its cap.
+const takeOps = (units, f, t, n) => {
+  let left = n;
+  for (const id of Object.keys(units).filter((k) => sofUnit(f.nid, k)?.tier === t).sort((a, b) => units[b].ops - units[a].ops)) {
+    const d = Math.min(left, units[id].ops); if (d > 0) { units[id] = { ...units[id], ops: units[id].ops - d }; left -= d; }
+  }
+  return n - left;
+};
+function stepSof(f, q, fx) {
+  const thr = Math.min(1, qualityF(q)); const units = {}; let draw = 0;
+  for (const u of sofOrbat(f.nid)) {
+    const s0 = f.sof.units[u.id] || { ops: u.ops, out: [] };
+    let ops = s0.ops * (1 - SOF_RULES.turnYr / 12);
+    if (ops < u.ops) { const gain = Math.min(u.ops - ops, u.ops * SOF_RULES.turnYr / 12 * thr + (u.ops - ops) * SOF_RULES.refill); ops += gain; if (u.tier === 1) draw += gain * SOF_RULES.t2Share; }
+    const out = [];
+    for (const o of s0.out) { const o1 = o.mo > 0 ? { ...o, mo: o.mo - 1 } : { ...o, rec: o.rec - 1 }; if (o1.mo > 0 || o1.rec > 0) out.push(o1); else fx.toast(`🎖️ ${u.n}: a ${u.sub} is back in rotation`); }
+    units[u.id] = { ops, out };
+  }
+  takeOps(units, f, 2, draw);
+  const pipes = [];
+  for (const p of f.sof.pipes) {
+    if (p.mo > 1) { pipes.push({ ...p, mo: p.mo - 1 }); continue; }
+    const u = sofUnit(f.nid, p.u); if (!u) continue;
+    units[p.u] = { ...units[p.u], ops: Math.min(unitCap(u), units[p.u].ops + p.n) };
+    fx.toast(`🎖️ ${u.n}: ${p.n} new operators graduate`);
+  }
+  return { units, pipes };
+}
+
 // Pre-F7 index manpower (forces of a nation without MANPOWER).
 function indexStep(f0, ns, pay, retention) {
   const recruits = R.recruit * recruitLabor(ns) * pay / 100;
@@ -197,24 +229,63 @@ function setTraining(g, S, fx, level) {
   const f = F(g); const l = Math.round(+level); if (!TRAINING[l]) return;
   setF(g, S, { ...f, train: l }); fx.toast(`🎯 Training budget: ${TRAINING[l].n} — $${TRAINING[l].cost}M/mo, readiness → ${TRAINING[l].target}`);
 }
-const pipesOf = (f, t) => f.sof.pipes.filter((p) => p.t === t).length;
-function trainSof(g, S, fx) {
-  const f = F(g); const u = SOF_UNITS[g.country?.id] || {};
-  if (f.sof.pipes.length >= SOF_RULES.maxPipes) { fx.toast(`⚠ ${SOF_RULES.maxPipes} SOF pipelines already running`); return; }
-  if (f.sof.t2 + pipesOf(f, 2) >= SOF_RULES.max.t2) { fx.toast('⚠ Tier 2 at its ceiling'); return; }
-  if ((g.stats?.treasury || 0) < SOF_RULES.t2Cost) { fx.toast(`⚠ Need $${SOF_RULES.t2Cost}M/mo`); return; }
-  setF(g, S, { ...f, sof: { ...f.sof, pipes: [...f.sof.pipes, { t: 2, mo: SOF_RULES.t2Mo }] } });
-  fx.toast(`🎖️ ${u.t2 || 'Tier 2'} pipeline — ${SOF_RULES.t2Mo}mo, $${SOF_RULES.t2Cost}M/mo`);
+// Surge classes. A Tier 2 class trains conventional volunteers (t2Mo); a Tier 1 class draws t2Share of its candidates from Tier 2 and
+// the rest from conventional forces, and takes 24 to 36 months by quality. Classes charge costPer per trainee a month to Training.
+const pendingOf = (f, id) => f.sof.pipes.filter((p) => p.u === id).reduce((a, p) => a + p.n, 0);
+const roomOf = (f, u) => unitCap(u) - (f.sof.units[u.id]?.ops || 0) - pendingOf(f, u.id);
+const classUnit = (f, t, want) => { const us = sofOrbat(f.nid).filter((u) => u.tier === t); return us.find((u) => u.id === want) || us.slice().sort((a, b) => roomOf(f, b) - roomOf(f, a))[0]; };
+const costPerOf = (t) => (t === 1 ? SOF_RULES.costPer.t1 : SOF_RULES.costPer.t2);
+// The reason a class cannot start, or null. One check for the verbs, the buttons and the event options.
+export function classBlock(g, t, want, cash = true) {
+  const f = F(g); const u = classUnit(f, t, want); if (!u) return 'No such unit';
+  if (f.sof.pipes.length >= SOF_RULES.maxPipes) return `${SOF_RULES.maxPipes} SOF classes already running`;
+  if (roomOf(f, u) < 1) return `${u.n} at its ceiling (${unitCap(u).toLocaleString('en-US')} operators)`;
+  if (t === 1 && sofFreeOps(f, 2) < u.cls * SOF_RULES.t2Share) return 'Not enough free Tier 2 candidates';
+  if (cash && (g.stats?.treasury || 0) < u.cls * costPerOf(t)) return `Need $${Math.round(u.cls * costPerOf(t))}M/mo`;
+  return null;
 }
-function selectTier1(g, S, fx) {
-  const f = F(g); const u = SOF_UNITS[g.country?.id] || {};
-  if (f.sof.t2 < 1) { fx.toast(`⚠ No ${u.t2 || 'Tier 2'} candidates — selection draws on Tier 2`); return; }
-  if (f.sof.pipes.length >= SOF_RULES.maxPipes) { fx.toast(`⚠ ${SOF_RULES.maxPipes} SOF pipelines already running`); return; }
-  if (f.sof.t1 + pipesOf(f, 1) >= SOF_RULES.max.t1) { fx.toast('⚠ Tier 1 at its ceiling'); return; }
-  if ((g.stats?.treasury || 0) < SOF_RULES.t1Cost) { fx.toast(`⚠ Need $${SOF_RULES.t1Cost}M/mo`); return; }
-  const mo = selectionMo(f.quality);
-  setF(g, S, { ...f, sof: { ...f.sof, t2: f.sof.t2 - 1, pipes: [...f.sof.pipes, { t: 1, mo }] } });
-  fx.toast(`🎖️ ${u.t1 || 'Tier 1'} selection from ${u.t2 || 'Tier 2'} — ${mo}mo at quality ${Math.round(f.quality)}, $${SOF_RULES.t1Cost}M/mo`);
+const sofFreeOps = (f, t) => Object.keys(f.sof.units).filter((id) => sofUnit(f.nid, id)?.tier === t).reduce((a, id) => a + freeOps(f, id), 0);
+function startClass(g, S, fx, t, want) {
+  const why = classBlock(g, t, want); if (why) { fx.toast(`⚠ ${why}`); return; }
+  const f = F(g); const u = classUnit(f, t, want); const n = u.cls;
+  const units = { ...f.sof.units }; const fromT2 = t === 1 ? takeOps(units, f, 2, n * SOF_RULES.t2Share) : 0;
+  // Conventional candidates stay on the active roll while they train (they are still serving), so only the Tier 2 draw moves operators.
+  const mo = t === 1 ? selectionMo(f.quality) : SOF_RULES.t2Mo;
+  setF(g, S, { ...f, sof: { units, pipes: [...f.sof.pipes, { u: u.id, t, mo, n }] } });
+  fx.toast(`🎖️ ${u.n}: ${t === 1 ? 'selection' : 'qualification'} class of ${n} (${t === 1 ? `${Math.round(fromT2)} from Tier 2, ${n - Math.round(fromT2)}` : `all ${n}`} from conventional forces) — ${mo}mo at quality ${Math.round(f.quality)}, $${Math.round(classCost({ t, n }))}M/mo`);
+}
+// ── Operations commit sub-units for a duration plus recovery (spec Part 10). One plan for the verb, the Tier-1 card and the intel ops.
+const SOF_OPS = SOF_RULES.ops;
+export function sofPlan(f, op, spec, want) {
+  const picks = [];
+  for (const t of [1, 2]) {
+    const k0 = spec[`t${t}`] || 0; if (!k0) continue;
+    const id = pickUnit(f, t, k0, want, spec.small) || pickUnit(f, t, 1, want, spec.small); if (!id) continue;
+    const u = sofUnit(f.nid, id); const k = Math.min(k0, freeSubs(f, id));
+    picks.push({ u: id, n: u.n, t, k, sub: u.sub, ops: f.sof.units[id].ops * k / u.subs, text: `${u.n}: ${subsN(u, k)}` });
+  }
+  const mo = spec.mo; const rec = spec.rec;
+  const ok = !spec.t1 || picks.some((p) => p.t === 1);
+  return { op, ok, mo, rec, t1: picks.filter((p) => p.t === 1), t2: picks.filter((p) => p.t === 2), picks,
+    label: picks.length ? `${picks.map((p) => p.text).join(', ')} for ${mo} mo + ${rec} mo recovery` : 'no unit free' };
+}
+export const tier1Plan = (g, want) => { const f = F(g); return sofPlan(f, 'regime', SOF_OPS.regime, want); };
+export const intelPlan = (g, op) => { const f = F(g); return op?.sof ? sofPlan(f, op.id, { ...SOF_OPS.intel, mo: op.mo }) : null; };
+// Commit a plan: each pick's sub-units go out for mo + rec; `loss` of the committed operators are casualties.
+export function commitPlan(g, S, fx, plan, tgt, loss = 0) {
+  const f = F(g); const units = { ...f.sof.units };
+  for (const p of plan.picks) {
+    const s = units[p.u]; const o = { op: plan.op, tgt, mo: plan.mo, rec: plan.rec };
+    units[p.u] = { ops: Math.max(0, s.ops - p.ops * loss), out: [...s.out, ...Array.from({ length: p.k }, () => ({ ...o }))] };
+  }
+  setF(g, S, { ...f, sof: { ...f.sof, units } });
+  if (plan.picks.length) fx.toast(`🎖️ Committed ${plan.label}${loss ? ` — ${Math.round(plan.picks.reduce((a, p) => a + p.ops, 0) * loss)} operators lost` : ''}`);
+}
+// Event effects: d sub-units' worth of operators to the strongest unit of a tier (d < 0 stands one down; the standing pipeline rebuilds).
+export function sofAdjust(g, S, t, d) {
+  const f = F(g); const id = Object.keys(f.sof.units).filter((k) => sofUnit(f.nid, k)?.tier === t).sort((a, b) => f.sof.units[b].ops - f.sof.units[a].ops)[0]; if (!id) return;
+  const u = sofUnit(f.nid, id); const s = f.sof.units[id];
+  setF(g, S, { ...f, sof: { ...f.sof, units: { ...f.sof.units, [id]: { ...s, ops: Math.max(0, Math.min(unitCap(u), s.ops + d * Math.max(s.ops, u.ops) / u.subs)) } } } });
 }
 // F7 verbs: maintenance per type, depot throughput, block upgrades, retirement. Rebasing between theaters waits for F9c (#57):
 // `at` already holds where each line sits and theaterCapability reads it.
@@ -267,8 +338,8 @@ export const FORCE_VERBS = {
   modernize: (g, S, fx, p) => modernize(g, S, fx, p || {}),
   retire: (g, S, fx, p) => retire(g, S, fx, p || {}),
   setTraining: (g, S, fx, { level }) => setTraining(g, S, fx, level),
-  trainSof: (g, S, fx) => trainSof(g, S, fx),
-  selectTier1: (g, S, fx) => selectTier1(g, S, fx),
+  trainSof: (g, S, fx, p) => startClass(g, S, fx, 2, p?.unit),
+  selectTier1: (g, S, fx, p) => startClass(g, S, fx, 1, p?.unit),
 };
 
 // The Defense tab's Forces panel: every number from the same rules as the month.
@@ -284,7 +355,8 @@ export function forceView(g) {
     .map(([k, label, w]) => ({ k, label, w, v: k === 'inequality' ? 100 - (s[k] ?? 100) : s[k] || 0 }));
   return { ...f, idx: manPts(f), pay, retTarget: retentionTarget(pay, s), qTarget: forceQuality(s), qMult: qualityF(f.quality), drivers, levels: TRAINING, branches,
     retTerms: retentionTerms(pay, s), labor: recruitLabor(s), payroll: payrollOf(f) * pay / 100, training: trainingCost(f), units: SOF_UNITS[g.country?.id] || {}, tier1: tier1Power(f),
-    selectionMo: selectionMo(f.quality), sofRules: SOF_RULES };
+    selectionMo: selectionMo(f.quality), sofRules: SOF_RULES, sofUnits: sofView(g, f), sofFree: { t1: sofFree(f, 1), t2: sofFree(f, 2) }, sofOps: { t1: sofOps(f, 1), t2: sofOps(f, 2) },
+    sofPay: sofPay(f) * pay / 100, classWhy: { t1: classBlock(g, 1), t2: classBlock(g, 2) }, classUnit: { t1: classUnit(f, 1)?.id, t2: classUnit(f, 2)?.id }, plan: tier1Plan(g) };
 }
 
 // ── F7 views. Capability per theater = platforms present x MC x crews x quality x block x basing.
@@ -311,4 +383,15 @@ export function fleetView(g) {
   return { lines, branches, depot: f.depot ?? 100, maintenance: maintCost(f), depotCost: depotCost(f), modMo: modMonths(f), rules: FL,
     manpower: m && { active: f.active, reserve: f.reserve, base: f.base, cap: manpowerCap(f.nid), prop: propensityOf(m, s0, pay, f.base), prop0: propensity0(m),
       intakeMax: intakeMax(m), recruits: f.recruits, attrition: f.attrition, next: manpowerStep(f, s0, pay, f.retention), labor: recruitLabor(s0), stab: stabProp(s0), status_source: m.status_source } };
+}
+
+// F8: the Specialized screen's unit list. Every number from the same state the month and the verbs read.
+const opName = (op) => OP_NAMES[op] || INTEL_OPS.find((o) => o.id === op)?.n || op;
+function sofView(g, f) {
+  return sofOrbat(f.nid).map((u) => {
+    const s = f.sof.units[u.id] || { ops: 0, out: [] };
+    return { id: u.id, n: u.n, tier: u.tier, role: u.role, sub: u.sub, subs: u.subs, cls: u.cls, ops: s.ops, ops0: u.ops, pers: u.pers, cap: unitCap(u), free: freeSubs(f, u.id),
+      freeOps: freeOps(f, u.id), pipe: pendingOf(f, u.id), why: classBlock(g, u.tier, u.id), status_source: u.status_source,
+      out: s.out.map((o) => ({ ...o, label: `${opName(o.op)} · ${NATIONS[o.tgt]?.n || o.tgt}`, left: o.mo + o.rec })) };
+  });
 }

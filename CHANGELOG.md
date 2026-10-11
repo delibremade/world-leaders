@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.81.0 (2026-10-11) — F10 (#58): tangible minerals
+## 0.82.0 (2026-10-11) — F10 (#58): tangible minerals
 - Data and view only; the sim still runs on game units, so behavior is identical and no parity case moved. One conversion: tonnes = units x tPerUnit, tPerUnit = 2024 world refined output / 1200 (1 unit/mo = 1% of world per year).
 - `MINERAL_UNITS`: unit label, 2024 world output and `status_source` for all ten rows (USGS MCS 2025, IEA 2025, WNA; owner corrects). Enrichment in kSWU.
 - `FACILITIES`: named plants per nation and mineral with shares of start capacity (Mountain Pass CA; Urenco Eunice; Norilsk; VSMPO-AVISMA; Georges Besse II; Kokkola; Nikkelverk; China by province in aggregate; everything else one aggregate line). Lynas Seadrift TX listed as planned at 0 t; the US's first private rare-earth build takes that name.
@@ -8,6 +8,14 @@
 - Resources tab: Reserves show ore t, refined t/yr, years to zero and the source; Processing shows t/yr, % of world, plant names; Stockpile shows t.
 - Caveats (documented, not fixed): ore is game-scaled feedstock, not USGS reserves; per-tranche demand inherits the game's unit scale and is far above real per-airframe content.
 - Tests: `test/minerals-tonnes.test.js` (4); layout test checks tonnes, plant names and sources at 390 and 1280. Screens: `reports/screens/f10-{reserves,processing}-390.png`.
+
+## 0.81.0 (2026-10-11) — F8 (#56): Tier 1 / Tier 2 as named real units
+- Intentional rule change (spec Part 10). `g.forces.sof` is `{units: {id: {ops, out}}, pipes: [{u, t, mo, n}]}` over `src/data/sof.js`: named units per playable nation with operators, total personnel, sub-units, role and `status_source` (US: CAG/Delta 300, DEVGRU 300, 24th STS 100; 75th Rangers 3,600, Army SF groups 4,500, SEAL Teams 2,500, MARSOC 900). China and Brazil generic.
+- Pipelines: turnover 8%/yr replaced by a standing pipeline at the 2024 rate x quality, closing 1/36 of any gap a month (about 3 years to rebuild), never above 2024 strength. Surge classes: Tier 2 24 months, Tier 1 24-36 by quality, 70% of candidates from Tier 2, capped at 1.5x 2024. Cost per trainee ($1.5M/mo Tier 1, $0.08M Tier 2); SOF pay premium per operator.
+- Ops commit sub-units: regime change 2 Tier 1 + 1 Tier 2 for 3 mo + 9 mo recovery, 3% casualties on success, 10% on failure; Covert Sabotage 1 Tier 2 element for the op + 6 mo; the courier-raid decision 1 Tier 1 for 1 + 5 mo. No free Tier 1, no raid.
+- Tier-1 odds read free Tier 1 operators / 350 (US 2024 = 2.0, as before). Two back-to-back US raids (quality and readiness applied): t1 term 2.30 -> 1.80 -> 1.30, chance 46% -> 42% -> 39%; 2.27 after 12 months (casualties still refilling).
+- UI: Forces > Special lists every unit with operators, free sub-units and committed ops with months left; tap a unit to aim the next class. The Intel Tier-1 card names the units a raid commits.
+- Parity: all five pinned cases re-baselined citing #56 (hashes only; SOF payroll moves the treasury from month 1).
 
 ## 0.80.0 (2026-10-11) — F7c (#55): Forces tab shows the real order of battle
 - UI only, no rule change; parity goldens untouched.
