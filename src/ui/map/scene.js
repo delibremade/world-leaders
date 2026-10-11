@@ -6,6 +6,8 @@ import { REGIONS, COMP_COLORS, REGION_GEO, FLASHPOINTS } from '../../data/region
 import { NATIONS, BUYERS, DIP_TARGETS, INTEL_TARGETS } from '../../data/nations.js';
 import { CHOKEPOINTS, IMPORT_ROUTES } from '../../data/chokepoints.js';
 import { sumDep, isAllyOf } from '../../sim/formulas.js';
+import { NODE_TYPES, SITES, SITE_IDS, KM_PER_PX } from '../../data/bases.js';
+import { hostName } from '../../sim/bases.js';
 import { COLOR } from '../tokens.js';
 
 export const MAP_MODES = [
@@ -28,7 +30,7 @@ export function buildScene(view, mode = 'sphere') {
     country, sphere = {}, selectedRegion = null, forceDeployments = {}, flashpoint = null, sphereTrend = {}, intelOps = [],
     defExports = {}, doctrine = null, nationRelations = {}, embassies = new Set(), defensePacts = new Set(), chokeStatus = {},
     rivalTension = {}, blockades = {}, tradeAgreements = new Set(), importContracts = {}, embargoes = new Set(), embargoedBy = null,
-    forcePosture = {}, sanctions = new Set(), moles = {}, expelled = {}, concessions = {},
+    forcePosture = {}, sanctions = new Set(), moles = {}, expelled = {}, concessions = {}, bases = null, build = false, selectedSite = null,
   } = view;
   const pid = country?.id;
   const homeRid = homeRegion(country);
@@ -111,11 +113,23 @@ export function buildScene(view, mode = 'sphere') {
   }
   const chokepoints = Object.entries(CHOKEPOINTS).map(([k, cp]) => { const st = chokeStatus[k] || 'open'; return { k, name: cp.n, x: cp.x, y: cp.y, status: st, color: COLOR.choke[st], r: st === 'disrupted' ? 5 : 3.5, ring: st === 'disrupted', mine: myRoutes.has(k) && mode === 'energy' }; });
 
-  return { mode, homeRid, regions, routes, influence, chokepoints, legend: legendFor(mode, country) };
+  // F9b (#57): one marker per site that holds a node (every candidate site in build mode); reach rings for active nodes, in map units.
+  const bySite = {};
+  for (const n of bases?.nodes || []) (bySite[n.site] ||= []).push(n);
+  const sites = (build ? SITE_IDS : Object.keys(bySite)).map((sid) => {
+    const s = SITES[sid]; const ns = bySite[sid] || []; const mine = ns.filter((n) => n.owner === pid); const theirs = ns.filter((n) => n.owner !== pid);
+    const lead = mine[0] || theirs[0];
+    const rings = ns.filter((n) => n.status === 'active' && NODE_TYPES[n.type].reach > 0).map((n) => ({ type: n.type, owner: n.owner, mine: n.owner === pid, r: +(NODE_TYPES[n.type].reach / KM_PER_PX).toFixed(1) }));
+    return { id: sid, name: s.n, x: s.x, y: s.y, host: hostName(s), region: s.region, candidate: !ns.length, mine: mine.length, theirs: theirs.length, owners: [...new Set(ns.map((n) => n.owner))],
+      building: mine.some((n) => n.status === 'building'), closed: mine.some((n) => n.status === 'closed'), icon: lead ? NODE_TYPES[lead.type].i : '+',
+      color: mine.length ? COLOR.faction.player : theirs.length ? (COMP_COLORS[theirs[0].owner] || COLOR.faction.neutral) : COLOR.text.muted, selected: selectedSite === sid, rings };
+  });
+  const rings = sites.flatMap((s) => s.rings.map((r) => ({ site: s.id, x: s.x, y: s.y, r: r.r, type: r.type, mine: r.mine, color: r.mine ? COLOR.faction.player : (COMP_COLORS[r.owner] || COLOR.faction.neutral) })));
+  return { mode, homeRid, regions, routes, influence, chokepoints, sites, rings, build, legend: legendFor(mode, country, (bases?.nodes || []).length > 0) };
 }
 
-export function legendFor(mode, country) {
-  const glyphs = '⚓ deployed · ⚠ flashpoint · ▲▼ 6-mo trend · ● intel op';
+export function legendFor(mode, country, withBases = false) {
+  const glyphs = '⚓ deployed · ⚠ flashpoint · ▲▼ 6-mo trend · ● intel op' + (withBases ? ' · ◎ your base · ○ foreign base · ring = reach (zoom in)' : '');
   if (mode === 'sphere') return { title: 'Affiliation', items: [[COLOR.faction.player, 'You'], [COLOR.faction.russia, 'Russia'], [COLOR.faction.china, 'China'], [COLOR.faction.usa, 'USA'], [COLOR.faction.germany, 'Germany'], ['hatch', 'Contested (±15)']], glyphs };
   const stops = { tension: ['Calm', '25', '50', '75', 'Brink'], trade: ['None', '1', '2', '3', '4+ deals'], energy: ['Clear', 'Route', 'Transit', 'Threat', 'Cut'], military: ['None', '2', '4', '6', '8+ units'], intel: ['Dark', 'Embassy', 'Op', 'Ops+', 'Saturated'] }[mode];
   const titles = { tension: 'Rival tension', trade: 'Trade ties', energy: 'Energy exposure', military: 'Force weight', intel: 'Intel presence' };

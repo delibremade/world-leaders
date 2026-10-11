@@ -33,9 +33,6 @@ test('every verb the UI dispatches exists, and every verb is dispatched by the U
     for (const m of src.matchAll(/type:\w+==='\w+'\?'(\w+)':'(\w+)'/g)) { used.add(m[1]); used.add(m[2]); }
   }
   for (const r of NATION_VERBS) used.add(r.type);
-  // Engine verbs whose UI lands in a stacked PR; each names the PR that removes it from this list.
-  const PENDING_UI = { buildNode: '#57 F9b map build layer', closeNode: '#57 F9b map build layer', nodeLever: '#57 F9b map build layer' };
-  for (const k of Object.keys(PENDING_UI)) { assert.ok(VERBS[k], k); if (!used.has(k)) used.add(k); }
   assert.deepEqual([...used].sort(), Object.keys(VERBS).sort());
 });
 
@@ -48,7 +45,7 @@ test('UI layer no longer writes game state: no ref writes or game setters in ren
   const src = readFileSync('src/ui/App.jsx', 'utf8');
   const body = src.slice(src.indexOf('const tick=useCallback'));
   assert.equal((body.match(/\b\w+R\.current\s*=(?!=)/g) || []).length, 0, 'ref writes after the engine seam');
-  const UI = /^set(Phase|SelectedRegion|SelDipNation|SelIssue|IntelIssue|SelOption|RightMode|SelDefVert|SelExportVert|ArsenalSub|ForcesSub|SelIntelTarget|T1Target|VitalsDrill|HovOpt|ActiveTab|Toasts|Collapsed|Paused|GameSpeed|SaveInfo|LastSaved|VictoryShown|Interval|MapMode|SelNation|OutlinerOpen|History|OpenMineral)$/;
+  const UI = /^set(Phase|SelectedRegion|SelDipNation|SelIssue|IntelIssue|SelOption|RightMode|SelDefVert|SelExportVert|ArsenalSub|ForcesSub|SelIntelTarget|T1Target|VitalsDrill|HovOpt|ActiveTab|Toasts|Collapsed|Paused|GameSpeed|SaveInfo|LastSaved|VictoryShown|Interval|MapMode|SelNation|OutlinerOpen|SelSite|BuildMode|Act|History|OpenMineral)$/;
   // New Nation (back to country select) is session lifecycle, like startGame/restoreGame: it clears gameOver.
   const game = [...body.matchAll(/(?<![\w.])(set[A-Z]\w*)\(/g)].map((m) => m[1]).filter((n) => !UI.test(n) && n !== 'setGameOver');
   assert.deepEqual(game, []);

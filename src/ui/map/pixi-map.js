@@ -9,6 +9,7 @@ import { COLOR, FONT, pixiHex } from '../tokens.js';
 const parsed = parseRegions(REGION_GEO);
 for (const r of Object.values(parsed)) r.small = (r.bounds.x1 - r.bounds.x0) < 165; // label crowding at fit zoom on a phone
 const MAX_SCALE = 6;
+const RING_ZOOM = 1.1; // F9b: reach rings appear once the viewport is zoomed past this scale
 
 const dashed = (g, x1, y1, x2, y2, dash, gap, phase) => {
   const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy); if (!len) return;
@@ -21,7 +22,7 @@ const dashed = (g, x1, y1, x2, y2, dash, gap, phase) => {
   }
 };
 
-export async function createPixiMap(container, { onTap, onViewChange } = {}) {
+export async function createPixiMap(container, { onTap, onSiteTap, onViewChange } = {}) {
   const [{ Application, Container, Graphics, Text, FillPattern }, { Viewport }] = await Promise.all([import('pixi.js'), import('pixi-viewport')]);
   const app = new Application();
   await app.init({
@@ -42,8 +43,8 @@ export async function createPixiMap(container, { onTap, onViewChange } = {}) {
 
   // Layers in draw order.
   const ocean = new Graphics(); const land = new Container(); const hatch = new Container(); const lines = new Graphics();
-  const marks = new Container(); const labels = new Container();
-  viewport.addChild(ocean, land, hatch, lines, marks, labels);
+  const marks = new Container(); const labels = new Container(); const rings = new Graphics(); const siteMarks = new Container();
+  viewport.addChild(ocean, land, hatch, rings, lines, marks, labels, siteMarks);
   ocean.rect(0, 0, WORLD.w, WORLD.h).fill({ color: pixiHex(COLOR.bg.oceanHi), alpha: 1 });
   for (let i = 1; i <= 9; i++) ocean.moveTo(i * 100, 0).lineTo(i * 100, WORLD.h);
   for (let i = 1; i <= 4; i++) ocean.moveTo(0, i * 104).lineTo(WORLD.w, i * 104);
@@ -63,6 +64,9 @@ export async function createPixiMap(container, { onTap, onViewChange } = {}) {
     regionLabel[rid].fpT.position.x = 14; regionLabel[rid].trend.position.x = 36;
   }
   const chokeGfx = marks.addChild(new Graphics()); const flashGfx = marks.addChild(new Graphics());
+  // F9b (#57): one marker per site (base icon, owner colour, count); built lazily per site id and reused.
+  const siteGfx = {};
+  const siteMark = (id) => { if (siteGfx[id]) return siteGfx[id]; const c = siteMarks.addChild(new Container()); const g = c.addChild(new Graphics()); const t = c.addChild(new Text({ text: '', style: style(8, COLOR.text.primary, '700'), resolution: 2 })); t.anchor.set(0.5, 0.5); const n = c.addChild(new Text({ text: '', style: style(6, COLOR.text.primary, '800'), resolution: 2 })); n.anchor.set(0.5, 0.5); n.position.set(7, -6); return (siteGfx[id] = { c, g, t, n }); };
 
   let scene = null; let phase = 0; let frames = 0; let fpsWindow = { t: performance.now(), n: 0, fps: 0 };
   const lod = () => { const s = viewport.scaled; const k = Math.min(2.2, Math.max(1, 1 / s)); return { k, detail: s >= 0.75 }; };
@@ -74,6 +78,8 @@ export async function createPixiMap(container, { onTap, onViewChange } = {}) {
       L.line3.visible = detail && !!L.line3.text; L.trend.visible = detail && L.trend.text !== ''; L.badge.visible = L.dep.visible = detail || L.dep.text !== '';
     }
     chokeGfx.scale.set(1); // chokepoints stay in world units; their rings are large enough at any zoom
+    for (const m of Object.values(siteGfx)) m.c.scale.set(k);
+    drawRings();
   };
 
   const draw = (s) => {
@@ -98,7 +104,22 @@ export async function createPixiMap(container, { onTap, onViewChange } = {}) {
       if (c.ring) chokeGfx.circle(c.x, c.y, 9).stroke({ color: pixiHex(COLOR.accent.alert), width: 1, alpha: 0.6 });
       if (c.mine) chokeGfx.circle(c.x, c.y, 7).stroke({ color: pixiHex(COLOR.accent.energy), width: 1, alpha: 0.9 });
     }
+    for (const m of Object.values(siteGfx)) m.c.visible = false;
+    for (const st of s.sites || []) {
+      const m = siteMark(st.id); m.c.visible = true; m.c.position.set(st.x, st.y); m.g.clear();
+      const col = pixiHex(st.color);
+      if (st.candidate) { m.g.circle(0, 0, 6).fill({ color: pixiHex(COLOR.bg.panel), alpha: 0.85 }).stroke({ color: pixiHex(COLOR.accent.good), width: 1.2, alpha: 0.9 }); m.t.text = '+'; m.t.style.fill = COLOR.accent.good; }
+      else { m.g.circle(0, 0, 6.5).fill({ color: col, alpha: st.mine ? 0.95 : 0.55 }).stroke({ color: pixiHex(st.selected ? COLOR.text.primary : COLOR.bg.surface), width: st.selected ? 1.6 : 1 }); m.t.text = st.icon; m.t.style.fill = COLOR.text.primary; }
+      if (st.closed) m.g.circle(0, 0, 9).stroke({ color: pixiHex(COLOR.accent.alert), width: 1, alpha: 0.9 });
+      else if (st.building) m.g.circle(0, 0, 9).stroke({ color: pixiHex(COLOR.accent.warn), width: 1, alpha: 0.8 });
+      const cnt = st.mine + st.theirs; m.n.text = cnt > 1 ? String(cnt) : '';
+    }
     drawLines(); layoutLabels();
+  };
+  // Reach rings in world units (km / KM_PER_PX), only past RING_ZOOM: yours solid, foreign thin and dim.
+  const drawRings = () => {
+    rings.clear(); if (!scene || viewport.scaled < RING_ZOOM) return;
+    for (const r of scene.rings || []) { rings.circle(r.x, r.y, r.r).stroke({ color: pixiHex(r.color), width: r.mine ? 1.2 / viewport.scaled : 0.7 / viewport.scaled, alpha: r.mine ? 0.75 : 0.35 }); if (r.mine) rings.circle(r.x, r.y, r.r).fill({ color: pixiHex(r.color), alpha: 0.05 }); }
   };
   const drawLines = () => {
     lines.clear(); if (!scene) return;
@@ -115,7 +136,9 @@ export async function createPixiMap(container, { onTap, onViewChange } = {}) {
     if (fp) { const a = 0.35 + 0.35 * Math.sin(now / 160); flashGfx.circle(fp.cx, fp.cy - 28, 14).stroke({ color: pixiHex(COLOR.accent.alert), width: 1.5, alpha: a }); }
   });
 
-  viewport.on('clicked', (e) => { const rid = regionAt(parsed, e.world.x, e.world.y, 22 / viewport.scaled); if (onTap) onTap(rid, e.world); });
+  // A tap lands on the nearest site marker within 22 screen px first (44px target), then on a region.
+  const siteAt = (x, y) => { let best = null, bd = (22 / viewport.scaled) ** 2; for (const st of scene?.sites || []) { const d = (st.x - x) ** 2 + (st.y - y) ** 2; if (d < bd) { bd = d; best = st.id; } } return best; };
+  viewport.on('clicked', (e) => { const sid = siteAt(e.world.x, e.world.y); if (sid) { onSiteTap?.(sid); return; } const rid = regionAt(parsed, e.world.x, e.world.y, 22 / viewport.scaled); if (onTap) onTap(rid, e.world); });
   viewport.on('zoomed', () => { layoutLabels(); onViewChange?.(viewport.scaled); });
   viewport.on('moved', () => onViewChange?.(viewport.scaled));
   const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => { viewport.resize(sw(), sh(), WORLD.w, WORLD.h); applyClamp(); if (viewport.scaled < minScale()) { viewport.setZoom(coverScale(), true); viewport.moveCenter(WORLD.w / 2, WORLD.h / 2); } layoutLabels(); }) : null;
@@ -125,6 +148,7 @@ export async function createPixiMap(container, { onTap, onViewChange } = {}) {
     kind: 'pixi', app, viewport,
     update: draw,
     focus(rid) { const r = parsed[rid]; if (!r) return; viewport.animate({ time: 320, position: { x: r.cx, y: r.cy }, scale: Math.max(viewport.scaled, 1.4), ease: 'easeOutQuad', removeOnInterrupt: true }); },
+    focusSite(sid, scale = 2.4) { const st = (scene?.sites || []).find((x) => x.id === sid); if (!st) return; viewport.setZoom(Math.max(viewport.scaled, scale), true); viewport.moveCenter(st.x, st.y); layoutLabels(); viewport.emit('moved', { viewport, type: 'manual' }); },
     pan(dx, dy) { viewport.x += dx; viewport.y += dy; viewport.emit('moved', { viewport, type: 'manual' }); },
     zoom(s) { viewport.setZoom(s, true); layoutLabels(); },
     fps: () => fpsWindow.fps, frames: () => frames, scale: () => viewport.scaled,

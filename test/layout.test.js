@@ -248,3 +248,32 @@ test('390px: every tab pane grows to its content; pane and content are >= 60% of
     }
   } finally { await ctx.close(); }
 });
+
+// F9b (#57): the build layer. The toggle is a 44px target inside the map card; the site sheet and the confirm sheet sit inside the
+// viewport at phone and desktop width (desktop: the F3 side panel); every build row is a 44px target.
+for (const [W, H] of [[390, 844], [1280, 800]]) {
+  test(`${W}px: build toggle, site sheet and confirm sheet stay on screen; build rows are 44px targets`, async () => {
+    const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
+    try {
+      const card = await rect(page, '.wl-map-card'); const tog = await rect(page, '[data-build-toggle]');
+      assert.ok(tog && tog.w >= 44 && tog.h >= 44 && tog.x >= card.x && tog.r <= card.r + 0.5 && tog.b <= card.b + 0.5, `toggle ${JSON.stringify(tog)} in ${JSON.stringify(card)}`);
+      await page.evaluate(() => document.querySelector('[data-build-toggle]').click()); await settle(page, 300);
+      assert.equal(await page.evaluate(() => document.querySelector('[data-build-toggle]').getAttribute('aria-pressed')), 'true');
+      await page.evaluate(() => window.__wl.site('djibouti')); await settle(page, 700);
+      const sheet = await stableRect(page, '[data-sheet]', { within: { W, H } }); assert.ok(sheet && sheet.x >= -0.5 && sheet.r <= W + 0.5 && sheet.b <= H + 0.5, `site sheet ${JSON.stringify(sheet)}`);
+      if (W >= 900) assert.ok(sheet.w <= 480, `desktop side panel ${sheet.w}`);
+      const rows = await page.evaluate(() => [...document.querySelectorAll('[data-site-sheet] [data-build-option], [data-site-sheet] [data-node-row]')].map((e) => { const r = e.getBoundingClientRect(); return { id: e.dataset.buildOption || e.dataset.nodeRow, h: r.height, x: r.x, r: r.right }; }));
+      assert.ok(rows.length >= 5, 'nodes and options listed');
+      for (const r of rows) assert.ok(r.h >= 43.5 && r.x >= -0.5 && r.r <= W + 0.5, `row ${JSON.stringify(r)}`);
+      // Djibouti is locked for new builds at the start (local host, sphere 10 < 12); Darwin's host is an ally, so its air row opens the confirm sheet
+      await page.evaluate(() => window.__wl.site('darwin')); await settle(page, 500);
+      await page.evaluate(() => document.querySelector('[data-site-sheet=darwin] [data-build-option=air]').click()); await settle(page, 700);
+      const c = await stableRect(page, '[data-confirm]', { within: { W, H } }); assert.ok(c && c.x >= -0.5 && c.r <= W + 0.5 && c.b <= H + 0.5, `confirm ${JSON.stringify(c)}`);
+      const btn = await rect(page, '[data-confirm-ok]'); assert.ok(btn.h >= 44 && btn.b <= H + 0.5, JSON.stringify(btn));
+      await page.evaluate(() => document.querySelector('[data-confirm-cancel]').click()); await settle(page, 500);
+      assert.ok(await page.evaluate(() => !!document.querySelector('[data-site-sheet=darwin]')), 'cancel returns to the site sheet');
+      const o = await overflow(page, W); assert.ok(o.scrollWidth <= W, `scrollWidth ${o.scrollWidth}`);
+      assert.deepEqual(errors, []);
+    } finally { await ctx.close(); }
+  });
+}

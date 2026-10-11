@@ -132,6 +132,11 @@ SCENARIOS['f5-natural-390'] = async (page) => { await inGame(page); await pause(
   await page.evaluate(() => document.querySelector('[data-retort]').scrollIntoView({ block: 'center' })); await settle(page, 300); };
 SCENARIOS['f5-why-390'] = async (page) => { await inGame(page); await pause(page); await page.evaluate(() => window.__wl.mineral('enrichment', { cap: 12 })); await settle(page, 200); await adv(page, 1);
   await page.evaluate(() => document.querySelector('[data-why^="Treasury"]').click()); await settle(page, 500); };
+// F9b (#57): build mode with the Djibouti site sheet, and reach rings at zoom over the Horn of Africa, at 390 and 1280.
+for (const [tag, setup] of [['390', async () => {}], ['1280', desk]]) {
+  SCENARIOS[`f9b-build-${tag}`] = async (page) => { await setup(page); await inGame(page); await pause(page); await showMap(page); await page.evaluate(() => document.querySelector('[data-build-toggle]').click()); await settle(page, 400); await page.evaluate(() => window.__wlMap?.focusSite?.('djibouti', 1.6)); await settle(page, 400); await page.evaluate(() => window.__wl.site('djibouti')); await settle(page, 1600); };
+  SCENARIOS[`f9b-rings-${tag}`] = async (page) => { await setup(page); await inGame(page); await pause(page); await showMap(page); await page.evaluate(() => window.__wlMap?.focusSite?.('djibouti', 2.4)); await settle(page, 700); };
+}
 SCENARIOS['p3d-hud-doctrine-390'] = async (page) => { await startUSA(page); await settle(page, 700); };
 SCENARIOS['p3d-nav-econ-390'] = async (page) => { await inGame(page); await pause(page); await page.evaluate(() => document.querySelector('[data-tab=technology]').click()); await settle(page, 500); };
 
