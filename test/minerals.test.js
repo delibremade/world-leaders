@@ -13,7 +13,7 @@ import { setRngSource, mulberry32 } from '../src/sim/rng.js';
 import { mount, BUNDLES } from './util/harness.js';
 
 // E4 (#16): minerals and processing (spec Part 3). Ore -> processing -> refined stockpile; production tranches declare
-// inputs and slow in proportion to the shortfall; levers: plants, offtake, stockpile, recycling, allied pact, export controls.
+// inputs and slow in proportion to the shortfall; levers: private plants (F5), offtake, stockpile, recycling, allied pact, export controls.
 const idx = (id) => COUNTRIES.findIndex((c) => c.id === id);
 function headless(nid = 'usa', seed = 1) {
   setRngSource(mulberry32(seed));
@@ -70,7 +70,8 @@ test('done-when: China export controls on gallium slow F-35 production proportio
     const h = headless('usa'); rich(h.g);
     for (const m of MINERAL_IDS) setOwn(h.g, m, { stock: 0 });
     if (controls) { h.g.rivalTension = { ...h.g.rivalTension, china: 80 }; }
-    if (plant) { h.run('buildPlant', { mineral: 'gallium' }); h.g.minerals = { ...h.g.minerals, plants: h.g.minerals.plants.map((p) => ({ ...p, mo: 1 })) }; }
+    // F5 (#37): plants are private. Under Chinese controls DPA funding makes US gallium investable; a plant one month from done comes online.
+    if (plant) h.g.minerals = { ...h.g.minerals, proj: { gallium: { prog: MINERAL_RULES.plant.mo - 1, levers: ['dpa'] } } };
     h.month(); // controls take effect; a plant comes online
     for (const m of MINERAL_IDS) setOwn(h.g, m, { stock: 0 });
     h.run('sapTranche', { program: 'f35' });
@@ -109,19 +110,7 @@ test('an embargo by a processor, or our sanctions on it, cut its mineral exports
   assert.ok(mineralFlows(b.g).enrichment.mkt < before, 'enrichment market shrinks');
 });
 
-test('lever: processing plant costs capex, takes years, then adds capacity and charges upkeep', () => {
-  const h = headless('usa'); rich(h.g);
-  const t0 = h.g.stats.treasury;
-  h.run('buildPlant', { mineral: 'rareEarth' });
-  assert.equal(t0 - h.g.stats.treasury, MINERAL_RULES.plant.capex);
-  assert.equal(h.g.minerals.plants[0].mo, MINERAL_RULES.plant.mo);
-  const cap0 = own(h.g, 'rareEarth').cap;
-  for (let i = 0; i < MINERAL_RULES.plant.mo; i++) h.month();
-  assert.equal(own(h.g, 'rareEarth').cap, cap0 + MINERAL_RULES.plant.add);
-  assert.equal(h.g.minerals.built.rareEarth, 1);
-  const v = mineralView(h.g).find((r) => r.id === 'rareEarth');
-  assert.ok(v.upkeep >= MINERAL_RULES.plant.upkeep);
-});
+// F5 (#37): the treasury-built plant lever is replaced by private capital; see test/private-capital.test.js.
 
 test('lever: offtake deal adds secure supply; price rises as relations fall; refused when the partner controls', () => {
   const h = headless('norway'); rich(h.g);
@@ -206,16 +195,16 @@ test('E7 mineral gate is the real chain: secure supply of the program\'s binding
 });
 
 test('invariants: stocks non-negative, capacity and stockpiles bounded, records well-formed (240-month lever fuzz)', () => {
-  const VERBS = [['buildPlant', 'mineral'], ['signOfftake', 'both'], ['buyStockpile', 'mineral'], ['toggleStockpileRelease', 'mineral'], ['toggleRecycling', 'mineral'], ['toggleProcessingPact'], ['toggleExportControl', 'mineral'], ['sapTranche', 'program'], ['cancelOfftake', 'both']];
+  const VERBS = [['enactLever', 'lever'], ['signOfftake', 'both'], ['buyStockpile', 'mineral'], ['toggleStockpileRelease', 'mineral'], ['toggleRecycling', 'mineral'], ['toggleProcessingPact'], ['toggleExportControl', 'mineral'], ['sapTranche', 'program'], ['cancelOfftake', 'both']];
   for (const nid of ['usa', 'china', 'japan', 'norway']) {
     const h = headless(nid, 3); const r = mulberry32(99);
-    const cat = (CATALOGS[nid] || []).map((e) => e.id); const partners = Object.keys(MINERAL_START).filter((n) => n !== nid);
+    const LEVERS = Object.keys(MINERAL_RULES.levers); const cat = (CATALOGS[nid] || []).map((e) => e.id); const partners = Object.keys(MINERAL_START).filter((n) => n !== nid);
     for (let mo = 0; mo < 240; mo++) {
       if (mo % 6 === 0) rich(h.g);
       for (let k = 0; k < 2; k++) {
         const [type, p] = VERBS[Math.floor(r() * VERBS.length)];
         const mineral = MINERAL_IDS[Math.floor(r() * 10)]; const nation = partners[Math.floor(r() * partners.length)];
-        const payload = p === 'mineral' ? { mineral } : p === 'both' ? { mineral, nation } : p === 'program' ? { program: cat[Math.floor(r() * cat.length)] } : {};
+        const payload = p === 'lever' ? { project: mineral, lever: LEVERS[Math.floor(r() * LEVERS.length)] } : p === 'mineral' ? { mineral } : p === 'both' ? { mineral, nation } : p === 'program' ? { program: cat[Math.floor(r() * cat.length)] } : {};
         if (type !== 'sapTranche' || cat.length) h.run(type, payload);
       }
       if (mo % 24 === 5) h.g.rivalTension = { ...h.g.rivalTension, china: 85 };
@@ -252,8 +241,8 @@ test('App: Resources shows the minerals view with every lever on five screens; A
     assert.equal(view().querySelector('[data-re-export] [aria-pressed=true]').textContent, '3', 'extraction level 3 set');
     
     await sub('processing'); assert.equal(rowsIn(), 10);
-    for (const re of [/Build plant/, /Recycl/]) await press(re);
-    assert.match(row().textContent, /plant .*36mo|🏗️ 36mo/i);
+    for (const re of [/Offtake \$/, /Recycl/]) await press(re);
+    assert.match(row().textContent, /Private plant \d+% · ~\d+mo/i);
     await sub('stockpile'); assert.equal(rowsIn(), 10);
     for (const re of [/Buy reserve/, /Release/]) await press(re);
     assert.match(row().textContent, /reserve 10/i);

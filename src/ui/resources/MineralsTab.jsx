@@ -1,4 +1,4 @@
-// Resources > minerals (E5c, spec Part 3 + Part 8): Reserves | Processing | Stockpile | Deals | Controls.
+// Resources > minerals (E5c, spec Part 3 + Part 8): Reserves | Processing | Stockpile | Deals | Controls. Processing shows private builds and levers (F5, #37).
 // Every row comes from mineralView / mineralFlows (the month's own rules). The v57 rare-earth export extraction lives
 // on the Reserves screen next to the rare-earth ore it is not to be confused with.
 import { useState } from 'react';
@@ -8,12 +8,32 @@ import { WhyV, f1, tone } from '../shell/fmt.jsx';
 import { MINERALS, MINERAL_RULES as R } from '../../data/minerals.js';
 import { RES_META } from '../../data/energy.js';
 import { NATIONS } from '../../data/nations.js';
-import { mineralView, rivalSupplyFactor } from '../../sim/minerals.js';
+import { mineralView, rivalSupplyFactor, leverCost } from '../../sim/minerals.js';
 
 export const RES_SUBS = [
   { id: 'reserves', label: 'Reserves' }, { id: 'processing', label: 'Processing' }, { id: 'stockpile', label: 'Stockpile' },
   { id: 'deals', label: 'Deals' }, { id: 'controls', label: 'Controls' }, { id: 'natural', label: 'Natural' },
 ];
+// F5 (#37): a private build (processing plant or GGRB retort) and the state levers on it. o = projectOutlook from the engine.
+export function PrivateBuild({ o, label, dispatch }) {
+  const pct = Math.round((o.prog / o.need) * 100);
+  const head = o.block === 'not authorized' ? null : o.block ? `${label}: ${o.block}`
+    : o.profitable ? `🏗️ Private ${label} ${pct}% · ~${o.eta}mo` : `${label} not profitable for investors`;
+  if (!head) return null;
+  return <div data-private={o.id} style={{ marginTop: 4 }}>
+    <div className="wl-row" style={{ justifyContent: 'space-between' }}>
+      <small>{head}</small>
+      <WhyV title={`Investor margin: ${label}`} terms={[...o.terms, ...o.levers.filter((k) => R.levers[k].margin).map((k) => ({ label: R.levers[k].n, value: R.levers[k].margin }))]} total={o.margin}
+        note={`Builds when margin ≥ 1${o.levers.includes('guarantee') ? ' (offtake guarantee floors it at 1)' : ''}. Pace ${f1(o.pace)} months of work per month. Capex $${o.capex.toLocaleString()}M is the investors'.`}>×{o.margin.toFixed(2)}</WhyV>
+    </div>
+    {o.profitable && <Bar pct={pct} tone="good" />}
+    {!o.block && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(104px, 1fr))', gap: 6, marginTop: 4 }} role="group" aria-label={`State levers: ${label}`}>
+      {Object.entries(R.levers).map(([k, L]) => { const on = o.levers.includes(k); return <button key={k} type="button" className={`wl-btn${on ? '' : ' wl-btn-primary'}`} aria-pressed={on} data-lever={k} title={L.n} aria-label={`${L.n}${on ? ' (in force)' : ` $${leverCost(o.capex, k)}M`}`}
+        onClick={() => dispatch({ type: 'enactLever', payload: { project: o.id, lever: k } })}>{L.i} {L.s} {on ? '✓' : `$${leverCost(o.capex, k)}M`}</button>; })}
+    </div>}
+  </div>;
+}
+
 const mo = (r) => (r.cap > 0 && r.ore > 0 ? Math.ceil(r.ore / r.cap) : null);
 
 function RareEarthExport({ v, dispatch }) {
@@ -35,7 +55,7 @@ function Reserves({ rows, v, dispatch }) {
     <Panel id="ore" title="Ore reserves" figure={`${rows.filter((r) => r.ore > 0).length}/${rows.length} with ore`}>
       {rows.map((r) => { const m = mo(r); return (
         <Row key={r.id} data-mineral={r.id} title={`${r.i} ${r.n}`}
-          sub={r.ore > 0 && !r.cap ? `${Math.round(r.ore)} ore, no refining: worth nothing until you build processing` : r.cap && !r.ore ? `No ore: plants run at ${R.noOreEff * 100}% on imported concentrate` : `${Math.round(r.ore)} ore · ${r.use}`}
+          sub={r.ore > 0 && !r.cap ? `${Math.round(r.ore)} ore, no refining: worth nothing until investors build processing` : r.cap && !r.ore ? `No ore: plants run at ${R.noOreEff * 100}% on imported concentrate` : `${Math.round(r.ore)} ore · ${r.use}`}
           value={m ? `${m}mo to zero` : r.ore > 0 ? 'unrefined' : '—'} tone={m && m < 24 ? 'alert' : m && m < 60 ? 'warn' : undefined}><Bar pct={(r.ore / top) * 100} tone={m && m < 24 ? 'alert' : undefined} /></Row>); })}
       <div className="wl-note">Home plants refine up to their capacity each month and the ore depletes with it. Time to zero = ore / capacity.</div>
     </Panel>
@@ -47,14 +67,14 @@ function Processing({ rows, dispatch }) {
   return <Panel id="proc" title="Processing capacity" figure={`${rows.reduce((a, r) => a + r.cap, 0)}/mo`}>
     {rows.map((r) => (
       <Row key={r.id} data-mineral={r.id} title={`${r.i} ${r.n}`} stack
-        sub={`${r.cap}/mo ≈ ${r.cap}% of world refining${r.built ? ` · ${r.built} plant${r.built > 1 ? 's' : ''} built` : ''}${r.plants.length ? ` · 🏗️ ${r.plants.map((p) => `${p.mo}mo`).join(', ')}` : ''}${r.upkeep ? ` · $${r.upkeep}M/mo` : ''}`}
+        sub={`${r.cap}/mo ≈ ${r.cap}% of world refining${r.built ? ` · ${r.built} private plant${r.built > 1 ? 's' : ''}` : ''}${r.income ? ` · sector +$${f1(r.income)}M/mo` : ''}${r.upkeep ? ` · $${r.upkeep}M/mo` : ''}`}
         value={<WhyV title={`${r.n} inflow / month`} terms={[{ label: 'Home processing', value: r.flow.dom }, { label: 'Recycling', value: r.flow.rec }, { label: 'Offtake deals', value: r.flow.off }, { label: 'Allied pact', value: r.flow.pact }, { label: 'Open market', value: r.flow.mkt }]} total={r.flow.total} note={`Secure supply ${f1(r.flow.secure)}/mo (no market).`}>+{f1(r.flow.total)}/mo</WhyV>}>
+        <PrivateBuild o={r.proj} label="plant" dispatch={dispatch} />
         <div className="wl-row" style={{ flexWrap: 'wrap', marginTop: 4 }}>
-          <button type="button" className="wl-btn wl-btn-primary" onClick={() => dispatch({ type: 'buildPlant', payload: { mineral: r.id } })}>🏗️ Build plant ${R.plant.capex.toLocaleString()}M · {R.plant.mo}mo · +{r.ore > 0 ? R.plant.add : R.plant.add * R.noOreEff}/mo{r.ore > 0 ? '' : ' (no ore: imported concentrate)'}</button>
           {r.id !== 'enrichment' && <button type="button" className="wl-btn" aria-pressed={r.recycling} onClick={() => dispatch({ type: 'toggleRecycling', payload: { mineral: r.id } })}>{r.recycling ? '♻️ Stop recycling' : `♻️ Recycle +${R.recycle.add}/mo · $${R.recycle.cost}M/mo`}</button>}
         </div>
       </Row>))}
-    <div className="wl-note">1 unit/mo = 1% of 2024 world refining. A plant takes {R.plant.mo} months and ${R.plant.upkeep}M/mo upkeep; capacity is capped at {R.capMax}/mo.</div>
+    <div className="wl-note">Private capital builds plants (+{R.plant.add}/mo, {R.plant.mo} months at pace 1) while they are profitable: world price, scarcity from others' export controls, demand from your programs. Levers (permits, tax credit, loan guarantee, DPA funding, offtake guarantee) cost a fraction of the ${R.plant.capex.toLocaleString()}M capex and last until that plant is online. New capacity pays royalties and tax. 1 unit/mo = 1% of 2024 world refining; capped at {R.capMax}/mo.</div>
   </Panel>;
 }
 
