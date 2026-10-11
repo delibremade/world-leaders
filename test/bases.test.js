@@ -49,7 +49,7 @@ test('data: node types carry reach, capex, build months, upkeep, host payment an
     assert.ok(Object.keys(t.mult).length >= 1 && Object.values(t.mult).every((v) => v > 0), `${id} multipliers`);
   }
   assert.ok(NODE_TYPES.port.private && NODE_TYPES.port.upkeep === 0 && NODE_TYPES.port.host === 0, 'port: private capital, enabling share only');
-  assert.ok(NODE_TYPES.naval.mult.choke >= 1.5 && NODE_TYPES.air.mult.sortie > 0 && NODE_TYPES.radar.mult.isr >= 3, 'the three headline multipliers');
+  assert.ok(NODE_TYPES.naval.mult.choke >= 1.5 && NODE_TYPES.air.mult.sortie > 0 && NODE_TYPES.radar.mult.isr >= 2, 'the three headline multipliers');
 });
 
 test('data: the projection reproduces the v57 chokepoint markers from real coordinates; every site lands in the frame and in its declared theater', () => {

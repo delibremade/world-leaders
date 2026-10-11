@@ -139,6 +139,7 @@ function Equipment({ fv, v, dispatch, toast }) {
 
 function Specialized({ fv, v, ask, dispatch }) {
   const u = fv.units; const busy = fv.sof.pipes.length >= fv.sofRules.maxPipes;
+  // TODO(#57 F9c): read isrOf(v) once F7 lands here, so radar and forward sites (src/sim/reach.js baseIsr) show in this figure.
   const isr = isrScore(v.platforms, v.defLevels, v.intelInfra, v.blackPrograms);
   const part = [['Reconnaissance constellation ×2', (v.platforms.satellite_net || 0) * 2], ['RQ-170 wings ×2', (v.platforms.rq170 || 0) * 2], ['RQ-180 wings ×4', (v.platforms.rq180 || 0) * 4], ['Space R&D level', v.defLevels.space || 0], ['ISR fusion', v.intelInfra?.isr_fusion ? 4 : 0]];
   const terms = [...part.map(([label, value]) => ({ label, value })), { label: 'Special access programs', value: isr - part.reduce((a, [, x]) => a + x, 0) }];

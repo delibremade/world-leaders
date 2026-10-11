@@ -5,7 +5,7 @@ import { WORLD_EVENTS } from '../data/world.js';
 import { INTEL_OPS } from '../data/intel.js';
 import { bindingMineral, mineralFlows } from './minerals.js';
 import { MINERALS, MINERAL_RULES } from '../data/minerals.js';
-import { isrScore, panamaPriorityBlock, meetsReq, trancheCost, devCost, interceptChance, espionageExposure, defGdpPct } from './formulas.js';
+import { isrOf, panamaPriorityBlock, meetsReq, trancheCost, devCost, interceptChance, espionageExposure, defGdpPct } from './formulas.js';
 import { BLACK_PROGRAMS, CATALOGS, nationCatalog } from '../data/platforms.js';
 import { WORLD_RULES } from '../data/events.js';
 import { worldOptions, flashpointOptions, decisionOptions } from './events.js';
@@ -59,7 +59,7 @@ export function opOddsTerms(g,opId){
   const shB=g.doctrine==='shadow'?0.12:0;const shD=g.doctrine==='shadow'?0.10:0;
   const asB=g.covertPrograms.has('asset_recruitment')?0.08:0;const asD=g.covertPrograms.has('asset_recruitment')?0.05:0;
   const stB=Math.min(0.15,(g.intelInfra.overseas_stations||0)*0.03);
-  const isrSc=isrScore(g.platforms,g.defLevels,g.intelInfra,g.blackPrograms);
+  const isrSc=isrOf(g);
   const isrB=Math.min(0.10,isrSc*0.01);const lpD=g.intelInfra.listening_posts?0.04:0;
   const abB=g.absorbBonus>0?0.15:0;
   const successRate=Math.min(0.95,op.baseSuccess+(cyberLvl-2)*0.05+budgetBonus+shB+asB+abB+stB+isrB);

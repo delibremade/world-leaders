@@ -7,6 +7,7 @@ import { REGIONS } from '../data/regions.js';
 import { WORLD_RULES, FP_RESPONSES, FP_LINGER, EVENT_COOLDOWN, CHAIN_PATIENCE } from '../data/events.js';
 import { whyFor } from '../data/event-why.js';
 import { rng } from './rng.js';
+import { responseAt } from './reach.js';
 
 export const newEvState = () => ({ cd: {}, fx: [], q: [], log: [], last: -999 });
 export const absMonth = (g) => g.date.yr * 12 + g.date.mo;
@@ -135,7 +136,7 @@ export function flashpointOptions(g) {
 export const FP_COST = { mediate: 300, intervene: 500, fund: 400, concede: 0, diplomatic: 200 };
 export function fpReason(g, rid, id) {
   if (treasury(g) < (FP_COST[id] || 0)) return `Need $${FP_COST[id]}M`;
-  if (id === 'intervene') { const dep = Object.values(g.forceDeployments?.[rid] || {}).reduce((a, b) => a + (b || 0), 0); if (!(dep > 0 || (g.stats?.military || 0) >= 70)) return 'Needs forces here or Military 70+'; }
+  if (id === 'intervene') { const dep = Object.values(g.forceDeployments?.[rid] || {}).reduce((a, b) => a + (b || 0), 0); if (!(dep > 0 || (g.stats?.military || 0) >= 70 || responseAt(g, rid) > 0)) return 'Needs forces or a base in reach, or Military 70+'; }
   return null;
 }
 

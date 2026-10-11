@@ -5,13 +5,13 @@
 //   id = owner:site:type, so one node per owner, site and type (invariant).
 // Every nation's real bases are pre-placed (REAL_BASES); the player's are the ones owned by g.country.id. Ruling 6: AI nodes are keyed
 // by their owner, never by the player; nothing here writes tension against the player.
-import { NODE_TYPES, SITES, SITE_IDS, REAL_BASES, BASE_RULES as R, distanceKm, unproject } from '../data/bases.js';
+import { NODE_TYPES, SITES, SITE_IDS, REAL_BASES, BASE_RULES as R, distanceKm } from '../data/bases.js';
 import { NATIONS, NATION_BLOC } from '../data/nations.js';
 import { REGIONS, REGION_GEO, SPHERE_INIT } from '../data/regions.js';
-import { parseRegions } from '../data/geo.js';
 import { CHOKEPOINTS, IMPORT_ROUTES } from '../data/chokepoints.js';
 import { isAllyOf, topHostile } from './formulas.js';
 import { rng } from './rng.js';
+import { siteLL, chokeLL, chokesCovered, regionsCovered } from './reach.js';
 import { leverCost } from './minerals.js';
 import { MINERAL_RULES as MR } from '../data/minerals.js';
 import { DIP_TARGETS } from '../data/nations.js';
@@ -28,26 +28,8 @@ export const AI_OWNERS = (pid) => [...new Set(Object.values(SPHERE_INIT).flatMap
 const nationName = (id) => NATIONS[id]?.n || id;
 export const hostName = (site) => (site.host ? NATIONS[site.host]?.n || site.host : site.local);
 
-// ── Reach ──────────────────────────────────────────────────────────────────
-export const siteLL = (sid) => ({ lon: SITES[sid].lon, lat: SITES[sid].lat });
-export const regionLL = (rid) => unproject(REGION_GEO[rid].cx, REGION_GEO[rid].cy);
-export const chokeLL = (k) => unproject(CHOKEPOINTS[k].x, CHOKEPOINTS[k].y);
-export const reachOf = (node) => NODE_TYPES[node.type]?.reach || 0;
-export const kmTo = (node, ll) => distanceKm(siteLL(node.site), ll);
-// A node covers a chokepoint within its reach, and a theater it sits in or whose coastline (any REGION_GEO vertex) is within reach.
-// Sites and reaches are static, so coverage is memoized per site and type.
-let REGION_PTS = null;
-const regionPts = (rid) => { if (!REGION_PTS) { const parsed = parseRegions(REGION_GEO); REGION_PTS = Object.fromEntries(Object.entries(parsed).map(([r, p]) => [r, p.polys.flat().map(([x, y]) => unproject(x, y))])); } return REGION_PTS[rid]; };
-export const kmToRegion = (ll, rid) => regionPts(rid).reduce((m, p) => Math.min(m, distanceKm(ll, p)), Infinity);
-const COVER = new Map();
-export const coversChoke = (node, k) => reachOf(node) > 0 && kmTo(node, chokeLL(k)) <= reachOf(node);
-export const coversRegion = (node, rid) => regionsCovered(node).includes(rid);
-export const chokesCovered = (node) => Object.keys(CHOKEPOINTS).filter((k) => coversChoke(node, k));
-export function regionsCovered(node) {
-  const key = `${node.site}:${node.type}`; if (COVER.has(key)) return COVER.get(key);
-  const out = Object.keys(REGIONS).filter((rid) => SITES[node.site].region === rid || (reachOf(node) > 0 && kmToRegion(siteLL(node.site), rid) <= reachOf(node)));
-  COVER.set(key, out); return out;
-}
+// ── Reach: lives in reach.js (shared with formulas.js); re-exported so callers keep one import.
+export { siteLL, regionLL, chokeLL, reachOf, kmTo, kmToRegion, coversChoke, coversRegion, chokesCovered, regionsCovered } from './reach.js';
 
 // ── Nodes ──────────────────────────────────────────────────────────────────
 export const nodesOf = (g, owner = me(g)) => BS(g).nodes.filter((n) => n.owner === owner);
