@@ -21,7 +21,7 @@ export function Hud({ version, country, date, stats, ledger = {}, history = [], 
   const stabNet = stabTerms.reduce((s, t) => s + t.value, 0);
   const hegTerms = [['Economic', pillars.e], ['Military', pillars.m], ['Influence', pillars.i], ['Technology', pillars.t]].map(([l, v]) => ({ label: `${l} pillar ÷4`, value: (v || 0) / 4 }));
   const stabColor = (stats?.stability || 0) < 40 ? COLOR.accent.alert : (stats?.stability || 0) < 60 ? COLOR.accent.warn : COLOR.accent.good;
-  const speeds = [[0, '⏸', 'Pause'], [1, '1×', 'Normal speed'], [2, '2×', 'Double speed'], [4, '4×', 'Quadruple speed']];
+  const speeds = [[0, '⏸', 'Pause (Space)'], [1, '1×', 'Normal speed (- / = to change)'], [2, '2×', 'Double speed (- / = to change)'], [4, '4×', 'Quadruple speed (- / = to change)']];
   return (
     <header className="wl-hud" data-hud>
       <div className="wl-hud-row">
@@ -32,9 +32,9 @@ export function Hud({ version, country, date, stats, ledger = {}, history = [], 
         {pauseReason && <span className="wl-pause-chip" data-pause-reason data-kind={pauseReason.kind}>⏸ {pauseReason.label}{pauseReason.kind === 'you' ? ` · tap ▶ or Space to resume at ${gameSpeed}×` : pauseReason.soft ? ` · tap ⏸ to close and resume at ${gameSpeed}×` : pauseReason.kind === 'ui' ? ` · close it to resume at ${gameSpeed}×` : ''}</span>}
         <div className="wl-speed" role="group" aria-label="Game speed" data-speed>
           {speeds.map(([v, l, t]) => v === 0
-            ? <button key={v} type="button" title={paused ? `Resume at ${gameSpeed}×` : t} data-pause data-resume-speed={gameSpeed} aria-pressed={!!paused} aria-disabled={pauseLocked || undefined} onClick={() => onTogglePause()}>{paused ? `▶ ${gameSpeed}×` : l}</button>
+            ? <button key={v} type="button" title={paused ? `Resume at ${gameSpeed}× (Space)` : t} data-pause data-resume-speed={gameSpeed} aria-pressed={!!paused} aria-disabled={pauseLocked || undefined} onClick={() => onTogglePause()}>{paused ? `▶ ${gameSpeed}×` : l}</button>
             : <button key={v} type="button" title={t} aria-pressed={!paused && gameSpeed === v} onClick={() => (onPause(false), onSpeed(v))}>{l}</button>)}
-          {onStep && <button type="button" data-step title={canStep ? 'Next month' : 'Pause to step one month'} aria-label="Next month" aria-disabled={!canStep || undefined} onClick={() => canStep && onStep()}>⏭</button>}
+          {onStep && <button type="button" data-step title={canStep ? 'Next month (.)' : 'Pause to step one month (.)'} aria-label="Next month" aria-disabled={!canStep || undefined} onClick={() => canStep && onStep()}>⏭</button>}
         </div>
         {onFeed && <button type="button" className="wl-bell" data-bell data-unread={unread} title="Notifications" aria-label={`Notifications, ${unread} unread`} onClick={onFeed}>🔔{unread > 0 && <span className="wl-bell-b" data-bell-badge>{unread > 99 ? '99+' : unread}</span>}</button>}
         <button type="button" className="wl-btn wl-btn-sm" title="New nation" aria-label="Quit to nation select" onClick={onQuit} style={{ minWidth: 36 }}>✕</button>

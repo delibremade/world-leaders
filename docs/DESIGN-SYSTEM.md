@@ -96,11 +96,15 @@ loops except pulse and dash, and both stop when their cause clears.
 - `.wl-scrim`: the one modal backdrop.
 - `.wl-label`, `.wl-num`, `.wl-row`, `.wl-tap`, `.wl-pulse`: layout helpers.
 
-## Layout at 390px (ruling 8)
-Portrait phone is the design target; desktop is the same layout with more columns. Chrome: HUD 48px top,
-bottom nav 56px plus safe-area inset. The map fills the rest. Sheets open to 55% of the viewport, drag to
-92%. One column of content; no side-by-side panels under 900px. Horizontal scroll is only ever a deliberate
-chip strip. Every screen is reachable one-thumbed: primary actions sit in the lower half.
+## Layout: desktop first (ruling 8, amended 2026-10-11)
+Desktop is the design target: 1440px and up, using the full width. Chrome at >= 1100px: HUD one row (nation, three
+figures, pause reason, speed) over a labelled left rail (nine verticals with badges), the content column, and the
+outliner as a right column; the content column goes master-detail (list beside detail pane) wherever a vertical has
+a list. Tables carry sortable columns; rows are pointer-sized (28-36px), not 44px. Hover shows state and tooltips;
+detail opens in a right side panel, never a bottom sheet. Nothing clips from 1280 to 1920.
+Shortcuts: Space pause, `-`/`=` slower/faster, `.` next month, `1`-`9` verticals, Esc closes the top panel.
+390px must still render and pass its tests (bottom nav 56px plus safe-area inset, sheets at 55%, one column,
+44px targets) but never constrains the desktop layout.
 
 ## Map modes (P3b)
 Sphere (affiliation fill, contested hatch), Tension (ramp per region from the max rival tension present),

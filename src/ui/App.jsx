@@ -498,6 +498,15 @@ function WorldLeadersInner({resumeSignal}){
   // through the same toggle by closing the briefing; hard gates (ultimatum, confrontation, intel crisis, end screens) are resolved by their own choices.
   const togglePause=()=>{if(paused){setPaused(false);setPauseWhy(null);}else if(hardGate)return;else if(crisisBrief)setSelectedRegion(null);else setPaused(true);};
   useEffect(()=>{const onKey=e=>{if(e.code!=='Space'||e.repeat||e.ctrlKey||e.metaKey||e.altKey)return;const t=e.target;const tag=t&&t.tagName;if(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||tag==='BUTTON'||(t&&t.isContentEditable))return;if(typeof window!=='undefined'&&window.innerWidth<900)return;e.preventDefault();togglePause();};window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);},[paused,hardGate,crisisBrief]);
+  // Desktop shortcuts (>= 900px, not while typing or on a focused control): digits 1-9 verticals, - / = speed, . next month, Esc closes the top panel.
+  useEffect(()=>{const onKey=e=>{if(e.ctrlKey||e.metaKey||e.altKey)return;if(typeof window!=='undefined'&&window.innerWidth<900)return;const t=e.target;const tag=t&&t.tagName;const typing=tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||(t&&t.isContentEditable);
+    if(e.key==='Escape'){if(act||ultimatum||confrontation||intelCrisis)return;if(feedOpen)closeFeed();else if(selSite||selNation||selectedRegion){setSelSite(null);setSelNation(null);setSelectedRegion(null);}else if(vitalsDrill)setVitalsDrill(null);return;}
+    if(typing||e.repeat||tag==='BUTTON'&&e.key===' ')return;
+    if(/^[1-9]$/.test(e.key)){setActiveTab(TABS[+e.key-1]);setVitalsDrill(null);e.preventDefault();}
+    else if(e.key==='-'||e.key==='='||e.key==='+'){const sp=[1,2,4];const i=sp.indexOf(gameSpeed);const n=sp[Math.max(0,Math.min(2,i+(e.key==='-'?-1:1)))];setPaused(false);setPauseWhy(null);setGameSpeed(n);e.preventDefault();}
+    else if(e.key==='.'){stepMonth();e.preventDefault();}
+  };window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);});
+
   // ── HELPERS ────────────────────────────────────────────────────────────────
   // Render-time cost helpers (use state, not refs)
   const rMatDisc=s=>Math.min(0.4,Math.floor((sectorMaturity[s]||0)/12)*0.05);
