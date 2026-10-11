@@ -33,6 +33,9 @@ const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activ
 // Depot ledger lines land on the treasury from month 1 and the equipment factor (fleet MC x crews x per-type quality) replaces the global
 // quality multiplier in every capability consumer (F9c's theaterWeight reads it through forceMult); all five pinned cases are re-baselined
 // citing #55 and #57 together (F9c merged first; F7 re-ran the baseline on top of it; guarded by test/fleet.test.js and test/bases-effects.test.js).
+// #56 (F8): Tier 1 / Tier 2 are named units with operator counts; the SOF pay premium is per operator (was per abstract unit), so the
+// Personnel line moves from month 1 and all five pinned cases are re-baselined citing #56 (only hashes moved; firstDivergence unchanged;
+// guarded by test/sof.test.js).
 const NEW_KEYS = ['arsenal', 'minerals', 'forces', 'bases'];
 const dropNew = (s) => { if (!NEW_KEYS.some((k) => s.includes(`"${k}"`))) return s; const o = JSON.parse(s); for (const k of NEW_KEYS) delete o[k]; return JSON.stringify(o); };
 const strip = (s) => { const o = JSON.parse(dropNew(s)); delete o.evState; return JSON.stringify(o); };
