@@ -20,6 +20,7 @@ import { rng } from './rng.js';
 import { stepIssues, ISSUE_TTL } from './issues.js';
 import { pickWorldEvent, startWorldEvent, eventCooldowns, fireChain, eventEffects, decisionsDue, openDecision, markWorldEvent } from './events.js';
 import { stepMinerals, rivalSupplyFactor } from './minerals.js';
+import { stepBases } from './bases.js';
 
 // ── v57 monthly tick, extracted (P2). Zero rule changes: test/parity-app.test.js proves the App's autosaves are
 // byte-identical to v57 under a seeded stream. Phases run in v57 execution order; see reports/inventory-v57.md §5.
@@ -1066,12 +1067,15 @@ function world(g,S,fx,m){
 function minerals(g,S,fx,m){stepMinerals(g,S,fx,m.cash,m.ns);}
 // forces (E8, #20): manpower, quality, training and readiness, crew pipelines, SOF selection.
 function forces(g,S,fx,m){stepForces(g,S,fx,m.cash,m.ns);}
+// bases (F9, #57): build countdowns, host consent, upkeep and basing agreements, foreign-presence tension, AI placement.
+function bases(g,S,fx,m){stepBases(g,S,fx,m.cash);}
 
 export const MONTH_PHASES=[
   {id:'economy',system:'economy',run:economy},
   {id:'research',system:'military',run:research},
   {id:'minerals',system:'resources',run:minerals},
   {id:'forces',system:'military',run:forces},
+  {id:'bases',system:'military',run:bases},
   {id:'pressure',system:'military',run:pressure},
   {id:'intelOps',system:'intel',run:intelOps},
   {id:'alliances',system:'diplomacy',run:alliances},

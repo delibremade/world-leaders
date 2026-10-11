@@ -5,6 +5,7 @@ import { NATIONS } from '../data/nations.js';
 import { ALLIED_PROGRAMS, TIERS, ACCESS_RULES } from '../data/alliance.js';
 import { WORLD_EVENTS, DECISIONS } from '../data/world.js';
 import { MINERALS, MINERAL_IDS, MINERAL_RULES as MR } from '../data/minerals.js';
+import { SITES, NODE_TYPES, BASE_RULES } from '../data/bases.js';
 
 const in01 = (v) => Number.isFinite(v) && v >= 0 && v <= 100;
 
@@ -89,6 +90,12 @@ export const V57_INVARIANTS = [
   ['crew pipeline and SOF pipelines: known branch/tier with integer months > 0', (g) => !g.forces || (g.forces.pipe.every((p) => BRANCH_IDS.includes(p.b) && Number.isInteger(p.mo) && p.mo > 0) && g.forces.sof.pipes.length <= SOF_RULES.maxPipes && g.forces.sof.pipes.every((p) => (p.t === 1 || p.t === 2) && Number.isInteger(p.mo) && p.mo > 0))],
   ['SOF tiers are integers within their ceilings; training level is known', (g) => !g.forces || (['t1', 't2'].every((k) => Number.isInteger(g.forces.sof[k]) && g.forces.sof[k] >= 0 && g.forces.sof[k] <= SOF_RULES.max[k]) && !!TRAINING[g.forces.train])],
   ['personnel pay >= 0 and finite', (g) => g.personnelPay == null || (finite(g.personnelPay) && g.personnelPay >= 0)],
+  // Bases and nodes (F9, #57)
+  ['base nodes name real sites, a type the site allows, an owner in NATIONS and a known status; building nodes have integer months > 0; closed ones count months shut', (g) => !g.bases || g.bases.nodes.every((n) => SITES[n.site] && NODE_TYPES[n.type] && SITES[n.site].types.includes(n.type) && NATIONS[n.owner] && n.id === `${n.owner}:${n.site}:${n.type}` && ((n.status === 'building' && Number.isInteger(n.mo) && n.mo > 0) || (n.status === 'active' && n.mo === 0) || (n.status === 'closed' && Number.isInteger(n.closed) && n.closed >= 0)))],
+  ['one base node per owner, site and type', (g) => !g.bases || new Set(g.bases.nodes.map((n) => n.id)).size === g.bases.nodes.length],
+  ['private base nodes under construction carry progress in [0, build months) and known, unique levers', (g) => !g.bases || g.bases.nodes.every((n) => n.prog === undefined || (NODE_TYPES[n.type].private && n.status === 'building' && finite(n.prog) && n.prog >= 0 && n.prog < NODE_TYPES[n.type].mo && Array.isArray(n.levers) && n.levers.every((k) => MR.levers[k]) && new Set(n.levers).size === n.levers.length))],
+  ['closed base nodes belong to the player (AI nodes never lose consent)', (g) => !g.bases || g.bases.nodes.every((n) => n.status !== 'closed' || n.owner === pid(g))],
+  ['AI base placements per nation stay within the cap and are never keyed by the player', (g) => !g.bases || Object.entries(g.bases.ai || {}).every(([n, k]) => n !== pid(g) && Number.isInteger(k) && k >= 0 && k <= BASE_RULES.ai.max)],
   // Issues (E9, #23)
   ['issues are live, unique by type, with a positive ttl once ticked', (g) => { const l = g.issues || []; return new Set(l.map((i) => i.type)).size === l.length && l.every((i) => ['unexamined', 'investigating', 'briefed', 'deployed'].includes(i.status) && ((i.status !== 'unexamined' && i.status !== 'briefed') || i.ttl == null || (Number.isInteger(i.ttl) && i.ttl > 0))); }],
 ];
