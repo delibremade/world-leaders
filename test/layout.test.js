@@ -98,10 +98,10 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       assert.deepEqual(segs.map((x) => x.id), ['manpower', 'quality', 'training', 'equipment', 'specialized']);
       for (const x of segs) assert.ok(x.h >= 44 && x.w >= 44 && x.r <= W + 0.5, `segment ${JSON.stringify(x)}`);
       const want = {
-        manpower: [/Strength/, /Retention/, /Personnel pay/, /Recruits/],
+        manpower: [/Strength/, /Retention/, /Personnel pay/, /Recruits/, /1,283,000/, /Population bound/], // F7 (#55): headcounts
         quality: [/Force quality index/, /Education/, /Healthcare/, /Food security/, /Stability/, /Equality/],
-        training: [/Unfunded/, /Intensive/, /Readiness by branch/, /Crew pipelines/],
-        equipment: [/Crews vs airframes/, /gap 4/, /Theater summary/, /Maintenance/, /F-47/],
+        training: [/Unfunded/, /Intensive/, /Readiness by branch/, /Crew pipelines/, /Fleet crews and readiness/, /Air: [\d,]+ of [\d,]+ ready/],
+        equipment: [/Crews vs airframes/, /gap 4/, /Theater summary/, /Maintenance/, /F-47/, /Order of battle/, /F-22A Raptor/, /Depot throughput/],
         specialized: [/Train Tier 2/, /Tier 1 selection/, /1st SFOD-D/, /ISR score/, /Cyber Command/, /Nuclear crews/],
       };
       for (const [id, res] of Object.entries(want)) {
@@ -113,8 +113,16 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
         const small = await page.evaluate(() => [...document.querySelectorAll('[data-forces] .wl-r, [data-forces] .wl-p-head, [data-forces] select, [data-forces] input')].filter((e) => e.getBoundingClientRect().height < 43.5).map((e) => e.className || e.tagName));
         assert.deepEqual(small, [], `${id}: rows under 44px`);
       }
+      // F7 (#55): tap a type, retire a squadron through the confirm sheet; the count drops, the detail stays on screen.
+      await seg(page, 'equipment');
+      await page.evaluate(() => document.querySelector('[data-line=f22]').click()); await settle(page, 200);
+      const det = await page.evaluate(() => { const r = document.querySelector('[data-line-detail=f22]').getBoundingClientRect(); return { r: r.right, t: document.querySelector('[data-line-detail=f22]').innerText }; });
+      assert.ok(det.r <= W + 0.5 && /Source: Air & Space Forces Almanac/.test(det.t) && /Modernize/.test(det.t), 'type detail with source and actions');
+      await page.evaluate(() => document.querySelector('[data-retire=f22]').click()); await settle(page, 300);
+      await page.evaluate(() => document.querySelector('[data-confirm-ok]').click()); await settle(page, 300);
+      assert.match(await page.evaluate(() => document.querySelector('[data-line=f22]').innerText), /171/);
       await seg(page, 'manpower');
-      assert.ok(await page.evaluate(() => !!document.querySelector('input[type=range][min="0"][max="150"]')), 'pay slider reaches 0');
+      assert.ok(await page.evaluate(() => !!document.querySelector('[data-forces] input[type=range][min="0"][max="150"][aria-label="Personnel pay"]')), 'pay slider reaches 0');
       assert.deepEqual(errors, []);
     } finally { await ctx.close(); }
   });
