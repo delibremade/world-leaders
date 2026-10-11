@@ -15,6 +15,7 @@ import { rng } from './rng.js';
 import { memberOf } from '../data/event-ctx.js';
 import { startTranche, MINERAL_VERBS } from './minerals.js';
 import { crewBlock, FORCE_VERBS } from './forces.js';
+import { BASE_VERBS } from './bases.js';
 import { FORCE_RULES } from '../data/forces.js';
 
 // ── Toy-engine action vocabulary (scaffold for the pure tick(state, actions, rng) API in tick.js). Not used by the v57 UI.
@@ -866,6 +867,7 @@ export const VERBS={
   // minerals and processing (E4, #16)
   ...MINERAL_VERBS,
   ...FORCE_VERBS,
+  ...BASE_VERBS,
   setCurrencyPosture:(g,S,fx,{posture})=>setCurrencyPosture(g,S,fx,posture),
 };
 

@@ -22,7 +22,10 @@ const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activ
 // first decision or world event. The v57 prefix check above is untouched; the five pinned cases are re-baselined citing #18.
 // #33 (F2): decisions open only at the quarterly briefing, one at a time, clear of world events, and every card carries a why-now, so the five
 // pinned cases are re-baselined citing #33 (each opens a decision inside the 120-month window; the month and the stored card moved).
-const NEW_KEYS = ['arsenal', 'minerals', 'forces'];
+// #57 (F9): `bases` likewise (nodes, consent, AI placement; guarded by test/bases.test.js). F9 is an intentional rule change: every nation starts with
+// its real bases, so upkeep and basing agreements land on the treasury from month 1 and the AI draws on the rng after the grace period; all five
+// pinned cases are re-baselined citing #57.
+const NEW_KEYS = ['arsenal', 'minerals', 'forces', 'bases'];
 const dropNew = (s) => { if (!NEW_KEYS.some((k) => s.includes(`"${k}"`))) return s; const o = JSON.parse(s); for (const k of NEW_KEYS) delete o[k]; return JSON.stringify(o); };
 const strip = (s) => { const o = JSON.parse(dropNew(s)); delete o.evState; return JSON.stringify(o); };
 const hash = (s) => createHash('sha256').update(dropNew(s)).digest('hex').slice(0, 16);
