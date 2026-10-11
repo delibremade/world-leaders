@@ -2,6 +2,7 @@ import { MONTHLY_SYSTEMS } from './systems.js';
 import { BLACK_PROGRAMS, PLATFORMS } from '../data/platforms.js';
 import { BRANCH_IDS, TRAINING, SOF_RULES, FORCE_RULES, FLEET_RULES as FL } from '../data/forces.js';
 import { ORBAT, manpowerCap } from '../data/orbat.js';
+import { sofOrbat, sofUnit, unitCap } from '../data/sof.js';
 import { REGIONS } from '../data/regions.js';
 import { manPts } from './formulas.js';
 import { NATIONS } from '../data/nations.js';
@@ -98,8 +99,15 @@ export const V57_INVARIANTS = [
     && Number.isInteger(s.mod) && s.mod >= 0 && finite(s.loss) && s.loss >= 0 && s.loss < 1 && Object.entries(s.at).every(([r, k]) => REGIONS[r] && Number.isInteger(k) && k > 0)
     && Object.values(s.at).reduce((a, k) => a + k, 0) === s.n))],
   ['fleet (F7): units already fielded into the fleet are integer counts >= 0', (g) => !g.forces?.fleet || Object.values(g.forces.fielded || {}).every((k) => Number.isInteger(k) && k >= 0)],
-  ['crew pipeline and SOF pipelines: known branch/tier with integer months > 0', (g) => !g.forces || (g.forces.pipe.every((p) => BRANCH_IDS.includes(p.b) && Number.isInteger(p.mo) && p.mo > 0) && g.forces.sof.pipes.length <= SOF_RULES.maxPipes && g.forces.sof.pipes.every((p) => (p.t === 1 || p.t === 2) && Number.isInteger(p.mo) && p.mo > 0))],
-  ['SOF tiers are integers within their ceilings; training level is known', (g) => !g.forces || (['t1', 't2'].every((k) => Number.isInteger(g.forces.sof[k]) && g.forces.sof[k] >= 0 && g.forces.sof[k] <= SOF_RULES.max[k]) && !!TRAINING[g.forces.train])],
+  ['crew pipeline: known branch with integer months > 0; training level is known', (g) => !g.forces || (g.forces.pipe.every((p) => BRANCH_IDS.includes(p.b) && Number.isInteger(p.mo) && p.mo > 0) && !!TRAINING[g.forces.train])],
+  // F8 (#56): named SOF units
+  ['SOF units (F8): exactly the nation\'s named units; operators finite in [0, cap]; committed sub-units <= subs, each with integer months >= 0 and time left', (g) => !g.forces?.sof?.units || (() => {
+    const us = sofOrbat(g.forces.nid); const ids = Object.keys(g.forces.sof.units);
+    return ids.length === us.length && us.every((u) => { const s = g.forces.sof.units[u.id]; return s && finite(s.ops) && s.ops >= 0 && s.ops <= unitCap(u) + 1e-9 && s.out.length <= u.subs
+      && s.out.every((o) => Number.isInteger(o.mo) && Number.isInteger(o.rec) && o.mo >= 0 && o.rec >= 0 && o.mo + o.rec > 0 && typeof o.op === 'string' && !!NATIONS[o.tgt] && o.tgt !== g.country?.id); });
+  })()],
+  ['SOF classes (F8): at most maxPipes, each for a named unit of its tier with integer months > 0 and integer trainees > 0', (g) => !g.forces?.sof?.units || (g.forces.sof.pipes.length <= SOF_RULES.maxPipes
+    && g.forces.sof.pipes.every((p) => sofUnit(g.forces.nid, p.u)?.tier === p.t && Number.isInteger(p.mo) && p.mo > 0 && Number.isInteger(p.n) && p.n > 0))],
   ['personnel pay >= 0 and finite', (g) => g.personnelPay == null || (finite(g.personnelPay) && g.personnelPay >= 0)],
   // Bases and nodes (F9, #57)
   ['base nodes name real sites, a type the site allows, an owner in NATIONS and a known status; building nodes have integer months > 0; closed ones count months shut', (g) => !g.bases || g.bases.nodes.every((n) => SITES[n.site] && NODE_TYPES[n.type] && SITES[n.site].types.includes(n.type) && NATIONS[n.owner] && n.id === `${n.owner}:${n.site}:${n.type}` && ((n.status === 'building' && Number.isInteger(n.mo) && n.mo > 0) || (n.status === 'active' && n.mo === 0) || (n.status === 'closed' && Number.isInteger(n.closed) && n.closed >= 0)))],
