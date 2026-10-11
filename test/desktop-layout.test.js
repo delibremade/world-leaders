@@ -197,3 +197,36 @@ test('1440px: Forces Manpower, Quality, Training, Special use two columns', asyn
     }
   } finally { await ctx.close(); }
 });
+
+// D5 Resources: Reserves, Processing and Stockpile are a mineral table beside the selected mineral's full row and levers;
+// Deals is a partners table (every offtake is one row); Controls flows into columns.
+for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
+  test(`${W}px: Resources minerals is a table beside the selected mineral's detail; select, sort, levers`, async () => {
+    const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
+    try {
+      await go(page, 'resources');
+      for (const [sub, table, min] of [['reserves', 'ore', 10], ['processing', 'proc', 10], ['stockpile', 'stock', 10]]) {
+        await seg(page, sub);
+        const t = await box(page, `[data-table=${table}]`), d = await box(page, `[data-detail=${table}]`);
+        assert.ok(t && d && t.w >= 420 && d.w >= 300 && d.x >= t.r - 1, `${sub}: table ${JSON.stringify(t)} detail ${JSON.stringify(d)}`);
+        assert.equal(await visibleRows(page, `[data-table=${table}]`, H), min, `${sub}: all ${min} minerals visible at once`);
+        await page.click(`[data-table=${table}] tbody tr:nth-child(5)`); await settle(page, 150);
+        const picked = await page.evaluate(() => document.querySelector('[data-minerals] [data-detail] [data-mineral]')?.dataset.mineral);
+        const row = await page.evaluate(() => document.querySelector('[data-table] tbody tr[aria-selected=true]').dataset.mineralRow);
+        assert.equal(picked, row, `${sub}: detail follows the selected row`);
+      }
+      await seg(page, 'processing');
+      assert.ok(await page.$('[data-detail=proc] [data-lever]'), 'state levers sit in the detail pane');
+      await page.click('[data-sort=capT]'); await settle(page, 100);
+      const caps = await page.evaluate(() => [...document.querySelectorAll('[data-table=proc] tbody tr')].map((r) => r.querySelector('td:nth-child(2)').textContent));
+      assert.equal(caps.length, 10);
+      await seg(page, 'deals');
+      assert.ok(await page.evaluate(() => document.querySelectorAll('[data-table=partners] tbody tr').length) >= 15, 'every offtake option is a row');
+      assert.ok((await box(page, '[data-detail=deals]')).x >= (await box(page, '[data-table=partners]')).r - 1, 'pact and deals beside the partners table');
+      await seg(page, 'controls');
+      assert.ok(await page.evaluate(() => new Set([...document.querySelectorAll('[data-minerals] > section')].map((e) => Math.round(e.getBoundingClientRect().x))).size) >= 2, 'controls in two columns');
+      assert.deepEqual((await overflow(page, W)).bad, []);
+      assert.deepEqual(errors, []);
+    } finally { await ctx.close(); }
+  });
+}
