@@ -232,6 +232,10 @@ kbd{font:inherit;font-size:${SIZE.micro}px;color:${c.text.dim};border:1px solid 
   .wl-hud:has(.wl-pause-chip) .wl-hud-nation{flex-basis:160px}
   /* Nation vitals live on Overview (their drill-down renders there); every other vertical gets the width. */
   .wl-body:not([data-vertical=overview]) .wl-vitals{display:none}
+  /* Trade: nation desk on top (full width), the v57 blocs, influence, sanctions and imports flow into two columns under it. */
+  .wl-nation-desk{height:min(640px,66vh);margin-bottom:${SPACE[6]}px}
+  .wl-trade{column-count:2;column-gap:${SPACE[7]}px}
+  .wl-trade>*{break-inside:avoid}
   /* Overview: the map owns the main column; the situation cards flank it in their own scroll column. */
   .wl-ov-col{display:grid!important;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;gap:${SPACE[6]}px!important;overflow:hidden!important}
   .wl-ov-col>.wl-map-card{order:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
