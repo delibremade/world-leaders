@@ -146,6 +146,13 @@ SCENARIOS['f7-equipment-detail-390'] = async (page) => { await SCENARIOS['f7-equ
 SCENARIOS['f7-training-390'] = async (page) => { await inGame(page); await pause(page); await page.evaluate(() => { const h = window.__wl; h.fund(20000); }); await toForces(page); await toSub(page, 'Training');
   await page.evaluate(() => document.querySelector('[data-forces-fleetcrews]')?.scrollIntoView({ block: 'start' })); await settle(page, 300); };
 SCENARIOS['f7-manpower-390'] = async (page) => { await inGame(page); await pause(page); await toForces(page); await toSub(page, 'Manpower'); };
+// F8 (#56): named SOF units on Forces > Specialized, a committed op (two Delta squadrons on a regime-change raid), and the Tier-1 card.
+const commitDelta = (page) => page.evaluate(() => window.__wl.sof('cag', { out: [{ op: 'regime', tgt: 'cuba', mo: 3, rec: 9 }, { op: 'regime', tgt: 'cuba', mo: 3, rec: 9 }] }));
+SCENARIOS['f8-specialized-390'] = async (page) => { await inGame(page); await pause(page); await toForces(page); await toSub(page, 'Special'); };
+SCENARIOS['f8-op-commit-390'] = async (page) => { await inGame(page); await pause(page); await commitDelta(page); await toForces(page); await toSub(page, 'Special');
+  await page.evaluate(() => document.querySelector('[data-sof-unit=cag]')?.scrollIntoView({ block: 'start' })); await settle(page, 300); };
+SCENARIOS['f8-t1-card-390'] = async (page) => { await inGame(page); await pause(page); await commitDelta(page); await page.evaluate(() => document.querySelector('[data-tab=intel]').click()); await settle(page, 500);
+  await page.evaluate(() => document.querySelector('[data-t1-plan]')?.scrollIntoView({ block: 'center' })); await settle(page, 300); };
 SCENARIOS['p3d-hud-doctrine-390'] = async (page) => { await startUSA(page); await settle(page, 700); };
 SCENARIOS['p3d-nav-econ-390'] = async (page) => { await inGame(page); await pause(page); await page.evaluate(() => document.querySelector('[data-tab=technology]').click()); await settle(page, 500); };
 

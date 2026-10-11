@@ -141,7 +141,7 @@ test('every new decision option changes state measurably, charges its cost, clos
 
 test('a closed option is refused: nothing moves and the card stays open', () => {
   const d = DECISIONS.find((x) => x.id === 'sof_scandal'); const h = scenario('sof_scandal'); const g = h.g;
-  g.forces = { ...g.forces, sof: { ...g.forces.sof, t1: 0 } }; g.activeDecision = d; // no squadron left to stand down
+  g.forces = { ...g.forces, sof: { ...g.forces.sof, units: { ...g.forces.sof.units, cag: { ops: 300, out: [0, 1, 2, 3].map(() => ({ op: 'regime', tgt: 'cuba', mo: 2, rec: 9 })) }, devgru: { ops: 0, out: [] }, sts24: { ops: 0, out: [] } } } }; g.activeDecision = d; // #56: every Tier 1 squadron out or empty
   const o = eventOptions(g, 'decision').find((x) => x.id === 'c'); assert.equal(o.ok, false); assert.ok(o.reason);
   let b = snap(g); h.run('makeDecision', { option: 'c' }); assert.equal(snap(g), b); assert.ok(g.activeDecision);
   g.stats = { ...g.stats, treasury: 100 }; b = snap(g); // a priced option needs the cash

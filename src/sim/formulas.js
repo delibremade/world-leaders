@@ -6,6 +6,7 @@ import { DEP_W, DV, NAV_W, BLACK_PROGRAMS, BUY_PREMIUM } from '../data/platforms
 import { BASE_SECTOR } from '../data/economy.js';
 import { FORCE_RULES as FR, SOF_RULES, FLEET_RULES as FL, BRANCH_IDS, crewOf } from '../data/forces.js';
 import { ORBAT, crewHeads } from '../data/orbat.js';
+import { sofEq } from '../data/sof.js';
 import { baseIsr, theaterMult, t1Bonus } from './reach.js';
 
 // Units deployed in one region, unweighted.
@@ -145,8 +146,8 @@ export const forceMult=(f,b)=>f?strengthF(f)*equipF(f,b)*readinessF(f.readiness?
 export const capWeight=(o,black,f)=>Object.entries(o||{}).reduce((a,[k,v])=>a+wSum({[k]:v},black)*forceMult(f,crewOf(k).b),0);
 // F9c (#57): the same weight in a theater, with each unit's branch raised by the bases within reach (air base: sorties; naval base: sustainment; garrison; hub).
 export const theaterWeight=(g,rid)=>Object.entries(g.forceDeployments?.[rid]||{}).reduce((a,[k,v])=>a+wSum({[k]:v},g.blackPrograms)*forceMult(g.forces,crewOf(k).b)*(1+theaterMult(g,rid,crewOf(k).b)),0);
-// Tier-1 strength: squadrons x quality x land readiness.
-export const tier1Power=(f)=>f?(f.sof?.t1||0)*qualityF(f.quality)*readinessF(f.readiness?.land):0;
+// Tier-1 strength: free Tier 1 operators in squadron-equivalents (F8, #56: units deployed or recovering do not count) x quality x land readiness.
+export const tier1Power=(f)=>f?sofEq(f,1)*qualityF(f.quality)*readinessF(f.readiness?.land):0;
 // Export buyer advantage: buyers pay more for kit fielded by a well-trained force (training packages, combat credibility). 50 = 1.
 export const exportEdge=(f)=>f?0.9+0.2*(f.quality||0)/100:1;
 // Tier-1 operation (regime change) overmatch and odds: the v57 math plus the Tier-1 term. One implementation for the verb and the card.

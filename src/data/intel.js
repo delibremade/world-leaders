@@ -38,7 +38,7 @@ export const INTEL_OPS=[
    baseSuccess:0.7, baseDiscover:0.22, type:'covert'},
   {id:'sabotage',  n:'Covert Sabotage',          i:'💥',cost:900, mo:5,
    desc:'Special activities strike on research and industrial targets. Sets back their strongest program. Requires Special Activities Wing.',
-   baseSuccess:0.6, baseDiscover:0.32, type:'covert'},
+   baseSuccess:0.6, baseDiscover:0.32, type:'covert', sof:true}, // F8 (#56): commits a Tier 2 element for the op plus recovery
   {id:'mole',      n:'HUMINT Penetration',       i:'🪤',cost:1200,mo:8,
    desc:'Recruit a placed asset inside their services. 24mo: their pushback halved, their R&D frozen. Requires 3+ Overseas Stations.',
    baseSuccess:0.5, baseDiscover:0.25, type:'covert'},

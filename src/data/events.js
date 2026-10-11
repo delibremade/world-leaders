@@ -4,6 +4,7 @@
 // Pure data + pure predicates over the live state `g`. Costs are $M.
 import { navalWeight, panamaPriorityBlock, manPts } from '../sim/formulas.js';
 import { CHOKEPOINTS } from './chokepoints.js';
+import { sofFree, sofEq } from './sof.js';
 import { maxTen, memberOf, ownedMembers, squeezed, squeezedCount, mineralName, lowestReadiness } from './event-ctx.js';
 import { NATIONS } from './nations.js';
 
@@ -182,11 +183,11 @@ export const WORLD_RULES = {
     ],
   },
   hostage_crisis: {
-    when: (g) => (g.forces?.sof?.t1 || 0) >= 1 && maxTen(g) >= 15,
-    w: (g) => 1 + (g.forces.sof.t1) / 4,
+    when: (g) => sofFree(g.forces, 1) >= 1 && maxTen(g) >= 15,
+    w: (g) => 1 + sofEq(g.forces, 1) / 4,
     responses: [
       { id: 'raid', label: 'Send the Tier 1 squadron', tags: ['Stability +3', 'Tension +4', 'Land readiness −5', 'Needs Tier 1 and land readiness 50+'], cost: 300,
-        req: (g) => ((g.forces?.sof?.t1 || 0) < 1 ? 'No Tier 1 squadron' : (g.forces.readiness?.land || 0) < 50 ? 'Land readiness below 50' : null),
+        req: (g) => (sofFree(g.forces, 1) < 1 ? 'No Tier 1 squadron free' : (g.forces.readiness?.land || 0) < 50 ? 'Land readiness below 50' : null),
         now: { stability: 3 }, sfx: [{ k: 'tension', id: '$hottest', d: 4 }, { k: 'readiness', b: 'land', d: -5 }], cut: 3 },
       { id: 'ransom', label: 'Pay through intermediaries', tags: ['Stability +1', 'Rewards the next kidnapping'], cost: 700,
         now: { stability: 1 }, sfx: [{ k: 'relBloc', bloc: '$own', d: -2 }], cut: 3 },
