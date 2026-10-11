@@ -101,6 +101,8 @@ test('App: map renders (SVG fallback in jsdom), six mode chips switch fills and 
     const me = doc.querySelector('svg g[data-region=ME]'); me.dispatchEvent(new g.w.MouseEvent('click', { bubbles: true })); await flush();
     assert.match(g.text(), /Your Influence/, 'region panel opened');
     assert.ok(doc.querySelector('svg g[data-region=ME] path').getAttribute('stroke') === COLOR.text.primary, 'selected stroke');
+    assert.ok(doc.querySelector('[data-pause-reason]').textContent.includes('Paused: sheet open'), 'an open sheet holds the clock (Q2, #42)');
+    doc.querySelector('[data-sheet-close]').click(); await flush(); await flush(); await flush(); // close it to resume
     const months = await g.advance(120);
     assert.ok(!g.faulted()); assert.ok(months >= 120 || gameEnded(doc));
     assert.equal(doc.querySelectorAll('svg g[data-region]').length, 10, 'map still mounted');

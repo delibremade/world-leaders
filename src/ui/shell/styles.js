@@ -13,8 +13,11 @@ export const SHELL_CSS = `
 .wl-hud-nation>div{min-width:0;overflow:hidden}
 .wl-hud-nation small{display:block;font-size:${SIZE.caption}px;color:${c.text.dim};white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wl-speed{display:inline-flex;border:1px solid ${c.border.strong};border-radius:${RADIUS.lg}px;overflow:hidden;flex-shrink:0}
-.wl-speed button{min-width:38px;min-height:36px;border:none;background:transparent;color:${c.text.muted};font-size:${SIZE.small}px;font-weight:700;padding:0 ${SPACE[3]}px}
+.wl-speed button{min-width:${TAP}px;min-height:${TAP}px;border:none;background:transparent;color:${c.text.muted};font-size:${SIZE.small}px;font-weight:700;padding:0 ${SPACE[3]}px}
 .wl-speed button[aria-pressed=true]{background:${c.accent.commandDeep};color:${c.text.onAccent}}
+.wl-speed button[data-step][aria-disabled=true]{opacity:.35}
+.wl-speed{order:5;flex:1 1 100%}
+.wl-speed button{flex:1 1 0}
 .wl-speed button[data-pause][aria-pressed=true]{background:${c.accent.goodDeep};color:${c.accent.good}}
 .wl-hud-figs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:${SPACE[2]}px}
 .wl-fig{min-width:0;overflow:hidden;min-height:${TAP}px;display:flex;flex-direction:column-reverse;align-items:flex-start;justify-content:center;gap:2px;padding:${SPACE[2]}px ${SPACE[4]}px;border-radius:${RADIUS.lg}px;border:1px solid ${c.border.base};background:${c.bg.inset};color:inherit;text-align:left;font:inherit}
@@ -159,6 +162,8 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
 .wl-wy{background:none;border:none;color:inherit;font:inherit;font-weight:700;min-height:44px;padding:0 0 0 8px;text-decoration:underline dotted;text-underline-offset:3px;text-align:right}
 .wl-slider{width:100%;height:${TAP}px;margin:0}
 @media (min-width:${BREAK.tablet}px){
+  .wl-speed{order:0;flex:0 0 auto}
+  .wl-speed button{flex:0 0 auto}
   .wl-app{grid-template-columns:76px minmax(0,1fr) 280px;grid-template-rows:auto auto minmax(0,1fr);grid-template-areas:"hud hud hud" "nav cards outliner" "nav main outliner"}
   .wl-nav{flex-direction:column;border-top:none;border-right:1px solid ${c.border.base};overflow-y:auto;padding-bottom:0}
   .wl-nav button,.wl-nav button[aria-current=page]{flex:0 0 auto;min-height:64px}

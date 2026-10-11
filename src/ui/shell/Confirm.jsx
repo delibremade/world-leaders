@@ -4,7 +4,7 @@ import { Sheet } from './Sheet.jsx';
 
 export function ConfirmSheet({ act, onClose }) {
   return (
-    <Sheet open={!!act} onClose={onClose} title={act?.title || ''} subtitle="Confirm before you commit">
+    <Sheet open={!!act} hold="confirm" onClose={onClose} title={act?.title || ''} subtitle="Confirm before you commit">
       {act && (
         <div data-confirm>
           {act.cost != null && <div className="wl-r"><div className="wl-r-main"><b>Cost</b></div><span className="wl-r-v">{act.cost}</span></div>}
