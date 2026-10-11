@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.80.0 (2026-10-11) — F7c (#55): Forces tab shows the real order of battle
+- UI only, no rule change; parity goldens untouched.
+- Equipment: Order of battle summary (ready / total, maintenance all types, depot throughput with cost and upgrade months), then Air, Sea and Land panels with every type: count, ready, MC now with its target as the bar marker, crewless, block, depot months. Tap a type for its detail: 2024 count and losses, crew ratio and people, per-type quality, basing, procurement units, source line, a per-type maintenance slider, Modernize and Retire (a squadron, or all) through the confirm sheet with cost and consequences.
+- Training: Fleet crews and readiness per branch (ready of total, crew people available vs needed, average MC, crewless, capability factor).
+- Manpower: headcounts (US 1,283,000 active, 761,000 reserve) against the 2024 force, next month's recruits and attrition from the engine's own step with a propensity why (2024 propensity x labor x pay x stability), and the population bound.
+- Tests: the Forces layout test checks the real numbers on Manpower, Training and Equipment and runs tap type -> Retire 12 -> confirm -> 171 left at 390 and 1280px, 44px rows. Screens: `reports/screens/f7-{equipment,equipment-detail,training,manpower}-390.png`.
+
 ## 0.79.0 (2026-10-11) — F7b (#55): tangible order of battle, engine
 - Intentional rule change (spec Part 9). `g.forces` gains the fleet: every nation starts with its 2024 order of battle (F7a data), per line {n, mc, mx, blk, mod, loss, lost, at}. US: 47 types, 8,047 platforms, 5,431 ready at start.
 - Manpower is headcounts (US 1,283,000 active / 761,000 reserve). Recruits = eligible cohort intake x propensity (2024 accessions, moved by unemployment, pay and stability relative to the start, max 1). Baseline turnover = 2024 intake / 2024 force; retention below 50 adds the E8 exits. Active + reserve never pass military-age x eligibility. `manPts` maps headcounts onto the old index (60 = 2024), so pay, crew pools and strength keep their scale.

@@ -140,7 +140,12 @@ for (const [tag, setup] of [['390', async () => {}], ['1280', desk]]) {
 // F7 (#55): the order of battle on Forces > Equipment and Training.
 const toSub = async (page, label) => { await page.evaluate((l) => [...document.querySelectorAll('.wl-pane-wrap[data-sentinel=forces] button')].find((b) => b.textContent.trim().startsWith(l))?.click(), label); await settle(page, 300); };
 SCENARIOS['f7-equipment-390'] = async (page) => { await inGame(page); await pause(page); await page.evaluate(() => window.__wl.fund(20000)); await toForces(page); await toSub(page, 'Equipment');
-  await page.evaluate(() => document.querySelector('[data-forces-fleet]')?.scrollIntoView({ block: 'start' })); await settle(page, 300); };
+  await page.evaluate(() => document.querySelector('[data-line=f22]')?.click()); await settle(page, 300);
+  await page.evaluate(() => document.querySelector('[data-fleet-panel=air]')?.scrollIntoView({ block: 'start' })); await settle(page, 300); };
+SCENARIOS['f7-equipment-detail-390'] = async (page) => { await SCENARIOS['f7-equipment-390'](page); await page.evaluate(() => document.querySelector('[data-line-detail=f22]')?.scrollIntoView({ block: 'center' })); await settle(page, 300); };
+SCENARIOS['f7-training-390'] = async (page) => { await inGame(page); await pause(page); await page.evaluate(() => { const h = window.__wl; h.fund(20000); }); await toForces(page); await toSub(page, 'Training');
+  await page.evaluate(() => document.querySelector('[data-forces-fleetcrews]')?.scrollIntoView({ block: 'start' })); await settle(page, 300); };
+SCENARIOS['f7-manpower-390'] = async (page) => { await inGame(page); await pause(page); await toForces(page); await toSub(page, 'Manpower'); };
 SCENARIOS['p3d-hud-doctrine-390'] = async (page) => { await startUSA(page); await settle(page, 700); };
 SCENARIOS['p3d-nav-econ-390'] = async (page) => { await inGame(page); await pause(page); await page.evaluate(() => document.querySelector('[data-tab=technology]').click()); await settle(page, 500); };
 

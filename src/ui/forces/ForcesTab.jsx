@@ -18,19 +18,34 @@ export const FORCES_SUBS = [
   { id: 'equipment', label: 'Equipment' }, { id: 'specialized', label: 'Special' },
 ];
 const R = FORCE_RULES;
+// Headcounts and money, one formatter each (F7 #55).
+const hc = (x) => Math.round(x).toLocaleString('en-US');
+const pc = (x) => `${Math.round(x * 100)}%`;
 const BRANCH_N = Object.fromEntries(BRANCHES);
 
+// F7 (#55): strength as headcounts against the 2024 force and the population bound; recruits as propensity of the eligible cohort.
+function strengthPanel(fv, fl, pay) {
+  const m = fl.manpower; const a = fv.idx.active; const used = (m.active + m.reserve) / m.cap;
+  const terms = [{ label: '2024 propensity', value: m.prop0 }, { label: 'Labor market vs start', value: m.labor / (m.base.labor || 1) }, { label: `Pay ${pay}%`, value: pay / 100 }, { label: 'Stability vs start', value: m.stab / (m.base.stab || 1) }];
+  return <Panel id="strength" title="Strength" figure={hc(m.active)} tone={tone(a, 30, 50)}>
+    <Row title="Active" sub={`${pc(m.active / m.base.active)} of the 2024 force (${hc(m.base.active)})`} value={hc(m.active)}><Bar pct={a} tone={tone(a, 30, 50)} marker={60} /></Row>
+    <Row title="Reserve" sub={`Leavers feed it ${R.reserveIn * 100}% · 2024: ${hc(m.base.reserve)}`} value={hc(m.reserve)}><Bar pct={fv.idx.reserve} marker={36} /></Row>
+    <Row title="Recruits" sub={`Next month · eligible intake ${hc(m.intakeMax)}/mo x propensity ${pc(m.prop)}`} value={<WhyV title="Propensity (share of the eligible who enlist)" mult total={m.prop} terms={terms} fmt={(x) => x.toFixed(3)}>+{hc(m.next.recruits)}/mo</WhyV>} />
+    <Row title="Attrition" sub={`Next month · leavers move to the reserve · retention ${Math.round(fv.retention)}%`} value={`−${hc(m.next.attrition)}/mo`} tone="alert" />
+    <Row title="Population bound" sub={`Active + reserve vs eligible military age (${hc(m.cap)})`} value={pc(used)} tone={used > 0.8 ? 'alert' : undefined}><Bar pct={used * 100} /></Row>
+    <div className="wl-note">Sources: {m.status_source}.</div>
+  </Panel>;
+}
+
 function Manpower({ fv, v, dispatch }) {
-  const pay = fv.pay;
+  const pay = fv.pay; const fl = fleetView(v);
   const units = Object.values(v.platforms).reduce((a, b) => a + (b || 0), 0) + Object.values(v.platformsImported).reduce((a, b) => a + (b || 0), 0);
   const payroll = Math.round(units * 3 * (pay / 100) + fv.payroll);
   return <>
-    <Panel id="strength" title="Strength" figure={`${f0(fv.idx.active)} / 100`} tone={tone(fv.idx.active, 30, 50)}>
+    {fl?.manpower ? strengthPanel(fv, fl, pay) : <Panel id="strength" title="Strength" figure={`${f0(fv.idx.active)} / 100`} tone={tone(fv.idx.active, 30, 50)}>
       <Row title="Active" sub="60 = a fully manned 2024 force" value={f1(fv.idx.active)}><Bar pct={fv.idx.active} tone={tone(fv.idx.active, 30, 50)} marker={60} /></Row>
-      <Row title="Reserve" sub={`Attrition feeds it ${R.reserveIn * 100}%`} value={f1(fv.idx.reserve)}><Bar pct={fv.idx.reserve} /></Row>
       <Row title="Recruits" sub="Unemployment and pay set the intake" value={`+${f0(fv.recruits)}/mo`} />
-      <Row title="Attrition" sub="Leavers move to the reserve" value={`−${f0(fv.attrition)}/mo`} tone="alert" />
-    </Panel>
+    </Panel>}
     <Panel id="retention" title="Retention" figure={`${Math.round(fv.retention)}%`} tone={tone(fv.retention, 35, 50)}>
       <Row title="Retention now" sub={`Closes ${R.retLag * 100}% of the gap each month`} value={<WhyV title="Retention target" terms={fv.retTerms} total={fv.retTarget}>→ {Math.round(fv.retTarget)}%</WhyV>} tone={fv.retTarget < fv.retention - 1 ? 'alert' : undefined}><Bar pct={fv.retention} tone={tone(fv.retention, 35, 50)} marker={fv.retTarget} /></Row>
       <div className="wl-note">Pay against civilian wages, stability and the labor market. Payroll ${payroll}M/mo ({units} units + manpower).</div>
@@ -61,7 +76,8 @@ function Quality({ fv, onJump }) {
   </>;
 }
 
-function Training({ fv, ask, dispatch }) {
+function Training({ fv, v, ask, dispatch }) {
+  const fl = fleetView(v);
   const setLevel = (i) => {
     const l = fv.levels[i];
     if (i === 0 && fv.train !== 0) ask({ title: 'Unfund training', cost: '$0M/mo (saves $' + fv.levels[fv.train].cost + 'M/mo)', kind: 'alert', label: 'Unfund', lines: [`Readiness decays 1 point a month toward ${l.target}.`, 'No new crews enter the pipelines.', 'Units without trained crews cannot be stationed.'], run: () => dispatch({ type: 'setTraining', payload: { level: i } }) });
@@ -80,6 +96,15 @@ function Training({ fv, ask, dispatch }) {
           value={`${f0(b.readiness)} → ${b.target}`} tone={b.decayMo != null ? 'alert' : tone(b.readiness, 50, 70)}><Bar pct={b.readiness} tone={tone(b.readiness, 50, 70)} marker={b.target} /></Row>))}
       <div className="wl-note">Readiness rises up to {R.riseMo}/mo and decays {R.decayMo}/mo above its funded level.</div>
     </Panel>
+    {fl && <Panel id="fleetcrews" title="Fleet crews and readiness" figure={`${hc(fl.lines.reduce((a, l) => a + l.ready, 0))} ready`} data-forces-fleetcrews>
+      {fl.branches.map((b) => {
+        const ls = fl.lines.filter((l) => l.b === b.id && l.count > 0); const n = ls.reduce((a, l) => a + l.count, 0);
+        const crewless = ls.reduce((a, l) => a + l.crewless, 0); const mc = n ? ls.reduce((a, l) => a + l.mc * l.count, 0) / n : 0;
+        return <Row key={b.id} data-fleet-branch={b.id} title={`${b.n}: ${hc(b.ready)} of ${hc(n)} ready`} sub={`Crews ${hc(b.pool)} for ${hc(b.need)} needed · MC ${Math.round(mc)}% avg${crewless ? ` · ${hc(crewless)} crewless` : ''} · capability ×${f2(b.equip)}`}
+          value={pc(b.fill)} tone={b.fill < 1 ? 'alert' : 'good'}><Bar pct={b.fill * 100} tone={b.fill < 1 ? 'alert' : 'good'} /></Row>;
+      })}
+      <div className="wl-note">Crews are people: pilots per airframe, crew per hull, maintainers per platform. Platforms beyond the crews sit unready.</div>
+    </Panel>}
     <Panel id="pipelines" title="Crew pipelines" figure={`${fv.pipe.length} training`}>
       {fv.branches.map((b) => {
         const mine = fv.pipe.filter((p) => p.b === b.id).map((p) => p.mo).sort((x, y) => x - y);
@@ -89,8 +114,8 @@ function Training({ fv, ask, dispatch }) {
   </>;
 }
 
-function Equipment({ fv, v, dispatch, toast }) {
-  const fl = fleetView(v);
+function Equipment({ fv, v, ask, dispatch, toast }) {
+  const fl = fleetView(v); const [selLine, setSelLine] = useState(null);
   const own = (pid) => (BLACK_PROGRAMS[pid] ? +v.blackPrograms[pid] || 0 : (v.platforms[pid] || 0) + (v.platformsImported[pid] || 0));
   const meta = (pid) => PLATFORMS[pid] || BLACK_PROGRAMS[pid];
   const ids = [...Object.keys(PLATFORMS), ...Object.keys(BLACK_PROGRAMS)].filter((pid) => own(pid) > 0);
@@ -104,7 +129,8 @@ function Equipment({ fv, v, dispatch, toast }) {
     dispatch({ type: 'deployUnit', payload: { region: rid, unit: pid } });
   };
   return <>
-    {fleetPanel(fl, dispatch)}
+    {fl && fleetSummary(fl, dispatch)}
+    {fl && fleetBranches(fl, selLine, setSelLine, ask, dispatch)}
     <Panel id="crews" title="Crews vs airframes and hulls" figure={fv.branches.some((b) => b.gap > 0) ? 'gap' : 'covered'} tone={fv.branches.some((b) => b.gap > 0) ? 'alert' : 'good'} data-forces-crews>
       {fv.branches.map((b) => (
         <Row key={b.id} title={b.n} sub={`${b.crews} crews / ${b.need} needed · ${b.deployed} stationed${b.pipe ? ` · ${b.pipe} training` : ''}`} value={b.gap > 0 ? `gap ${b.gap}` : 'covered'} tone={b.gap > 0 ? 'alert' : 'good'}>
@@ -139,27 +165,57 @@ function Equipment({ fv, v, dispatch, toast }) {
   </>;
 }
 
-// F7 (#55): the order of battle. Render helper, not a component (CLAUDE.md rule 4).
-const RETIRE_STEP = { airframe: 12, hull: 1, formation: 1, launcher: 10 };
-function fleetPanel(fl, dispatch) {
-  if (!fl) return null;
+// F7 (#55): the order of battle. Render helpers, not components (CLAUDE.md rule 4); the selected type lives in Equipment's state.
+const RETIRE_STEP = { airframe: 12, hull: 1, formation: 1, launcher: 50 };
+const CLS_N = { airframe: 'airframes', hull: 'hulls', formation: 'formations', launcher: 'launchers' };
+function fleetSummary(fl, dispatch) {
   const n = fl.lines.reduce((a, l) => a + l.count, 0); const ready = fl.lines.reduce((a, l) => a + l.ready, 0);
   const mx = Math.round(fl.lines.reduce((a, l) => a + l.mx, 0) / Math.max(1, fl.lines.length));
-  return <Panel id="fleet" title="Order of battle" figure={`${ready.toLocaleString()} / ${n.toLocaleString()} ready`} data-forces-fleet>
+  return <Panel id="fleet" title="Order of battle" figure={`${hc(ready)} / ${hc(n)} ready`} data-forces-fleet>
     <Row title="Maintenance, all types" sub={`$${Math.round(fl.maintenance)}M/mo · 100% = 2024 funding`} value={`${mx}%`}>
-      <input className="wl-slider" type="range" min="0" max="150" step="5" value={mx} aria-label="Maintenance budget" onChange={(e) => dispatch({ type: 'setMaintenance', payload: { line: 'all', pct: +e.target.value } })} />
+      <input className="wl-slider" type="range" min="0" max="150" step="5" value={mx} aria-label="Maintenance budget, all types" onChange={(e) => dispatch({ type: 'setMaintenance', payload: { line: 'all', pct: +e.target.value } })} />
     </Row>
-    <Row title="Depot throughput" sub={`$${Math.round(fl.depotCost)}M/mo · upgrades ${fl.modMo} months`} value={`${fl.depot}%`}>
+    <Row title="Depot throughput" sub={`$${Math.round(fl.depotCost)}M/mo · upgrades take ${fl.modMo} months · faster MC recovery`} value={`${fl.depot}%`}>
       <input className="wl-slider" type="range" min="20" max="200" step="10" value={fl.depot} aria-label="Depot throughput" onChange={(e) => dispatch({ type: 'setDepot', payload: { pct: +e.target.value } })} />
     </Row>
-    {fl.lines.map((l) => <Row key={l.id} data-line={l.id} title={l.n} stack
-      sub={`${l.ready}/${l.count} ready · MC ${Math.round(l.mc)}%${l.crewless ? ` · ${l.crewless} crewless` : ''}${l.blk ? ` · block ${l.blk}` : ''}${l.mod ? ` · depot ${l.mod}mo` : ''}`} value={l.count.toLocaleString()} tone={l.crewless ? 'alert' : undefined}>
-      {l.count > 0 && <div className="wl-row" style={{ flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-        <button type="button" className="wl-btn wl-btn-sm" disabled={!!l.modWhy} title={l.modWhy || ''} data-modernize={l.id} onClick={() => dispatch({ type: 'modernize', payload: { line: l.id } })}>Modernize ${l.modCost.toLocaleString()}M</button>
-        <button type="button" className="wl-btn wl-btn-sm wl-btn-alert" data-retire={l.id} onClick={() => dispatch({ type: 'retire', payload: { line: l.id, n: RETIRE_STEP[l.cls] || 1 } })}>Retire {Math.min(l.count, RETIRE_STEP[l.cls] || 1)}</button>
-      </div>}
-    </Row>)}
+    <div className="wl-note">Mission-capable (MC) rates move toward their target about {Math.round(fl.rules.converge * 100)}% of the gap a month. A 10% maintenance cut shows within a year.</div>
   </Panel>;
+}
+function lineRow(l, sel, onSel) {
+  return <Row key={l.id} data-line={l.id} title={l.n} role="button" tabIndex={0} aria-expanded={sel} onClick={onSel} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSel(); } }} style={{ cursor: 'pointer' }}
+    sub={`${hc(l.ready)} ready · MC ${Math.round(l.mc)}% → ${Math.round(l.target)}%${l.crewless ? ` · ${hc(l.crewless)} crewless` : ''}${l.blk ? ` · block ${l.blk}` : ''}${l.mod ? ` · depot ${l.mod}mo` : ''}${l.mx !== 100 ? ` · maint ${l.mx}%` : ''}`}
+    value={hc(l.count)} tone={l.crewless ? 'alert' : l.count < l.count2024 ? 'warn' : undefined}><Bar pct={l.mc} tone={tone(l.mc, 40, 60)} marker={l.target} /></Row>;
+}
+function lineDetail(l, fl, ask, dispatch) {
+  const step = Math.min(l.count, RETIRE_STEP[l.cls] || 1);
+  const retire = (n) => ask({ title: `Retire ${hc(n)} ${l.n}`, cost: `saves about $${Math.round(l.cost * n / Math.max(1, l.count))}M/mo maintenance`, kind: 'alert', label: 'Retire',
+    lines: [`${hc(l.count - n)} left in service. Retired ${CLS_N[l.cls]} do not come back; procurement adds new ones to this line.`, 'Their crews return to the pool for the rest of the fleet.'], run: () => dispatch({ type: 'retire', payload: { line: l.id, n } }) });
+  const modernize = () => ask({ title: `${l.n}: block ${l.blk + 1} upgrade`, cost: `$${hc(l.modCost)}M once`, kind: 'warn', label: 'Start upgrade',
+    lines: [`${fl.modMo} months in the depot at ${fl.depot}% throughput; ${Math.round(fl.rules.modShare * 100)}% of the fleet is unavailable meanwhile.`, `Then +${Math.round(fl.rules.blkGain * 100)}% effectiveness and +${Math.round(fl.rules.mcBlk * 100)}% MC target.`], run: () => dispatch({ type: 'modernize', payload: { line: l.id } }) });
+  return <div className="wl-r wl-r-stack" data-line-detail={l.id} key={`${l.id}-detail`}>
+    <div className="wl-r-main">
+      <small>{hc(l.count)} {CLS_N[l.cls]} (2024: {hc(l.count2024)}{l.lost ? `, ${l.lost} lost` : ''}) · crew ratio {l.crewRatio} x {hc(l.crewSize)}{l.maintainers ? ` + ${l.maintainers} maintainers` : ''} · {hc(l.heads)} people · quality ×{f2(l.quality)}</small>
+      <small>Based: {Object.entries(l.at).map(([r, k]) => `${REGIONS[r]?.n || r} ${hc(k)}`).join(' · ') || 'none'}{l.buys.length ? ` · procurement: ${l.buys.join(', ')}` : ''}</small>
+      <small>Source: {l.status_source}</small>
+      <Row title="Maintenance" sub={`$${Math.round(l.cost)}M/mo · MC target ${Math.round(l.target)}%`} value={`${l.mx}%`}>
+        <input className="wl-slider" type="range" min="0" max="150" step="5" value={l.mx} aria-label={`Maintenance ${l.n}`} onChange={(e) => dispatch({ type: 'setMaintenance', payload: { line: l.id, pct: +e.target.value } })} />
+      </Row>
+      <div className="wl-grid2">
+        <button type="button" className="wl-lvl" disabled={!!l.modWhy} data-modernize={l.id} onClick={modernize}>Modernize<small>{l.modWhy || `$${hc(l.modCost)}M · ${fl.modMo}mo · block ${l.blk + 1}`}</small></button>
+        <button type="button" className="wl-lvl" disabled={!l.count} data-retire={l.id} onClick={() => retire(step)}>Retire {hc(step)}<small>{l.count ? `${hc(l.count - step)} left` : 'none in service'}</small></button>
+      </div>
+      {l.count > step && <button type="button" className="wl-btn wl-btn-alert" data-retire-all={l.id} onClick={() => retire(l.count)}>Retire all {hc(l.count)}</button>}
+    </div>
+  </div>;
+}
+function fleetBranches(fl, selId, setSel, ask, dispatch) {
+  return BRANCHES.map(([bid, bn]) => {
+    const ls = fl.lines.filter((l) => l.b === bid); const b = fl.branches.find((x) => x.id === bid);
+    return <Panel key={bid} id={`fleet_${bid}`} title={`${bn} order of battle`} figure={`${hc(b.ready)} / ${hc(b.count)}`} tone={b.fill < 1 ? 'alert' : undefined} data-fleet-panel={bid}>
+      {ls.map((l) => [lineRow(l, selId === l.id, () => setSel(selId === l.id ? null : l.id)), selId === l.id ? lineDetail(l, fl, ask, dispatch) : null])}
+      <div className="wl-note">Tap a type to set its maintenance, modernize or retire it. Bar: MC now, marker: target.</div>
+    </Panel>;
+  });
 }
 
 function Specialized({ fv, v, ask, dispatch }) {
@@ -203,8 +259,8 @@ export function ForcesTab({ sub, onSub, view, dispatch, toast, onJump }) {
   const fv = forceView(view);
   const gaps = fv.branches.filter((b) => b.gap > 0).length;
   const items = FORCES_SUBS.map((s) => (s.id === 'equipment' && gaps ? { ...s, badge: gaps, sev: 'alert' } : s));
-  const body = sub === 'quality' ? <Quality fv={fv} onJump={onJump} /> : sub === 'training' ? <Training fv={fv} ask={setAct} dispatch={dispatch} />
-    : sub === 'equipment' ? <Equipment fv={fv} v={view} dispatch={dispatch} toast={toast} /> : sub === 'specialized' ? <Specialized fv={fv} v={view} ask={setAct} dispatch={dispatch} />
+  const body = sub === 'quality' ? <Quality fv={fv} onJump={onJump} /> : sub === 'training' ? <Training fv={fv} v={view} ask={setAct} dispatch={dispatch} />
+    : sub === 'equipment' ? <Equipment fv={fv} v={view} ask={setAct} dispatch={dispatch} toast={toast} /> : sub === 'specialized' ? <Specialized fv={fv} v={view} ask={setAct} dispatch={dispatch} />
     : <Manpower fv={fv} v={view} dispatch={dispatch} />;
   return (
     <div className="wl-pane-wrap" data-sentinel="forces">
