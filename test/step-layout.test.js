@@ -5,6 +5,8 @@ import { launch, openGame, overflow, settle, stableRect } from './util/browser.j
 // Q2 (#42), layout in real Chromium: the step button joins the speed group; every speed target stays a 44px target
 // and on screen at 390 and 1280px; the "Paused: sheet open" chip fits. Writes docs/shots/42-*.png.
 
+// Review screenshots are opt-in (SHOTS=1 npm test); see feed-layout.test.js.
+const SHOTS = !!process.env.SHOTS;
 let browser;
 before(async () => { browser = await launch(); });
 after(async () => { await browser?.close(); });
@@ -30,7 +32,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       assert.ok(nat.w >= 120, `nation block keeps ${Math.round(nat.w)}px`);
       assert.ok(await page.evaluate(() => { const b = document.querySelector('.wl-hud-nation b'); return b.scrollWidth <= b.clientWidth + 1 || b.textContent.length < 18; }) || nat.w >= 120, 'nation name not crushed');
       assert.equal(await page.evaluate(() => document.querySelector('[data-step]').getAttribute('aria-disabled')), null, 'Next is live while paused');
-      await page.screenshot({ path: `docs/shots/42-hud-step-${W}.png`, clip: { x: 0, y: 0, width: W, height: 150 } });
+      if (SHOTS) await page.screenshot({ path: `docs/shots/42-hud-step-${W}.png`, clip: { x: 0, y: 0, width: W, height: 150 } });
       // resume, then open a region sheet: the clock stops and the chip names the sheet
       await page.evaluate(() => document.querySelector('[data-speed] [data-pause]').click()); await settle(page, 250);
       assert.equal(await page.evaluate(() => document.querySelector('[data-step]').getAttribute('aria-disabled')), 'true', 'Next is off while the clock runs');
@@ -41,7 +43,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       assert.match(chip, /Paused: sheet open · close it to resume at 1×/);
       const [c] = await box(page, '[data-pause-reason]'); assert.ok(c.x >= -0.5 && c.r <= W + 0.5, `chip ${JSON.stringify(c)}`);
       const o = await overflow(page, W); assert.ok(o.scrollWidth <= W); assert.deepEqual(o.bad, []);
-      await page.screenshot({ path: `docs/shots/42-sheet-pause-${W}.png` });
+      if (SHOTS) await page.screenshot({ path: `docs/shots/42-sheet-pause-${W}.png` });
       assert.deepEqual(errors, []);
     } finally { await ctx.close(); }
   });
