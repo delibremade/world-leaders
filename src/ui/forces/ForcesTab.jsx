@@ -11,6 +11,7 @@ import { BRANCHES, crewOf, FORCE_RULES } from '../../data/forces.js';
 import { isrOf, triadLegs } from '../../sim/formulas.js';
 import { baseIsr } from '../../sim/reach.js';
 import { forceView, fleetView } from '../../sim/forces.js';
+import { subsN } from '../../data/sof.js';
 import { f0, f1, f2, tone, WhyV } from '../shell/fmt.jsx';
 
 export const FORCES_SUBS = [
@@ -218,8 +219,20 @@ function fleetBranches(fl, selId, setSel, ask, dispatch) {
   });
 }
 
+// F8 (#56): named units with operator counts. Tap a unit to aim the next class at it; committed sub-units list their op and months.
+function sofRow(u, sel, onSel) {
+  return <Row key={u.id} data-sof-unit={u.id} title={u.n} role="button" tabIndex={0} aria-expanded={sel} onClick={onSel} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSel(); } }} style={{ cursor: 'pointer' }}
+    sub={`${u.role} · ${u.free}/${subsN(u, u.subs)} free${u.pipe ? ` · ${u.pipe} in training` : ''}`}
+    value={`${hc(u.ops)} operators`} tone={u.free < u.subs ? 'warn' : u.ops < u.ops0 * 0.9 ? 'alert' : undefined}><Bar pct={u.free / u.subs * 100} tone={tone(u.free / u.subs * 100, 34, 67)} marker={Math.min(100, u.ops / u.cap * 100)} /></Row>;
+}
+function sofOut(u) {
+  return u.out.map((o, i) => <Row key={`${u.id}${i}`} data-sof-out={u.id} title={o.label} sub={`${u.n}: 1 ${u.sub} · ${o.mo ? `deployed ${o.mo} mo, then ${o.rec} mo recovery` : `recovering ${o.rec} mo`}`} value={`${o.left} mo`} tone="warn" />);
+}
 function Specialized({ fv, v, ask, dispatch }) {
-  const u = fv.units; const busy = fv.sof.pipes.length >= fv.sofRules.maxPipes;
+  const [sel, setSel] = useState(null);
+  const us = fv.sofUnits; const pick = (t) => us.find((u) => u.id === sel && u.tier === t); const dflt = (t) => us.find((u) => u.id === fv.classUnit[`t${t}`]);
+  const t1u = pick(1); const t2u = pick(2); const r = fv.sofRules;
+  const why1 = t1u ? t1u.why : fv.classWhy.t1; const why2 = t2u ? t2u.why : fv.classWhy.t2;
   // F9c (#57): the ISR every consumer reads, radar and forward sites included.
   const isr = isrOf(v); const sites = baseIsr(v.bases, v.country?.id);
   const part = [['Reconnaissance constellation ×2', (v.platforms.satellite_net || 0) * 2], ['RQ-170 wings ×2', (v.platforms.rq170 || 0) * 2], ['RQ-180 wings ×4', (v.platforms.rq180 || 0) * 4], ['Space R&D level', v.defLevels.space || 0], ['ISR fusion', v.intelInfra?.isr_fusion ? 4 : 0]];
@@ -227,18 +240,22 @@ function Specialized({ fv, v, ask, dispatch }) {
   const nuke = [['ssbn_fleet', 'SSBN fleet'], ['strategic_bombers', 'Strategic bombers'], ['icbm_force', 'ICBM silos']];
   const legs = triadLegs(v.platforms, v.blackPrograms);
   const cyber = v.platforms.cyber_command || 0;
-  const selectT1 = () => ask({ title: `${u.t1 || 'Tier 1'} selection`, cost: `$${fv.sofRules.t1Cost}M/mo for ${fv.selectionMo}mo`, kind: 'warn', label: 'Start selection',
-    lines: [`Draws one ${u.t2 || 'Tier 2'} unit out of service now (it returns only as Tier 1).`, `Each Tier 1 squadron adds ${fv.sofRules.t1Points} x quality x readiness to Tier-1 operation overmatch.`], run: () => dispatch({ type: 'selectTier1', payload: {} }) });
+  const c1 = t1u || dflt(1); const c2 = t2u || dflt(2); const t1n = c1?.n || 'Tier 1'; const cls1 = c1?.cls || 0;
+  const selectT1 = () => ask({ title: `${t1n} selection`, cost: `$${Math.round(cls1 * r.costPer.t1)}M/mo for ${fv.selectionMo}mo`, kind: 'warn', label: 'Start selection',
+    lines: [`${cls1} candidates: ${Math.round(cls1 * r.t2Share)} leave Tier 2 now, the rest come from conventional forces.`, `Free Tier 1 operators add ${r.t1Points} per ${hc(r.t1Eq)} x quality x readiness to Tier-1 operation overmatch.`], run: () => dispatch({ type: 'selectTier1', payload: { unit: t1u?.id } }) });
+  const tier = (t) => us.filter((u) => u.tier === t).flatMap((u) => [sofRow(u, sel === u.id, () => setSel(sel === u.id ? null : u.id)), ...sofOut(u)]);
   return <>
-    <Panel id="sof" title="Special operations" figure={`T2 ${fv.sof.t2} · T1 ${fv.sof.t1}`} data-forces-sof>
-      <Row title={`Tier 2 · ${u.t2 || 'Tier 2'}`} sub={`Ceiling ${fv.sofRules.max.t2}`} value={fv.sof.t2} />
-      <Row title={`Tier 1 · ${u.t1 || 'Tier 1'}`} sub={`Ceiling ${fv.sofRules.max.t1} · adds +${Math.round(fv.tier1 * fv.sofRules.t1Points)} Tier-1 overmatch (Intel)`} value={fv.sof.t1} />
-      {fv.sof.pipes.map((p, i) => <Row key={i} title={p.t === 2 ? 'Tier 2 pipeline' : 'Tier 1 selection'} sub="Charged monthly to Training" value={`${p.mo}mo`} tone="good"><Bar pct={100 - (p.mo / (p.t === 2 ? fv.sofRules.t2Mo : fv.sofRules.t1MoMax)) * 100} tone="good" /></Row>)}
+    <Panel id="sof" title="Special operations" figure={`T1 ${hc(fv.sofOps.t1)} · T2 ${hc(fv.sofOps.t2)}`} data-forces-sof>
+      <Row title="Tier 1" sub={`${fv.sofFree.t1} sub-units free · adds +${Math.round(fv.tier1 * r.t1Points)} Tier-1 overmatch (Intel)`} value={`${hc(fv.sofOps.t1)} operators`} />
+      {tier(1)}
+      <Row title="Tier 2" sub={`${fv.sofFree.t2} sub-units free · the Tier 1 selection pool`} value={`${hc(fv.sofOps.t2)} operators`} />
+      {tier(2)}
+      {fv.sof.pipes.map((p, i) => { const u = us.find((x) => x.id === p.u); return <Row key={`p${i}`} title={`${u?.n || p.u} ${p.t === 2 ? 'qualification' : 'selection'}`} sub={`${p.n} trainees · $${Math.round(p.n * (p.t === 1 ? r.costPer.t1 : r.costPer.t2))}M/mo to Training`} value={`${p.mo}mo`} tone="good"><Bar pct={100 - (p.mo / (p.t === 2 ? r.t2Mo : r.t1MoMax)) * 100} tone="good" /></Row>; })}
       <div className="wl-grid2" style={{ marginTop: 8 }}>
-        <button type="button" className="wl-lvl" disabled={busy} onClick={() => dispatch({ type: 'trainSof', payload: {} })}>Train Tier 2<small>{fv.sofRules.t2Mo}mo · ${fv.sofRules.t2Cost}M/mo</small></button>
-        <button type="button" className="wl-lvl" disabled={busy || fv.sof.t2 < 1} onClick={selectT1}>Tier 1 selection<small>{fv.selectionMo}mo · ${fv.sofRules.t1Cost}M/mo · −1 T2</small></button>
+        <button type="button" className="wl-lvl" disabled={!!why2} onClick={() => dispatch({ type: 'trainSof', payload: { unit: t2u?.id } })}>Train Tier 2{t2u ? ` → ${t2u.n}` : ''}<small>{why2 || `${r.t2Mo}mo · $${Math.round((c2?.cls || 0) * r.costPer.t2)}M/mo`}</small></button>
+        <button type="button" className="wl-lvl" disabled={!!why1} onClick={selectT1}>Tier 1 selection{t1u ? ` → ${t1u.n}` : ''}<small>{why1 || `${fv.selectionMo}mo · $${Math.round(cls1 * r.costPer.t1)}M/mo`}</small></button>
       </div>
-      <div className="wl-note">Names: {u.status_source}. At most {fv.sofRules.maxPipes} pipelines at once; better recruits pass selection faster.</div>
+      <div className="wl-note">Tap a unit to aim the next class at it. Raids and special activities commit sub-units for the op plus recovery; turnover is replaced by the standing pipeline up to 2024 strength. Sources: {fv.units.status_source}.</div>
     </Panel>
     <Panel id="isr" title="ISR" figure={isr} tone={tone(isr, 4, 10)}>
       <Row title="ISR score" sub="Kinetic damage and Tier-1 intel read it" value={<WhyV title="ISR score" terms={terms} total={isr}>{isr}</WhyV>} />
