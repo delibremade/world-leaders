@@ -107,3 +107,53 @@ for (const [W, H, minW] of [[1280, 800, 560], [1440, 900, 700], [1920, 1080, 960
     } finally { await ctx.close(); }
   });
 }
+
+// D3 Arsenal: Programs and Procurement are master-detail (sortable table beside a detail pane); Exports is a buyers table.
+const seg = (page, id) => page.evaluate((id) => document.querySelector(`[data-seg=${id}]`).click(), id).then(() => settle(page, 300));
+const box = (page, sel) => page.evaluate((sel) => { const e = document.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, r: r.right, b: r.bottom, w: r.width, h: r.height }; }, sel);
+const visibleRows = (page, sel, H) => page.evaluate(([sel, H]) => [...document.querySelectorAll(`${sel} tbody tr`)].filter((r) => { const b = r.getBoundingClientRect(); return b.top >= 0 && b.bottom <= H; }).length, [sel, H]);
+for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
+  test(`${W}px: Arsenal Programs is a table beside a detail pane; sorts, selects, arrow keys`, async () => {
+    const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
+    try {
+      await page.evaluate(() => { const h = window.__wl; h.fund(60000); h.field('b21', 1); h.field('f47', 1); });
+      await go(page, 'arsenal');
+      const t = await box(page, '[data-table=programs]'), d = await box(page, '[data-detail=programs]');
+      assert.ok(t && d && t.w >= 420 && d.w >= 320 && d.x >= t.r - 1, `table ${JSON.stringify(t)} detail ${JSON.stringify(d)}`);
+      assert.ok((t.w + d.w) / W >= 0.5, 'list + detail use the width');
+      assert.equal(await visibleRows(page, '[data-table=programs]', H), 7, 'all seven programs visible at once');
+      const title = () => page.evaluate(() => document.querySelector('[data-detail=programs] [data-program]')?.dataset.program);
+      const first = await title();
+      await page.click('[data-table=programs] tbody tr:nth-child(3)'); await settle(page, 150);
+      assert.notEqual(await title(), first, 'row click swaps the detail');
+      const order = () => page.evaluate(() => [...document.querySelectorAll('[data-table=programs] tbody tr')].map((r) => r.dataset.row));
+      const before = await order(); await page.click('[data-sort=cost]'); await settle(page, 100); const first1 = await order();
+      assert.notDeepEqual(first1, before, 'cost sort reorders'); await page.click('[data-sort=cost]'); await settle(page, 100);
+      assert.deepEqual((await order()), [...first1].reverse(), 'second click reverses');
+      assert.equal(await page.evaluate(() => document.querySelector('[data-sort=cost]').closest('th').getAttribute('aria-sort')), 'ascending', 'numeric columns sort high-to-low first, then reverse');
+      const cur = await title(); await page.focus('[data-table=programs] tbody tr[aria-selected=true]'); await page.keyboard.press('ArrowDown'); await settle(page, 150);
+      assert.notEqual(await title(), cur, 'ArrowDown moves the selection');
+      const o = await overflow(page, W); assert.deepEqual(o.bad, []);
+      assert.deepEqual(errors, []);
+    } finally { await ctx.close(); }
+  });
+}
+test('1440px: Arsenal Procurement shows every platform in one table; Exports shows every buyer; supply/partnerships/deterrence use two columns', async () => {
+  const { ctx, page, errors } = await openGame(browser, { width: 1440, height: 900 });
+  try {
+    await go(page, 'arsenal'); await seg(page, 'procurement');
+    const n = await page.evaluate(() => document.querySelectorAll('[data-table=platforms] tbody tr').length);
+    assert.ok(n >= 19 && await visibleRows(page, '[data-table=platforms]', 900) >= 17, `platform rows ${n}`);
+    const d = await box(page, '[data-detail=platforms]'), t = await box(page, '[data-table=platforms]'); assert.ok(d.x >= t.r - 1, 'detail pane beside the table');
+    await page.click('[data-table=platforms] tbody tr:nth-child(2)'); await settle(page, 150);
+    assert.match(await page.evaluate(() => document.querySelector('[data-detail=platforms] [data-platform]').dataset.platform), /\w+/);
+    await seg(page, 'exports');
+    assert.ok(await page.evaluate(() => document.querySelectorAll('[data-table=buyers] tbody tr').length) >= 12);
+    for (const id of ['supply', 'partnerships', 'deterrence']) {
+      await seg(page, id);
+      const cols = await page.evaluate(() => new Set([...document.querySelectorAll('[data-arsenal] > section')].map((e) => Math.round(e.getBoundingClientRect().x))).size);
+      assert.ok(cols >= 2, `${id}: ${cols} column(s)`);
+    }
+    assert.deepEqual(errors, []);
+  } finally { await ctx.close(); }
+});

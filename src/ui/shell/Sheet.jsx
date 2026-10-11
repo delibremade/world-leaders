@@ -1,25 +1,14 @@
 // Bottom sheet (vaul): tap a region or nation -> sheet slides up with every action available on it.
 // Children render only while open so the DOM clears at once (vaul keeps the frame mounted for its exit animation).
 import { Drawer } from 'vaul';
-import { useEffect, useState } from 'react';
 import { BREAK } from '../tokens.js';
+import { useWide } from './useWide.js';
 import { useClockHold } from './ClockGate.jsx';
 
 // Desktop (>= BREAK.tablet): a right-side panel that never spans or clips under the outliner column; phone: bottom sheet.
-const wideQuery = `(min-width:${BREAK.tablet}px)`;
-const isWide = () => typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia(wideQuery).matches;
-function useWide() {
-  const [wide, setWide] = useState(isWide);
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
-    const m = window.matchMedia(wideQuery); const f = () => setWide(m.matches);
-    f(); m.addEventListener?.('change', f); return () => m.removeEventListener?.('change', f);
-  }, []);
-  return wide;
-}
 
 export function Sheet({ open, onClose, title, subtitle, back, onBack, children, hold = 'sheet' }) {
-  const wide = useWide();
+  const wide = useWide(BREAK.tablet);
   useClockHold(open, hold);
   return (
     <Drawer.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }} shouldScaleBackground={false} direction={wide ? 'right' : 'bottom'}>

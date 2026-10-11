@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.87.0 (2026-10-11) — D3: Arsenal master-detail and tables
+- UI only, no rule change; parity goldens untouched (verb parity green). Phone tree unchanged: every desktop branch is behind `useWide()` (>= 1100px), so jsdom and 390px render the old stacked panels.
+- New shared primitives: `shell/DataTable.jsx` (sortable columns, selected row, ArrowUp/Down, ~30px rows, aria-sort) and `shell/useWide.js` (one media hook; `Sheet` now uses it too). CSS: `.wl-md` master-detail, `.wl-cols` multi-column panels, `.wl-tbl`.
+- Programs: sortable table of all seven programs (stage, fielded, status, cost, supply) beside the selected program's card. Procurement: all 19 platforms in one table beside the selected platform's actions, force structure, policy and R&D readiness. Exports: sortable buyers table with the offer button per row. Supply, Partnerships, Deterrence flow into two columns.
+- Sub-tab bars are one row at desktop (34px). Nation vitals column hides on every vertical except Overview/Situation (its drill-down renders on Overview only), freeing 205px. Extracted `ProgramCard`, `PlatformRow` as top-level components (no logic change).
+- Tests: `desktop-layout.test.js` +4 (table beside detail, row select, sort, arrow keys, 19 platform rows visible, buyers, two-column panels). `layout.test.js`: the 1280px variants of the Resources, Forces and Arsenal tests now ask 30px segments and 27px rows (owner ruling 2026-10-11); 390px assertions unchanged at 44px.
+
 ## 0.86.0 (2026-10-11) — D2: Overview, map dominant
 - UI only, no rule change; parity goldens untouched.
 - >= 1100px: the map owns the main column (vitals left, outliner right, both unchanged); hegemony race, risk, issues, deployments and log move into a scrolling card strip under it (`.wl-flank`). Phone order unchanged (map first, cards below).

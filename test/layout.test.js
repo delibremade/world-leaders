@@ -58,7 +58,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       await go(page, 'resources');
       const segs = await page.evaluate(() => [...document.querySelectorAll('[data-segbar=resources] [data-seg]')].map((b) => { const r = b.getBoundingClientRect(); return { id: b.dataset.seg, w: r.width, h: r.height, r: r.right }; }));
       assert.deepEqual(segs.map((x) => x.id), ['reserves', 'processing', 'stockpile', 'deals', 'controls', 'natural']);
-      for (const x of segs) assert.ok(x.h >= 44 && x.w >= 44 && x.r <= W + 0.5, `segment ${JSON.stringify(x)}`);
+      for (const x of segs) assert.ok(x.h >= (W < 900 ? 44 : 30) && x.w >= 44 && x.r <= W + 0.5, `segment ${JSON.stringify(x)}`);
       const want = {
         reserves: [/Ore reserves/, /\d+y to zero|100y\+ to zero|unrefined|—/, /t REO\/yr refined/, /USGS MCS 2025/, /Rare earths · export extraction/, /Revenue/],
         processing: [/Processing capacity/, /Mountain Pass, CA/, /Seadrift, TX/, /t REO\/yr ≈ 2% of world/, /Private plant|not profitable/, /DPA \$\d+M/, /Offtake \$\d+M/, /Recycle/, /Gallium/],
@@ -74,7 +74,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
         const o = await overflow(page, W);
         assert.ok(o.scrollWidth <= W, `${id}: scrollWidth ${o.scrollWidth}`); assert.deepEqual(o.bad, [], `${id}: elements past the right edge`);
         if (id !== 'natural') {
-          const small = await page.evaluate(() => [...document.querySelectorAll('[data-minerals] .wl-r, [data-minerals] .wl-p-head, [data-minerals] .wl-btn')].filter((e) => e.getBoundingClientRect().height < 43.5).map((e) => (e.className || e.tagName) + ':' + e.textContent.slice(0, 20)));
+          const small = await page.evaluate(() => [...document.querySelectorAll('[data-minerals] .wl-r, [data-minerals] .wl-p-head, [data-minerals] .wl-btn')].filter((e) => e.getBoundingClientRect().height < (innerWidth < 900 ? 43.5 : 27)).map((e) => (e.className || e.tagName) + ':' + e.textContent.slice(0, 20)));
           assert.deepEqual(small, [], `${id}: targets under 44px`);
         }
       }
@@ -96,7 +96,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       await go(page, 'forces');
       const segs = await page.evaluate(() => [...document.querySelectorAll('[data-segbar=forces] [data-seg]')].map((b) => { const r = b.getBoundingClientRect(); return { id: b.dataset.seg, w: r.width, h: r.height, r: r.right }; }));
       assert.deepEqual(segs.map((x) => x.id), ['manpower', 'quality', 'training', 'equipment', 'specialized']);
-      for (const x of segs) assert.ok(x.h >= 44 && x.w >= 44 && x.r <= W + 0.5, `segment ${JSON.stringify(x)}`);
+      for (const x of segs) assert.ok(x.h >= (W < 900 ? 44 : 30) && x.w >= 44 && x.r <= W + 0.5, `segment ${JSON.stringify(x)}`);
       const want = {
         manpower: [/Strength/, /Retention/, /Personnel pay/, /Recruits/, /1,283,000/, /Population bound/], // F7 (#55): headcounts
         quality: [/Force quality index/, /Education/, /Healthcare/, /Food security/, /Stability/, /Equality/],
@@ -110,7 +110,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
         for (const re of res) assert.match(txt, new RegExp(re.source, 'i'), `${id}: ${re}`); // panel titles are uppercase labels
         const o = await overflow(page, W);
         assert.ok(o.scrollWidth <= W, `${id}: scrollWidth ${o.scrollWidth}`); assert.deepEqual(o.bad, [], `${id}: elements past the right edge`);
-        const small = await page.evaluate(() => [...document.querySelectorAll('[data-forces] .wl-r, [data-forces] .wl-p-head, [data-forces] select, [data-forces] input')].filter((e) => e.getBoundingClientRect().height < 43.5).map((e) => e.className || e.tagName));
+        const small = await page.evaluate(() => [...document.querySelectorAll('[data-forces] .wl-r, [data-forces] .wl-p-head, [data-forces] select, [data-forces] input')].filter((e) => e.getBoundingClientRect().height < (innerWidth < 900 ? 43.5 : 27)).map((e) => e.className || e.tagName));
         assert.deepEqual(small, [], `${id}: rows under 44px`);
       }
       // F7 (#55): tap a type, retire a squadron through the confirm sheet; the count drops, the detail stays on screen.
@@ -138,7 +138,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       await go(page, 'arsenal');
       const segs = await page.evaluate(() => [...document.querySelectorAll('[data-segbar=arsenal] [data-seg]')].map((b) => { const r = b.getBoundingClientRect(); return { id: b.dataset.seg, w: r.width, h: r.height, r: r.right }; }));
       assert.deepEqual(segs.map((x) => x.id), ['programs', 'procurement', 'supply', 'partnerships', 'exports', 'deterrence']);
-      for (const x of segs) assert.ok(x.h >= 44 && x.w >= 44 && x.r <= W + 0.5, `segment ${JSON.stringify(x)}`);
+      for (const x of segs) assert.ok(x.h >= (W < 900 ? 44 : 30) && x.w >= 44 && x.r <= W + 0.5, `segment ${JSON.stringify(x)}`);
       const want = {
         programs: [/Pipeline/, /SAP office|Establish SAP Office/, /B-21/, /F-47/, /CCA/, /SR-72/, /SSN\(X\)/, /F-35/, /Tranche #|Produce/, /Prototype|R&D/],
         procurement: [/Force structure/, /Acquisition policy/, /Surge/, /Platforms/, /Build \$/, /R&D readiness/],
@@ -154,7 +154,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
         for (const re of res) assert.match(txt, new RegExp(re.source, 'i'), `${id}: ${re}`);
         const o = await overflow(page, W);
         assert.ok(o.scrollWidth <= W, `${id}: scrollWidth ${o.scrollWidth}`); assert.deepEqual(o.bad, [], `${id}: elements past the right edge`);
-        const small = await page.evaluate(() => [...document.querySelectorAll('[data-arsenal] .wl-r, [data-arsenal] .wl-p-head, [data-arsenal] .wl-btn')].filter((e) => e.getBoundingClientRect().height < 43.5).map((e) => (e.className || e.tagName) + ':' + e.textContent.slice(0, 20)));
+        const small = await page.evaluate(() => [...document.querySelectorAll('[data-arsenal] .wl-r, [data-arsenal] .wl-p-head, [data-arsenal] .wl-btn')].filter((e) => e.getBoundingClientRect().height < (innerWidth < 900 ? 43.5 : 27)).map((e) => (e.className || e.tagName) + ':' + e.textContent.slice(0, 20)));
         assert.deepEqual(small, [], `${id}: targets under 44px`);
       }
       assert.deepEqual(errors, []);

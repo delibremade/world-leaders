@@ -177,6 +177,28 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
   .wl-hud-figs{grid-template-columns:repeat(3,minmax(0,220px))}
   .wl-fig{flex-direction:row;align-items:center;gap:${SPACE[3]}px}
 }
+.wl-tbl-wrap{overflow:auto;border:1px solid ${c.border.base};border-radius:${RADIUS.xl}px;background:${c.bg.panel};min-height:0}
+.wl-tbl-title{display:flex;justify-content:space-between;padding:${SPACE[4]}px ${SPACE[5]}px;background:${c.bg.panel};border-bottom:1px solid ${c.border.base}}
+.wl-tbl-title span{color:${c.text.primary};font-weight:700}
+.wl-tbl th{top:0}
+.wl-tbl{width:100%;border-collapse:collapse;font-size:${SIZE.small}px;color:${c.text.secondary}}
+.wl-tbl th{position:sticky;top:0;z-index:1;background:${c.bg.raised};border-bottom:1px solid ${c.border.strong};text-align:left;padding:0;white-space:nowrap}
+.wl-tbl th[data-num],.wl-tbl td[data-num]{text-align:right;font-variant-numeric:tabular-nums}
+.wl-tbl th button{width:100%;border:none;background:transparent;color:${c.text.dim};font:inherit;font-size:${SIZE.caption}px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:${SPACE[3]}px ${SPACE[5]}px;text-align:inherit;cursor:pointer}
+.wl-tbl th button:hover{color:${c.text.primary}}
+.wl-tbl td{padding:${SPACE[2]}px ${SPACE[5]}px;border-bottom:1px solid ${c.border.base};white-space:nowrap;line-height:1.35}
+.wl-tbl td:first-child{color:${c.text.primary};font-weight:600}
+.wl-tbl tbody tr{cursor:pointer;height:30px}
+.wl-tbl tbody tr:hover{background:rgba(59,130,246,.07)}
+.wl-tbl tbody tr[aria-selected=true]{background:rgba(59,130,246,.14);box-shadow:inset 3px 0 0 ${c.accent.command}}
+.wl-tbl tbody tr:focus-visible{outline-offset:-2px}
+.wl-md{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,clamp(340px,32%,480px));gap:${SPACE[6]}px;min-height:0}
+.wl-md>*{min-height:0;min-width:0;overflow-y:auto;display:flex;flex-direction:column;gap:${SPACE[5]}px}
+.wl-md>*>*{flex-shrink:0}
+.wl-tabroot>.wl-md{flex:1 1 0}
+.wl-tabroot:has(>.wl-md){overflow:hidden}
+.wl-detail-empty{padding:${SPACE[8]}px;text-align:center;color:${c.text.dim};font-size:${SIZE.small}px}
+.wl-tabroot.wl-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));align-items:start;align-content:start;gap:${SPACE[6]}px}
 @media (hover:hover){
   .wl-r:hover,.wl-ol-row:hover,.wl-nation-row:hover{background:rgba(59,130,246,.07)}
   .wl-p-head:hover{background:rgba(255,255,255,.03)}
@@ -204,7 +226,12 @@ kbd{font:inherit;font-size:${SIZE.micro}px;color:${c.text.dim};border:1px solid 
   .wl-hud-figs{order:1;flex:0 0 auto;grid-template-columns:repeat(3,minmax(168px,1fr));width:clamp(540px,42vw,820px)}
   .wl-fig{min-height:40px}
   .wl-hud-row>.wl-pause-chip{order:2;flex:0 1 300px;flex-basis:300px;white-space:normal;line-height:1.3;text-align:left}
+  /* sub-tab bars: one row, pointer-sized (390px keeps its 44px grid) */
+  .wl-seg,.wl-seg[data-cols='3']{display:flex}
+  .wl-seg button{min-height:34px;font-size:${SIZE.small}px}
   .wl-hud:has(.wl-pause-chip) .wl-hud-nation{flex-basis:160px}
+  /* Nation vitals live on Overview (their drill-down renders there); every other vertical gets the width. */
+  .wl-body:not([data-vertical=overview]) .wl-vitals{display:none}
   /* Overview: the map owns the main column; the situation cards flank it in their own scroll column. */
   .wl-ov-col{display:grid!important;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;gap:${SPACE[6]}px!important;overflow:hidden!important}
   .wl-ov-col>.wl-map-card{order:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
