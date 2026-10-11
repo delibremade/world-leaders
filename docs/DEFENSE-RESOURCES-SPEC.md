@@ -112,3 +112,40 @@ Build order (final): E1 -> E2 -> E3 + E7 -> E4 -> E8 -> E5 -> E6.
 - Done when: every mineral row shows real units and a source; a platform tranche's demand is expressed in tonnes and matches the supply math.
 
 Build order (updated): F5 (running) -> F9 bases (Fable, map) in parallel with F7 order of battle (Opus) -> F8 SOF units (Opus) -> F10 tangible minerals (Sonnet) -> qol #41, #42, #44.
+
+## Part 13. Realism corrections and the long game (F11-F16, owner rulings 2026-10-11)
+
+### F11. Base and node placement serves forces and supply chains (amends Part 11)
+- Candidate sites are not annotated with "best" answers. The player decides where to build; the game shows only neutral facts (location, host, chokepoints within reach, who else is present, cost, upkeep). No recommended-site badges, no ROI preview beyond the mechanical reach ring.
+- Placement value emerges from the systems already in place: distance to theaters where the player's forces are stationed, chokepoints covered, trade and mineral lanes passing within reach, host relations. A player who researches real basing logic outside the game should be rewarded; one who guesses should not be hand-held.
+- **Supply-chain nodes matter as much as military ones**: ports, logistics hubs and processing nodes placed on lanes the player's imports actually use reduce transit risk and cost; placed off-lane they do nothing.
+- Done when: no UI text ranks or recommends a site; two placements with identical cost produce measurably different outcomes based on theater, chokepoint and lane coverage; a logistics hub on an actively used import lane measurably lowers that lane's cost or risk.
+
+### F12. Exported platforms do not leak designs (amends Parts 2 and 6)
+- Buying or being granted an export variant **never** gives the recipient the ability to produce it. No tech transfer by purchase.
+- Co-developer tier grants production rights only where the program's terms say so (GCAP and FCAS partners; never F-47 or B-21, which are not exportable at all).
+- Espionage can steal **documents, not capability**: a successful theft yields partial progress toward a *domestic* program of the same class, gated by the thief's own industrial base, R&D depth and processing capacity, with years of lead time. It never produces the original platform.
+- Done when: no nation ever fields F-47 or B-21 except the US; a successful intel theft advances a domestic program by a bounded amount and cannot complete one on its own; tests cover purchase, co-development and theft paths.
+
+### F13. Sanctioned and isolated states cannot reach peer level (amends Parts 2, 3, 9)
+- A nation's achievable capability is capped by its industrial base, processing capacity, access to capital markets, and access to partner technology. Sanctions, embargoes, debanking and pariah status move those caps down, not just the growth rate.
+- Deep isolation makes the top program tiers unreachable, not merely slow: no gen-6 fighter, no next-gen SSN, no advanced processing, while the isolation holds.
+- Recovery takes years after relief, not months.
+- Done when: a fully sanctioned nation cannot reach gen-6 or next-gen SSN while sanctioned; relief restores progress on a multi-year curve; a US or NATO-aligned player retains a measurable capability lead over an isolated rival at equal spending.
+
+### F14. Financial warfare: debanking and financial exclusion (new mechanic)
+- The player can cut a nation, bank, or organization out of the financial system: correspondent-banking cutoff, messaging-network exclusion, asset freezes, secondary sanctions on third parties who keep dealing.
+- Effects: the target's trade settlement costs rise, capital access falls, reserves shrink, programs slow through the F13 caps; the actor pays relations, bloc cohesion and some trade income, and risks the target building alternative settlement rails over time.
+- Targets can respond: alternative rails, barter, gold and commodity settlement, allied workarounds, which erode the measure's bite if overused.
+- Done when: debanking a nation measurably raises its costs and lowers program progress within 12 months; overuse measurably accelerates alternative-rail adoption and reduces future effectiveness; the action goes through the confirm sheet with consequences shown.
+
+### F15. Leased and treaty-held bases need no recurring consent (amends Part 11)
+- Node tenure types: **lease** (e.g. Guantanamo), **treaty/SOFA**, **host-nation agreement**, **access arrangement**. Only the latter two depend on current relations.
+- Leases and treaty-held sites persist through relations collapse; they end only by specific events (treaty abrogation, war outcome, player choice), not by a relations threshold.
+- Done when: a relations collapse closes host-agreement bases but leaves leased and treaty sites open; each pre-placed base carries its tenure type with a status_source.
+
+### F16. Natural progression past the 2060s, and the 2100s (new, long-game)
+- The campaign runs to 2100+ without stagnating. Technology, platforms, doctrine and society advance on an era ladder beyond the current catalog: 7th-generation and uncrewed-majority air forces, directed energy, hypersonic defense, autonomous fleets, orbital and cislunar ISR and logistics, quantum-era cyber and cryptography, fusion and advanced nuclear, AI-run command and economy, climate adaptation, demographic transition, new resource frontiers (seabed, orbital), and new political forms.
+- Eras are **dynamically gated** (ruling 5), not date-locked: they open when the prerequisites a nation actually holds are met, so a leader reaches 2070s capability early and a laggard reaches it late or never.
+- Each era also introduces new failure modes and events, so late game is not just bigger numbers.
+- Done when: a 2024 to 2100 run shows distinct capability eras with new platform classes, new mechanics and new events in each; no system flatlines after 2060; a leader and a laggard diverge visibly by 2080.
