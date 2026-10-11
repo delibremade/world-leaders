@@ -67,6 +67,21 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
 .wl-ol-row b{color:${c.text.primary};font-weight:600}
 .wl-ol-row small{color:${c.text.dim};display:block;font-size:${SIZE.caption}px}
 .wl-ol-row .wl-ol-t{margin-left:auto;font-weight:700;white-space:nowrap;color:${c.text.muted}}
+.wl-bell{position:relative;min-width:${TAP}px;min-height:${TAP}px;display:inline-flex;align-items:center;justify-content:center;border:1px solid ${c.border.strong};border-radius:${RADIUS.lg}px;background:transparent;color:${c.text.muted};font-size:${SIZE.lg}px;flex-shrink:0}
+.wl-bell-b{position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:${c.accent.alert};color:#fff;font-size:${SIZE.micro}px;font-weight:700;line-height:16px;text-align:center}
+.wl-feed-row{width:100%;min-height:${TAP}px;display:flex;align-items:center;gap:${SPACE[4]}px;padding:${SPACE[3]}px 0 ${SPACE[3]}px ${SPACE[4]}px;border:none;border-bottom:1px solid ${c.border.base};border-left:3px solid ${c.border.strong};background:transparent;color:${c.text.secondary};text-align:left;font:inherit;font-size:${SIZE.small}px}
+.wl-feed-row[data-sev=warn]{border-left-color:${c.accent.warn}}
+.wl-feed-row[data-sev=alert]{border-left-color:${c.accent.alert}}
+.wl-feed-row b{display:block;color:${c.text.primary};font-weight:600;overflow-wrap:anywhere}
+.wl-feed-row[data-read=true] b{font-weight:400;color:${c.text.secondary}}
+.wl-feed-row small{display:block;color:${c.text.dim};font-size:${SIZE.caption}px}
+.wl-feed-i{font-size:16px;width:22px;text-align:center;flex-shrink:0}
+.wl-feed-dot{width:8px;height:8px;border-radius:50%;background:${c.accent.command};flex-shrink:0;margin-right:${SPACE[2]}px}
+.wl-route{display:flex;align-items:center;justify-content:space-between;gap:${SPACE[4]}px;min-height:${TAP}px;border-bottom:1px solid ${c.border.base};padding:${SPACE[2]}px 0}
+.wl-route-l{font-size:${SIZE.small}px;color:${c.text.primary};min-width:0}
+.wl-route-seg{display:inline-flex;border:1px solid ${c.border.strong};border-radius:${RADIUS.lg}px;overflow:hidden;flex-shrink:0}
+.wl-route-seg button{min-width:${TAP}px;min-height:${TAP}px;border:none;background:transparent;color:${c.text.muted};font-size:${SIZE.caption}px;font-weight:700;padding:0 ${SPACE[3]}px}
+.wl-route-seg button[aria-pressed=true]{background:${c.accent.commandDeep};color:${c.text.onAccent}}
 .wl-ol-bar{height:3px;background:${c.bg.inset};border-radius:2px;margin-top:3px;overflow:hidden}
 .wl-ol-bar i{display:block;height:100%;background:${c.accent.command}}
 .wl-sheet-overlay{position:fixed;inset:0;background:rgba(4,7,12,.6);z-index:${Z.outliner + 9}}

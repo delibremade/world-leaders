@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.83.0 (2026-10-11) — Q1 (#41): notification feed
+- UI only, no rule change; parity goldens untouched (autosave bytes identical).
+- `fx.toast(msg)` stays the engine seam (existing tests and sim code unchanged). `src/ui/shell/feed.js` turns every call into a feed entry {class, severity, month, jump, count, read}. Class comes from the monthly phase `runMonth` is in (it now calls an optional `fx.phase(id)`); a toast outside a phase is the player's own order. Nine classes: Economy, Research, Resources, Forces & bases, Escalation, Intelligence, Diplomacy, World events, Your orders.
+- Every notice is kept; per class the player picks Toast (popup + kept), Feed (kept only) or Pause (stops the clock, chip reads "Paused: <class> notice", the pause toggle resumes at the same speed). Orders cannot pause. Defaults are all Toast, so play looks as before until changed. Popups hide while the feed is open.
+- Jump: a region or nation named in the text opens its sheet on the right pane; otherwise the class pane. One `jumpTo` now serves the outliner and the feed.
+- Same class + text inside 12 months folds into one entry (count, refreshed month, unread again), matching the 12-tick `noticeCooldowns`. Capped at 200, newest first, with `FEED_INVARIANTS` (cap, ids, order, no duplicates in the window, known class and severity).
+- HUD: bell with unread badge (44px) opens the feed sheet; closing marks all read. Routing tab: 26 buttons at 44px.
+- Persistence: the feed is written beside the autosave (`wl_feed`, same moments), routes under `wl_feed_routes` (settings outlive a game). Kept out of `wl_save` so v57 save parity stays byte-identical.
+- Test hook: `window.__wl.notify(msg, meta)`, `.feed()`, `.phase(id)`.
+- Tests: `test/feed.test.js` (10, incl. 240 months x 3 nations headless), `test/feed-ui.test.js` (6), `test/feed-layout.test.js` (390 and 1280px). Screens: `docs/shots/41-{feed,routing,hud-bell}-{390,1280}.png`.
+
 ## 0.82.0 (2026-10-11) — F10 (#58): tangible minerals
 - Data and view only; the sim still runs on game units, so behavior is identical and no parity case moved. One conversion: tonnes = units x tPerUnit, tPerUnit = 2024 world refined output / 1200 (1 unit/mo = 1% of world per year).
 - `MINERAL_UNITS`: unit label, 2024 world output and `status_source` for all ten rows (USGS MCS 2025, IEA 2025, WNA; owner corrects). Enrichment in kSWU.
