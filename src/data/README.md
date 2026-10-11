@@ -13,3 +13,4 @@ Static registries only. No logic, no randomness. Moved verbatim from v57 (see re
 - `intel.js` — COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, crisis responses.
 - `stats.js` — MONTHS, vital-stat config (SC) and severity helpers.
 - `events.js` — world-event eligibility, context weights and in-place responses, flashpoint responses, the 60-month cooldown (E2, #14)
+- `orbat.js` — F7 (#55): the real 2024 order of battle per playable nation (airframes, hulls, formations, launchers) with `status_source` on every line; CREW_RATIOS (crew sets, people per set, maintainers), MANPOWER (recruitable-population headcounts), OWNER_PARAMS (B-21 buy, F/A-XX), UNIT_PLATFORMS (platforms each procured unit adds to a fleet line).
