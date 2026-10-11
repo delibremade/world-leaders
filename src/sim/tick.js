@@ -1093,7 +1093,9 @@ export const MONTH_PHASES=[
 // One month of v57. Returns false when a phase ended the month early (no country yet, or an empty attacker pool).
 export function runMonth(g,S,fx){
   const m={};
-  for(const p of MONTH_PHASES){if(p.run(g,S,fx,m)===STOP)return false;}
+  // fx.phase is a presentation hook (notification feed class); engine fx objects without it are unaffected.
+  const ph=fx&&fx.phase;
+  try{for(const p of MONTH_PHASES){if(ph)ph(p.id);if(p.run(g,S,fx,m)===STOP)return false;}}finally{if(ph)ph(null);}
   return true;
 }
 
