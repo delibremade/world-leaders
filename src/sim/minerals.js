@@ -4,7 +4,7 @@
 // builds in progress and the state levers in force on each), deals [{m,n,units,price,mo}],
 // recycle [m], release [m], pact bool, controls [m] (ours), against {nation:[m]} (AI controls on us, recomputed monthly),
 // queue [{id,left:{m:u},need:{m:u}}] (tranches and, since E8 #20, platform builds waiting for minerals, FIFO).
-import { MINERALS, MINERAL_IDS, MINERAL_START, ROW_CAP, SLOT_INPUTS, PROGRAM_INPUTS, PLATFORM_INPUTS, MINERAL_RULES as R } from '../data/minerals.js';
+import { MINERALS, MINERAL_IDS, MINERAL_START, MINERAL_UNITS, FACILITIES, FACILITY_SOURCE, PLANNED_PLANTS, tPerUnit, ROW_CAP, SLOT_INPUTS, PROGRAM_INPUTS, PLATFORM_INPUTS, MINERAL_RULES as R } from '../data/minerals.js';
 import { BLACK_PROGRAMS, PLATFORMS } from '../data/platforms.js';
 import { NATIONS, NATION_BLOC } from '../data/nations.js';
 import { ALLIED_PROGRAMS } from '../data/alliance.js';
@@ -53,6 +53,20 @@ const controlling = (g, n, m) => !!M(g).against?.[n]?.includes(m);
 const offtakeUnits = (n, m) => Math.min(R.offtake.units, (MINERAL_START[n]?.[m]?.[1] || 0) * R.offtake.partnerCut);
 export const offtakePrice = (g, n, m) => Math.round(offtakeUnits(n, m) * MINERALS[m].price * (1 + Math.max(0, R.offtake.premiumRel - (g.nationRelations?.[n] || 0)) / 100));
 
+// ── F10 (#58): tonnes. The sim runs in units; every tonne figure is units x tPerUnit (data/minerals.js), computed here once.
+export const tonnes = (m, u) => u * tPerUnit(m);
+export const capTPerYear = (m, cap) => cap * 12 * tPerUnit(m);
+// Plants behind a nation's start capacity, t/yr each. addCap = capacity built since (player's private plants): it fills the announced
+// plant for that mineral if one exists (listed at 0 t until then), else reads as generic new capacity.
+export function plantsOf(nid, m, addCap = 0) {
+  const cap = MINERAL_START[nid]?.[m]?.[1] || 0; const planned = PLANNED_PLANTS[nid]?.[m];
+  const rows = cap ? (FACILITIES[nid]?.[m] || [[`${NATIONS[nid]?.n || nid} national capacity (aggregate)`, 1]]).map(([name, share]) => ({ name, share, t: capTPerYear(m, cap * share), source: FACILITY_SOURCE })) : [];
+  if (planned || addCap > 0) rows.push({ name: planned || 'New private capacity', share: 0, t: capTPerYear(m, addCap), source: planned ? FACILITY_SOURCE : 'Private build (F5), +units x tPerUnit' });
+  return rows;
+}
+// A tranche's input demand in tonnes: the same units the supply math draws, times the one conversion.
+export const trancheDemand = (id) => Object.entries(inputsOf(id)).map(([m, units]) => ({ m, units, t: tonnes(m, units), unit: MINERAL_UNITS[m].u }));
+
 // Monthly inflow per mineral. dom: home plants; rec: recycling; off: offtake deals; pact: bloc partners under the pact;
 // mkt: open market. secure = everything but the open market (E7 contribution gate).
 export function mineralFlows(g) {
@@ -77,7 +91,7 @@ export function mineralFlows(g) {
 // Coverage of a program's next tranche: per input (stock + one month of inflow) / need; the lowest names the binding mineral.
 export function programSupply(g, id) {
   const inp = inputsOf(id); const mm = M(g); const f = mineralFlows(g);
-  const rows = Object.entries(inp).map(([m, need]) => { const have = mm.own[m].stock + f[m].total; return { m, need, cov: Math.min(1, have / need), inflow: f[m].total }; });
+  const rows = Object.entries(inp).map(([m, need]) => { const have = mm.own[m].stock + f[m].total; return { m, need, cov: Math.min(1, have / need), inflow: f[m].total, needT: tonnes(m, need), inflowT: tonnes(m, f[m].total), haveT: tonnes(m, have) }; });
   const low = rows.reduce((b, r) => (!b || r.cov < b.cov ? r : b), null);
   const queued = mm.queue.filter((q) => q.id === id).map((q) => {
     const worst = Object.entries(q.left).filter(([, u]) => u > EPS).map(([m, u]) => ({ m, u, mo: f[m].total > EPS ? Math.ceil(u / f[m].total - EPS) : Infinity })).sort((a, b) => b.mo - a.mo)[0];
@@ -336,7 +350,10 @@ export function mineralView(g) {
     const partners = PROCESSORS.filter((n) => n !== p && NATIONS[n] && (MINERAL_START[n]?.[m]?.[1] || 0) > 0 && !mm.deals.some((d) => d.m === m && d.n === n))
       .map((n) => ({ id: n, n: NATIONS[n].n, cap: MINERAL_START[n][m][1], controls: controlling(g, n, m), price: offtakePrice(g, n, m), units: offtakeUnits(n, m) }))
       .sort((a, b) => b.cap - a.cap);
-    return { id: m, ...MINERALS[m], ...o, flow: f[m], upkeep: c.by[m] || 0, proj: projectOutlook(g, m), income: inc.by[m] || 0, built: mm.built[m] || 0,
+    const t = tPerUnit(m); const capT = capTPerYear(m, o.cap); const start = MINERAL_START[p]?.[m]?.[1] || 0;
+    return { id: m, ...MINERALS[m], ...o, unit: MINERAL_UNITS[m].u, status_source: MINERAL_UNITS[m].status_source, tPerUnit: t, worldT: MINERAL_UNITS[m].world,
+      capT, oreT: o.ore * t, stockT: o.stock * t, stockMaxT: R.stockMax * t, reserveT: o.reserve * t, years: o.cap > 0 && o.ore > 0 ? (o.ore * t) / capT : null,
+      plants: plantsOf(p, m, Math.max(0, o.cap - start)), inflowT: f[m].total * t, flow: f[m], upkeep: c.by[m] || 0, proj: projectOutlook(g, m), income: inc.by[m] || 0, built: mm.built[m] || 0,
       deals: mm.deals.filter((d) => d.m === m).map((d) => ({ ...d, name: NATIONS[d.n]?.n, paused: controlling(g, d.n, m) })),
       controlCost: controlCost(mm, m), recycling: mm.recycle.includes(m), releasing: mm.release.includes(m), controlled: mm.controls.includes(m),
       controlledBy: Object.entries(mm.against || {}).filter(([, ms]) => ms.includes(m)).map(([n]) => NATIONS[n]?.n || n),
