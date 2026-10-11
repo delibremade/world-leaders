@@ -4,8 +4,8 @@
 // is a <text> ending in ⚠ inside that <g>.
 import { COLOR } from '../tokens.js';
 
-export function SvgMap({ scene, onRegionTap, style }) {
-  const { regions, routes, influence, chokepoints } = scene;
+export function SvgMap({ scene, onRegionTap, onSiteTap, style }) {
+  const { regions, routes, influence, chokepoints, sites = [], rings = [] } = scene;
   return (
     <svg viewBox="0 0 1000 520" style={{ width: '100%', borderRadius: '6px', display: 'block', ...style }} data-map-renderer="svg" data-map-mode={scene.mode}>
       <defs>
@@ -34,6 +34,14 @@ export function SvgMap({ scene, onRegionTap, style }) {
       ))}
       {routes.map((l) => <line key={`tr_${l.rid}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke={l.color} strokeWidth="1.2" strokeOpacity="0.5" strokeDasharray="6,5" style={{ animation: 'wl-dash 1.1s linear infinite' }} pointerEvents="none" />)}
       {influence.map((l) => <line key={`inf_${l.rid}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke={l.color} strokeWidth={l.width} strokeOpacity={l.alpha} strokeDasharray="2,4" pointerEvents="none" />)}
+      {/* F9b: reach rings of the selected site (no zoom in the fallback), then one marker per site */}
+      {rings.filter((r) => sites.find((s) => s.id === r.site)?.selected).map((r, i) => <circle key={`ring_${r.site}_${i}`} cx={r.x} cy={r.y} r={r.r} fill={r.color} fillOpacity={r.mine ? 0.06 : 0} stroke={r.color} strokeWidth={r.mine ? 1.2 : 0.7} strokeOpacity={r.mine ? 0.75 : 0.35} pointerEvents="none" data-ring={r.site} />)}
+      {sites.map((s) => <g key={`site_${s.id}`} data-site={s.id} data-candidate={s.candidate ? 'true' : undefined} onClick={(e) => { e.stopPropagation(); onSiteTap?.(s.id); }} style={{ cursor: 'pointer' }}>
+        <circle cx={s.x} cy={s.y} r={s.candidate ? 6 : 6.5} fill={s.candidate ? COLOR.bg.panel : s.color} fillOpacity={s.candidate ? 0.85 : s.mine ? 0.95 : 0.55} stroke={s.candidate ? COLOR.accent.good : s.selected ? COLOR.text.primary : COLOR.bg.surface} strokeWidth={s.selected ? 1.6 : 1} />
+        {(s.closed || s.building) && <circle cx={s.x} cy={s.y} r="9" fill="none" stroke={s.closed ? COLOR.accent.alert : COLOR.accent.warn} strokeWidth="1" />}
+        <text x={s.x} y={s.y + 3} textAnchor="middle" fontSize="8" fontWeight="700" fill={s.candidate ? COLOR.accent.good : COLOR.text.primary} pointerEvents="none">{s.icon}</text>
+        {s.mine + s.theirs > 1 && <text x={s.x + 7} y={s.y - 4} fontSize="6" fontWeight="800" fill={COLOR.text.primary} pointerEvents="none">{s.mine + s.theirs}</text>}
+      </g>)}
       {chokepoints.map((c) => <g key={`cp_${c.k}`} pointerEvents="none"><circle cx={c.x} cy={c.y} r={c.r} fill={c.color} fillOpacity={0.9} stroke={COLOR.bg.surface} strokeWidth="1" />{c.ring && <circle cx={c.x} cy={c.y} r="9" fill="none" stroke={COLOR.accent.alert} strokeWidth="1" strokeOpacity="0.6" />}{c.mine && <circle cx={c.x} cy={c.y} r="7" fill="none" stroke={COLOR.accent.energy} strokeWidth="1" strokeDasharray="2,2" />}</g>)}
     </svg>
   );

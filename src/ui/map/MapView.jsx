@@ -13,11 +13,12 @@ export const webglAvailable = () => {
 
 const hatchBg = `repeating-linear-gradient(45deg, ${COLOR.text.muted}55 0 1px, transparent 1px 4px)`;
 
-export function MapView({ view, mode = 'sphere', onModeChange, onRegionTap, height = 'clamp(240px, 58vw, 520px)' }) {
+export function MapView({ view, mode = 'sphere', onModeChange, onRegionTap, onSiteTap, onBuildToggle, height = 'clamp(240px, 58vw, 520px)' }) {
   const scene = useMemo(() => buildScene(view, mode), [view, mode]);
   const key = JSON.stringify(scene);
   const host = useRef(null); const map = useRef(null); const latest = useRef(scene); latest.current = scene;
   const tapRef = useRef(onRegionTap); tapRef.current = onRegionTap;
+  const siteRef = useRef(onSiteTap); siteRef.current = onSiteTap;
   const [renderer, setRenderer] = useState(() => (webglAvailable() ? 'pixi' : 'svg'));
   // On-device fps readout for manual capture on the owner's phone: open the build with #fps in the URL.
   const [fps, setFps] = useState(null);
@@ -26,14 +27,14 @@ export function MapView({ view, mode = 'sphere', onModeChange, onRegionTap, heig
   useEffect(() => {
     if (renderer !== 'pixi' || !host.current) return;
     let alive = true;
-    import('./pixi-map.js').then(({ createPixiMap }) => createPixiMap(host.current, { onTap: (rid) => rid && tapRef.current?.(rid) }))
-      .then((m) => { if (!alive) { m.destroy(); return; } map.current = m; m.update(latest.current); if (globalThis.__WL_TEST) globalThis.__wlMap = { renderer: 'pixi', fps: m.fps, frames: m.frames, pan: m.pan, zoom: m.zoom, scale: m.scale, focus: m.focus, scene: () => latest.current, tapRegion: (rid) => tapRef.current?.(rid) }; })
+    import('./pixi-map.js').then(({ createPixiMap }) => createPixiMap(host.current, { onTap: (rid) => rid && tapRef.current?.(rid), onSiteTap: (sid) => siteRef.current?.(sid) }))
+      .then((m) => { if (!alive) { m.destroy(); return; } map.current = m; m.update(latest.current); if (globalThis.__WL_TEST) globalThis.__wlMap = { renderer: 'pixi', fps: m.fps, frames: m.frames, pan: m.pan, zoom: m.zoom, scale: m.scale, focus: m.focus, focusSite: m.focusSite, scene: () => latest.current, tapRegion: (rid) => tapRef.current?.(rid), tapSite: (sid) => siteRef.current?.(sid) }; })
       .catch((e) => { console.error('pixi map unavailable, falling back to SVG', e); if (alive) setRenderer('svg'); });
     return () => { alive = false; map.current?.destroy(); map.current = null; if (globalThis.__wlMap?.renderer === 'pixi') delete globalThis.__wlMap; };
   }, [renderer]);
   useEffect(() => { map.current?.update(scene); }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!wantFps || renderer !== 'pixi') return; const id = setInterval(() => setFps(map.current?.fps() ?? null), 1000); return () => clearInterval(id); }, [wantFps, renderer]);
-  useEffect(() => { if (globalThis.__WL_TEST && renderer === 'svg') globalThis.__wlMap = { renderer: 'svg', scene: () => latest.current }; }, [renderer, key]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (globalThis.__WL_TEST && renderer === 'svg') globalThis.__wlMap = { renderer: 'svg', scene: () => latest.current, tapRegion: (rid) => tapRef.current?.(rid), tapSite: (sid) => siteRef.current?.(sid) }; }, [renderer, key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { legend } = scene;
   return (
@@ -45,9 +46,14 @@ export function MapView({ view, mode = 'sphere', onModeChange, onRegionTap, heig
             <span aria-hidden="true" style={{ fontSize: 16 }}>{m.icon}</span><span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.label}</span>
           </button>); })}
       </div>
-      {renderer === 'pixi'
-        ? <div ref={host} style={{ height, borderRadius: RADIUS.lg, overflow: 'hidden', background: COLOR.bg.ocean, touchAction: 'none' }} />
-        : <SvgMap scene={scene} onRegionTap={(rid) => onRegionTap?.(rid)} />}
+      <div style={{ position: 'relative' }}>
+        {renderer === 'pixi'
+          ? <div ref={host} style={{ height, borderRadius: RADIUS.lg, overflow: 'hidden', background: COLOR.bg.ocean, touchAction: 'none' }} />
+          : <SvgMap scene={scene} onRegionTap={(rid) => onRegionTap?.(rid)} onSiteTap={(sid) => onSiteTap?.(sid)} />}
+        {/* F9b (#57): the build toggle sits over the map, bottom right, under the thumb. On, every candidate site is a tappable marker. */}
+        {onBuildToggle && <button type="button" className={`wl-btn${scene.build ? ' wl-btn-good' : ''}`} data-build-toggle aria-pressed={!!scene.build} onClick={() => onBuildToggle(!scene.build)} title="Build: show every candidate site; tap one to place a base"
+          style={{ position: 'absolute', right: SPACE[4], bottom: SPACE[4], minHeight: TAP, padding: `0 ${SPACE[6]}px`, background: scene.build ? undefined : COLOR.bg.panel, boxShadow: '0 2px 8px rgba(0,0,0,.6)' }}>🏗️ {scene.build ? 'Building: tap a site' : 'Build'}</button>}
+      </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: `${SPACE[2]}px ${SPACE[5]}px`, marginTop: SPACE[4], fontSize: SIZE.micro, color: COLOR.text.muted }} data-map-legend>
         <span className="wl-label" style={{ fontSize: SIZE.micro, fontWeight: 700 }}>{legend.title}</span>
         {legend.items.map(([c, l]) => <span key={l} style={{ display: 'inline-flex', alignItems: 'center', gap: SPACE[2] }}><span style={{ width: 11, height: 11, borderRadius: 2, background: c === 'hatch' ? hatchBg : c + '8c', border: `1px solid ${c === 'hatch' ? COLOR.text.dim : c}` }} />{l}</span>)}

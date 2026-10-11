@@ -7,6 +7,7 @@ import { REGIONS, FLASHPOINTS } from '../../data/regions.js';
 import { ISSUES } from '../../data/economy.js';
 import { NATIONS } from '../../data/nations.js';
 import { monthsToBriefing } from '../../sim/events.js';
+import { NODE_TYPES, SITES, BASE_RULES } from '../../data/bases.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 const nat = (id) => NATIONS[id]?.n || cap(id);
@@ -36,6 +37,10 @@ export function buildOutliner(v) {
   for (const [pid, d] of Object.entries(v.platformDev || {})) { const p = PLATFORMS[pid]; push({ id: `dev_${pid}`, group: 'builds', icon: p?.i || '🛠️', title: `Develop ${p?.n || pid}`, sub: 'Platform development', months: d?.mo, pct: p?.dev?.mo ? 1 - (d?.mo || 0) / p.dev.mo : null, jump: { tab: 'arsenal', sub: 'procurement' } }); }
   if (v.blackResearch) { const bp = BLACK_PROGRAMS[v.blackResearch.id]; push({ id: 'sap', group: 'builds', icon: '🕶️', title: `SAP: ${bp?.n || v.blackResearch.id}`, sub: 'Special access program', pct: v.blackResearch.mo ? (v.blackResearch.prog || 0) / v.blackResearch.mo : null, months: v.blackResearch.mo ? Math.max(0, v.blackResearch.mo - (v.blackResearch.prog || 0)) : undefined, jump: { tab: 'arsenal', sub: 'programs' } }); }
   for (const [id, d] of Object.entries(v.arsenal?.dev || {})) { const bp = BLACK_PROGRAMS[id]; push({ id: `proto_${id}`, group: 'builds', icon: bp?.i || '🛩️', title: `Prototype: ${bp?.n || id}`, sub: d.slipped ? 'Slipped once' : 'Prototype line', pct: d.prog / d.mo, months: d.mo - d.prog, jump: { tab: 'arsenal', sub: 'programs' } }); }
+  // F9b (#57): your nodes under construction (private ports too) and the ones a host closed.
+  for (const n of (v.bases?.nodes || []).filter((x) => x.owner === v.country?.id)) { const t = NODE_TYPES[n.type]; const st = SITES[n.site];
+    if (n.status === 'building') push({ id: `node_${n.id}`, group: 'builds', icon: t.i, title: `${t.n} · ${st.n}`, sub: t.private ? 'Private build (authorized)' : 'Under construction', months: n.mo, pct: t.mo ? 1 - n.mo / t.mo : null, jump: { tab: 'overview', site: n.site } });
+    if (n.status === 'closed') push({ id: `node_${n.id}`, group: 'timers', icon: '🚫', title: `${t.n} closed · ${st.n}`, sub: 'Host consent lost; reopens once it returns', months: Math.max(0, BASE_RULES.reopenMo - (n.closed || 0)), sev: 'warn', jump: { tab: 'overview', site: n.site } }); }
   for (const d of v.deployments || []) if (d.status === 'active') push({ id: d.id, group: 'builds', icon: '📋', title: d.policyName, sub: 'Policy deployment', months: Math.max(0, (d.timeMonths || 0) - (d.monthsElapsed || 0)), pct: d.timeMonths ? d.monthsElapsed / d.timeMonths : null, jump: { tab: 'intel', issue: d.issueType } });
 
   for (const [vert, ml] of Object.entries(v.defResearch || {})) if (ml > 0) push({ id: `rd_${vert}`, group: 'research', icon: DV[vert]?.i || '🔬', title: `${DV[vert]?.n || vert} L${(v.defLevels?.[vert] || 0) + 1}`, sub: 'R&D in progress', months: ml, jump: { tab: 'technology' } });

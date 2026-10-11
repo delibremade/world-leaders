@@ -7,6 +7,9 @@ import { parsePath, parseRegions, pointInPolygons, regionAt, area, WORLD } from 
 import { buildScene, MAP_MODES } from '../src/ui/map/scene.js';
 import { COLOR } from '../src/ui/tokens.js';
 import { mount, flush, BUNDLES, gameEnded } from './util/harness.js';
+import { newBases, nodeId } from '../src/sim/bases.js';
+import { NODE_TYPES, SITES, SITE_IDS, KM_PER_PX } from '../src/data/bases.js';
+import { leverCost } from '../src/sim/minerals.js';
 
 // P3b gate: REGION_GEO parses into closed polygons, hit tests land, every map mode builds a full scene with
 // every v57 overlay, and the App renders the map (SVG fallback in jsdom) with mode chips, legend and region taps.
@@ -101,5 +104,80 @@ test('App: map renders (SVG fallback in jsdom), six mode chips switch fills and 
     const months = await g.advance(120);
     assert.ok(!g.faulted()); assert.ok(months >= 120 || gameEnded(doc));
     assert.equal(doc.querySelectorAll('svg g[data-region]').length, 10, 'map still mounted');
+  } finally { console.error = origErr; g.close(); }
+});
+
+// F9b (#57): the build layer. One marker per site with nodes (every candidate in build mode), reach rings in map units,
+// a site sheet with one 44px row per node type, confirm sheet before buildNode, levers on a private port, decommission.
+test('scene: base markers and reach rings come from g.bases; build mode lists every candidate site; rings are reach / KM_PER_PX', () => {
+  const bases = newBases('usa');
+  const s = buildScene(view({ bases }), 'sphere');
+  const withNodes = new Set(bases.nodes.map((n) => n.site));
+  assert.equal(s.sites.length, withNodes.size); assert.ok(s.sites.every((x) => !x.candidate));
+  const dj = s.sites.find((x) => x.id === 'djibouti'); assert.ok(dj.mine === 1 && dj.theirs >= 2 && dj.owners.includes('china'), JSON.stringify(dj)); assert.equal(dj.color, COLOR.faction.player); assert.equal(dj.host, 'Djibouti');
+  const ream = s.sites.find((x) => x.id === 'ream'); assert.equal(ream.mine, 0); assert.equal(ream.color, COLOR.faction.china);
+  const guam = s.rings.find((r) => r.site === 'guam' && r.type === 'naval'); assert.equal(guam.r, +(NODE_TYPES.naval.reach / KM_PER_PX).toFixed(1)); assert.ok(guam.mine);
+  assert.ok(s.rings.some((r) => r.site === 'ream' && !r.mine), 'foreign rings too');
+  assert.match(s.legend.glyphs, /your base/);
+  const b = buildScene(view({ bases, build: true, selectedSite: 'subic' }), 'sphere');
+  assert.equal(b.sites.length, SITE_IDS.length); assert.ok(b.build); assert.ok(b.sites.find((x) => x.id === 'subic').candidate && b.sites.find((x) => x.id === 'subic').selected);
+  assert.equal(b.sites.filter((x) => x.candidate).length, SITE_IDS.length - withNodes.size);
+  assert.deepEqual(buildScene(view({}), 'sphere').sites, [], 'no bases, no markers');
+});
+
+test('App: tap-to-build in the SVG fallback: markers, build toggle, site sheet rows, confirm sheet, buildNode, levers on a port, decommission, outliner row', async () => {
+  const origErr = console.error; console.error = () => {};
+  const g = await mount(BUNDLES.app, { testHook: true });
+  try {
+    await g.pickCountry(0); await flush();
+    const { doc } = g; const q = (sel) => doc.querySelector(sel); const qa = (sel) => [...doc.querySelectorAll(sel)];
+    const click = async (el) => { el.dispatchEvent(new g.w.MouseEvent('click', { bubbles: true })); await flush(); await flush(); };
+    const base = qa('svg g[data-site]').length; assert.ok(base >= 20 && base < SITE_IDS.length, `markers for sites with nodes: ${base}`);
+    assert.ok(q('svg g[data-site=djibouti]') && q('svg g[data-site=guam]'));
+    await click(q('[data-build-toggle]'));
+    assert.equal(q('[data-build-toggle]').getAttribute('aria-pressed'), 'true'); assert.equal(qa('svg g[data-site]').length, SITE_IDS.length, 'every candidate site shown');
+    assert.equal(qa('svg g[data-site][data-candidate]').length, SITE_IDS.length - base);
+    // Darwin: Australian host, an ally, so consent is immediate
+    await click(q('svg g[data-site=darwin]'));
+    assert.ok(q('[data-site-sheet=darwin]'), 'site sheet open'); assert.match(g.text(), /Host: Australia/);
+    const opts = qa('[data-build-option]'); assert.deepEqual(opts.map((b) => b.dataset.buildOption), SITES.darwin.types);
+    assert.ok(opts.every((b) => !b.disabled), 'every type open at Darwin');
+    assert.ok(q('svg [data-ring]') == null, 'no ring on a bare candidate');
+    const t0 = g.w.__wl ? null : null; // treasury read below from the HUD why is indirect; read from the save after a month instead
+    await click(q('[data-build-option=air]'));
+    assert.ok(!q('[data-site-sheet]'), 'site sheet yields to the confirm sheet'); assert.ok(q('[data-confirm]'), 'confirm sheet open');
+    assert.match(q('[data-confirm]').textContent, /\$1,000M now/); assert.match(q('[data-confirm]').textContent, /Theaters: Southeast Asia, Oceania/); assert.match(q('[data-confirm]').textContent, /Upkeep \$7M\/mo, basing agreement \$3M\/mo to Australia/);
+    await click(q('[data-confirm-ok]'));
+    assert.ok(q('[data-site-sheet=darwin]'), 'back on the site sheet'); assert.match(q('[data-site-sheet=darwin]').textContent, /Building · 18 mo left/);
+    assert.ok(q('[data-build-option=air]').disabled, 'air now shows as building');
+    assert.ok(q('svg g[data-site=darwin]') && !q('svg g[data-site=darwin]').hasAttribute('data-candidate'), 'marker now holds a node');
+    // cancel path leaves nothing behind
+    await click(q('[data-build-option=garrison]')); await click(q('[data-confirm-cancel]'));
+    assert.ok(q('[data-site-sheet=darwin]') && !q('[data-build-option=garrison]').disabled);
+    // a private port at Panama: authorize for $0, then a lever
+    await click(q('[data-sheet-close]')); await click(q('svg g[data-site=panama]'));
+    assert.ok(q('[data-site-sheet=panama]')); await click(q('[data-build-option=port]'));
+    assert.match(q('[data-confirm]').textContent, /Authorize: \$0 \(private capital\)/); await click(q('[data-confirm-ok]'));
+    assert.match(q('[data-site-sheet=panama]').textContent, /Private build/);
+    const lever = q('[data-lever=dpa]'); assert.ok(lever && /\$204M/.test(lever.textContent), `DPA priced at ${leverCost(NODE_TYPES.port.capex, 'dpa')}: ${lever?.textContent}`);
+    await click(lever); assert.equal(q('[data-lever=dpa]').getAttribute('aria-pressed'), 'true');
+    // decommission the Darwin build through the confirm sheet
+    await click(q('[data-sheet-close]')); await click(q('svg g[data-site=darwin]'));
+    await click(q(`[data-node-close="${nodeId('usa', 'darwin', 'air')}"]`)); assert.match(q('[data-confirm]').textContent, /Decommission/); await click(q('[data-confirm-ok]'));
+    assert.ok(!q('[data-node-close]'), 'node gone'); assert.ok(!q('[data-build-option=air]').disabled);
+    await click(q('[data-sheet-close]'));
+    // the Panama port shows in the outliner as a build; the Djibouti sheet lists three foreign nodes and your SOF compound with its reach
+    doc.querySelector('[data-outliner-handle]').click(); await flush();
+    assert.ok(qa('[data-outliner-row]').some((r) => /Port \/ processing node · Panama/.test(r.textContent)), 'outliner build row');
+    g.w.__wl.site('djibouti'); await flush(); await flush();
+    const txt = q('[data-site-sheet=djibouti]').textContent; assert.match(txt, /SOF forward staging · 🇺🇸 yours/); assert.match(txt, /China/); assert.match(txt, /Japan/); assert.match(txt, /Chokepoints: Bab al-Mandab/);
+    assert.ok(q('svg [data-ring=djibouti]'), 'rings drawn for the selected site in the fallback');
+    await click(q('[data-sheet-close]'));
+    // region sheet lists the sites in that theater as rows
+    g.w.__wl.region('ME'); await flush(); await flush();
+    assert.ok(q('[data-site-row=bahrain]')); await click(q('[data-site-row=bahrain]')); assert.ok(q('[data-site-sheet=bahrain]')); assert.ok(q('[data-sheet-back]'), 'back to the region');
+    await click(q('[data-sheet-close]'));
+    const months = await g.advance(24); assert.ok(!g.faulted()); assert.ok(months >= 24 || gameEnded(doc));
+    const save = JSON.parse(g.saves.at(-1)); assert.ok(save.bases.nodes.some((n) => n.id === nodeId('usa', 'panama', 'port')), 'the port persists');
   } finally { console.error = origErr; g.close(); }
 });
