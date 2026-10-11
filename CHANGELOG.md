@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.85.0 (2026-10-11) — D1: desktop-first shell
+- UI only, no rule change; parity goldens untouched. Owner ruling 2026-10-11: desktop first. PLAYABLE-PLAN guardrail 4 and the DESIGN-SYSTEM layout section now say design for 1440px and up; 390px still renders and passes but never constrains.
+- >= 1100px: labelled left rail (full vertical names, number-key hints, badges inline, 160-224px), HUD in one row (nation, three figures, pause reason, speed, bell), outliner column 264-380px. `BREAK.desktop` = 1100.
+- Hover: row, rail, segment, figure and button hover states; HUD figure breakdowns (Why) open on mouse hover and stay on click; touch unchanged.
+- Shortcuts (>= 900px, off while typing): Space pause, `-`/`=` speed, `.` next month, `1`-`9` verticals, Esc closes feed, side panel, drill.
+- Tests: `test/desktop-layout.test.js` (7): at 1280/1440/1920 every pane covers >= 80% of the width (and of the main column), no sideways scroll, no clipped content; rail labels and badge; shortcuts; hover breakdown. Per-vertical master-detail assertions land with each vertical's PR.
+
 ## 0.84.0 (2026-10-11) — Q2 (#42): step mode and auto-pause on sheets
 - UI only, no rule change; parity goldens untouched.
 - `src/ui/shell/clock.js` (`clockPlan`) is the one place that decides run vs step and the chip's reason; the interval gate and the HUD chip both read it. Precedence: your pause or a Q1 pause rule, hard engine gate (ultimatum, confrontation, intel crisis, game over, victory), crisis briefing, open confirm, open sheet.

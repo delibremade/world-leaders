@@ -73,7 +73,7 @@ export const MOTION = {
 // Stacking order. Map < panels < chrome < sheet < outliner < toast < modal < game over < victory.
 export const Z = { map: 0, panel: 10, chrome: 100, sheet: 500, outliner: 600, toast: 999, modal: 1500, gameOver: 2000, victory: 2100 };
 
-export const BREAK = { phone: 430, tablet: 900 };
+export const BREAK = { phone: 430, tablet: 900, desktop: 1100 };
 
 export const TOKENS = { color: COLOR, font: FONT, size: SIZE, weight: WEIGHT, line: LINE, track: TRACK, space: SPACE, radius: RADIUS, tap: TAP, elevation: ELEVATION, motion: MOTION, z: Z, break: BREAK };
 

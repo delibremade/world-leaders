@@ -6,7 +6,7 @@ Priority set by owner 2026-10-09: **a playable build with proper visuals and eve
 1. **Thin seam.** Game state + monthly tick live in `src/sim/`, UI lives in `src/ui/`. The UI reads state and dispatches actions; it never computes game rules. No graphics work lands on the v57 monolith.
 2. **Smoke gate.** `npm test` must show: 120 months autoplay with no crash, every tab renders its sentinel, save/resume round-trips. That is the whole gate for now.
 3. **No silent feature loss.** Every v57 function listed in the vertical specs below must exist in the new build, or be listed in `reports/feature-gaps.md` with a reason. The owner signs off on that list.
-4. **Mobile first.** Every screen works one-thumbed at 390px. Owner plays on a phone.
+4. **Desktop first** (owner ruling 2026-10-11: the game is played on desktop). Design for 1440px and up and use the available width. 390px must still render and pass its tests but never constrains the desktop layout.
 5. **v57 stays playable** at its URL until the new build reaches feature parity per this doc.
 6. Existing rules still apply: CLAUDE.md process rules, docs/DESIGN-RULINGS.md, one task = one branch = one PR.
 

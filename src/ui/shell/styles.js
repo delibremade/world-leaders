@@ -177,4 +177,32 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
   .wl-hud-figs{grid-template-columns:repeat(3,minmax(0,220px))}
   .wl-fig{flex-direction:row;align-items:center;gap:${SPACE[3]}px}
 }
+@media (hover:hover){
+  .wl-r:hover,.wl-ol-row:hover,.wl-nation-row:hover{background:rgba(59,130,246,.07)}
+  .wl-p-head:hover{background:rgba(255,255,255,.03)}
+  .wl-nav button:hover,.wl-seg button:hover,.wl-speed button:hover,.wl-fig:hover,.wl-verb:hover,.wl-lvl:hover:not(:disabled){border-color:${c.accent.command};color:${c.text.primary}}
+  .wl-nav button:hover{background:rgba(59,130,246,.08)}
+}
+kbd{font:inherit;font-size:${SIZE.micro}px;color:${c.text.dim};border:1px solid ${c.border.strong};border-radius:3px;padding:0 4px}
+.wl-nav-f,.wl-nav kbd{display:none}
+@media (min-width:${BREAK.desktop}px){
+  .wl-app{grid-template-columns:clamp(160px,12vw,224px) minmax(0,1fr) clamp(264px,19vw,380px)}
+  .wl-nav button,.wl-nav button[aria-current=page]{flex-direction:row;justify-content:flex-start;gap:${SPACE[3]}px;min-height:44px;padding:${SPACE[2]}px ${SPACE[4]}px;font-size:${SIZE.body}px;text-align:left}
+  .wl-nav{padding:${SPACE[3]}px 0;gap:2px}
+  .wl-nav button span:first-child{width:22px;text-align:center}
+  .wl-nav button .wl-nav-l{display:none!important}
+  .wl-nav button .wl-nav-f{display:block;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wl-nav button kbd{display:inline-block}
+  .wl-nav button .wl-badge{position:static;margin:0;flex-shrink:0}
+  .wl-nav button[aria-current=page]{background:rgba(59,130,246,.12)}
+  .wl-nav button[aria-current=page]::after{top:6px;bottom:6px;left:0;right:auto;width:3px;height:auto;border-radius:0 3px 3px 0}
+  .wl-hud{flex-direction:row;align-items:center;gap:${SPACE[6]}px;padding:${SPACE[3]}px ${SPACE[7]}px}
+  .wl-hud-row{display:contents}
+  .wl-hud-row>*{order:3}
+  .wl-hud-nation{order:0;flex:1 1 220px}
+  .wl-hud-figs{order:1;flex:0 0 auto;grid-template-columns:repeat(3,minmax(168px,1fr));width:clamp(540px,42vw,820px)}
+  .wl-fig{min-height:40px}
+  .wl-hud-row>.wl-pause-chip{order:2;flex:0 1 300px;flex-basis:300px;white-space:normal;line-height:1.3;text-align:left}
+  .wl-hud:has(.wl-pause-chip) .wl-hud-nation{flex-basis:160px}
+}
 `;
