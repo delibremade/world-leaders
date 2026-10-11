@@ -34,7 +34,7 @@ test('every verb the UI dispatches exists, and every verb is dispatched by the U
   }
   for (const r of NATION_VERBS) used.add(r.type);
   // Engine verbs whose UI lands in a stacked PR; each names the PR that removes it from this list.
-  const PENDING_UI = { buildNode: '#57 F9b map build layer', closeNode: '#57 F9b map build layer' };
+  const PENDING_UI = { buildNode: '#57 F9b map build layer', closeNode: '#57 F9b map build layer', nodeLever: '#57 F9b map build layer' };
   for (const k of Object.keys(PENDING_UI)) { assert.ok(VERBS[k], k); if (!used.has(k)) used.add(k); }
   assert.deepEqual([...used].sort(), Object.keys(VERBS).sort());
 });

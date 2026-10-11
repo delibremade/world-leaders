@@ -16,6 +16,7 @@ import { naturalDrift } from '../sim/economy.js';
 import { runMonth } from '../sim/tick.js';
 import { applyVerb } from '../sim/actions.js';
 import { stateView, openingPosition, newArsenal, newMinerals, newForces, newBases } from '../sim/state.js';
+import { projectOutlook } from '../sim/minerals.js';
 import { forceView } from '../sim/forces.js';
 import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups } from '../sim/selectors.js';
 import { VERSION, BUILD_STAMP } from './version.js';
@@ -36,7 +37,7 @@ import { SHELL_CSS } from './shell/styles.js';
 import { Seg } from './shell/Seg.jsx';
 import { ForcesTab } from './forces/ForcesTab.jsx';
 import { ArsenalTab } from './arsenal/ArsenalTab.jsx';
-import { MineralsTab, RES_SUBS } from './resources/MineralsTab.jsx';
+import { MineralsTab, RES_SUBS, PrivateBuild } from './resources/MineralsTab.jsx';
 import { NukeRegister } from './shell/NukeRegister.jsx';
 // Nav verticals (9). Situation is a pane folded under Overview behind a segmented control; activeTab keeps its id.
 const TABS=['overview','economy','energy','resources','arsenal','forces','intel','technology','trade'];
@@ -1216,6 +1217,7 @@ function WorldLeadersInner({resumeSignal}){
         {/* RESOURCES TAB */}
         {activeTab==='resources'&&<div className="wl-pane-wrap" data-sentinel="resources">{segResources}{resSub!=='natural'&&<MineralsTab sub={resSub} dispatch={dispatch} view={{country,minerals,nationRelations,resources,resExtraction,globalDef}}/>}{resSub==='natural'&&<div style={{flex:1,overflowY:'auto',padding:'12px'}}>
           <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'12px'}}>Natural Resource Management</div>
+          <div className="wl-note" data-natural-note style={{marginBottom:'10px'}}>Private operators extract under your licence and build GGRB retorting when it pays. You set the licensed rate; the treasury takes royalties and tax (ledger: Extraction).</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(1,1fr)',gap:'10px',maxWidth:'650px'}}>
             {resources&&Object.entries(RES_META).map(([k,meta])=>{
               if(!resources[k]||k==='rareEarth')return null; // rare-earth export extraction lives on Reserves (E5c)
@@ -1230,12 +1232,12 @@ function WorldLeadersInner({resumeSignal}){
                 </div>
                 <div style={{height:'5px',background:'#1f2937',borderRadius:'3px',marginBottom:'10px'}}><div style={{height:'100%',width:`${pct}%`,background:isEmpty?'#ef4444':pct<20?'#f0c040':'#4ade80',borderRadius:'3px',transition:'width .5s'}}/></div>
                 {!isEmpty&&<div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'6px',marginBottom:'10px'}}>
-                  <div style={{background:'#111827',borderRadius:'5px',padding:'7px',textAlign:'center'}}><div style={{fontSize:'10px',color:'#6b7280',marginBottom:'2px'}}>Revenue/mo</div><div style={{fontSize:'13px',fontWeight:700,color:'#4ade80'}}>${Math.round(revPerMo).toLocaleString()}M</div></div>
+                  <div style={{background:'#111827',borderRadius:'5px',padding:'7px',textAlign:'center'}}><div style={{fontSize:'10px',color:'#6b7280',marginBottom:'2px'}}>Royalties/mo</div><div style={{fontSize:'13px',fontWeight:700,color:'#4ade80'}}>${Math.round(revPerMo).toLocaleString()}M</div></div>
                   <div style={{background:'#111827',borderRadius:'5px',padding:'7px',textAlign:'center'}}><div style={{fontSize:'10px',color:'#6b7280',marginBottom:'2px'}}>Depletion</div><div style={{fontSize:'13px',fontWeight:700,color:'#d1d5db'}}>{(rate*(meta.depRate||0.01)).toFixed(2)}/mo</div></div>
                   <div style={{background:'#111827',borderRadius:'5px',padding:'7px',textAlign:'center'}}><div style={{fontSize:'10px',color:'#6b7280',marginBottom:'2px'}}>Yrs Left</div><div style={{fontSize:'13px',fontWeight:700,color:monthsLeft&&monthsLeft<24?'#ef4444':monthsLeft&&monthsLeft<60?'#f0c040':'#4ade80'}}>{monthsLeft?Math.round(monthsLeft/12)+'y':'∞'}</div></div>
                 </div>}
                 {isEmpty?<div style={{fontSize:'11px',color:'#ef4444',padding:'7px',background:'rgba(239,68,68,.06)',borderRadius:'4px',textAlign:'center'}}>Reserves depleted. Import deals required.</div>
-                :<div><div style={{fontSize:'11px',color:'#9ca3af',marginBottom:'5px'}}>Extraction Rate:</div><div style={{display:'flex',gap:'5px'}}>{[0,1,2,3,4,5].map(v=><button key={v} onClick={()=>dispatch({type:'setExtraction',payload:{resource:k,level:v}})} style={{flex:1,background:(resExtraction[k]||0)===v?'#1d4ed8':'#111827',border:`1px solid ${(resExtraction[k]||0)===v?'#3b82f6':'#374151'}`,color:(resExtraction[k]||0)===v?'white':'#9ca3af',padding:'5px 0',borderRadius:'4px',fontSize:'11px',fontWeight:(resExtraction[k]||0)===v?700:400}}>{v===0?'Off':v}</button>)}</div></div>}
+                :<div><div style={{fontSize:'11px',color:'#9ca3af',marginBottom:'5px'}}>Licensed extraction:</div><div style={{display:'flex',gap:'5px'}}>{[0,1,2,3,4,5].map(v=><button key={v} onClick={()=>dispatch({type:'setExtraction',payload:{resource:k,level:v}})} style={{flex:1,background:(resExtraction[k]||0)===v?'#1d4ed8':'#111827',border:`1px solid ${(resExtraction[k]||0)===v?'#3b82f6':'#374151'}`,color:(resExtraction[k]||0)===v?'white':'#9ca3af',padding:'5px 0',borderRadius:'4px',fontSize:'11px',fontWeight:(resExtraction[k]||0)===v?700:400}}>{v===0?'Off':v}</button>)}</div></div>}
               </div>);
             })}
             {/* Greater Green River Basin */}
@@ -1247,19 +1249,23 @@ function WorldLeadersInner({resumeSignal}){
                   <div style={{background:'#111827',borderRadius:'5px',padding:'7px',textAlign:'center'}}><div style={{fontSize:'10px',color:'#6b7280',marginBottom:'2px'}}>Reserves</div><div style={{fontSize:'13px',fontWeight:700,color:'#d97706'}}>{Math.round(resources.shaleOil.r).toLocaleString()}</div></div>
                   <div style={{background:'#111827',borderRadius:'5px',padding:'7px',textAlign:'center'}}><div style={{fontSize:'10px',color:'#6b7280',marginBottom:'2px'}}>Revenue/unit</div><div style={{fontSize:'13px',fontWeight:700,color:'#d97706'}}>$12M × {getRefineMult(defLevels).toFixed(1)}× mult</div></div>
                 </div>
-                <div style={{fontSize:'11px',color:'#9ca3af',marginBottom:'5px'}}>Extraction Rate {grrbState.phase2?'(☢ in-situ — surface impact −60%)':'(environmental cost matures with Materials R&D)'}:</div>
+                <div style={{fontSize:'11px',color:'#9ca3af',marginBottom:'5px'}}>Licensed extraction {grrbState.phase2?'(☢ in-situ — surface impact −60%)':'(environmental cost matures with Materials R&D)'}:</div>
                 <div style={{display:'flex',gap:'5px'}}>{[0,1,2,3].map(v=><button key={v} onClick={()=>dispatch({type:'setExtraction',payload:{resource:'shaleOil',level:v}})} style={{flex:1,background:(resExtraction.shaleOil||0)===v?'#92400e':'#111827',border:`1px solid ${(resExtraction.shaleOil||0)===v?'#d97706':'#374151'}`,color:(resExtraction.shaleOil||0)===v?'white':'#9ca3af',padding:'5px 0',borderRadius:'4px',fontSize:'11px'}}>{v===0?'Off':v}</button>)}</div>
                 {grrbState.phase2?
                   <div style={{marginTop:'9px',padding:'9px',background:'rgba(74,222,128,.06)',border:'1px solid #4ade80',borderRadius:'6px'}}>
                     <div style={{fontSize:'11px',fontWeight:700,color:'#4ade80',marginBottom:'2px'}}>☢ In-Situ Nuclear Retorting — ACTIVE</div>
                     <div style={{fontSize:'10px',color:'#9ca3af'}}>Reactor process heat liquefies the deep kerogen tranche downhole. Output ×2.5 · surface disruption −60% · +2,000 units recoverable reserves added.</div>
                   </div>
+                :minerals?.proj?.retort?<div data-retort style={{marginTop:'9px',padding:'9px',background:'#111827',border:'1px solid #d97706',borderRadius:'6px'}}>
+                    <div style={{fontSize:'11px',fontWeight:700,color:'#d97706',marginBottom:'2px'}}>☢ Phase II authorized: private in-situ retorting</div>
+                    <PrivateBuild o={projectOutlook({country,minerals,grrbState,defLevels,blocTrade,resExtraction,opecSwing,worldEvent,resources,embargoes},'retort')} label="retort" dispatch={dispatch}/>
+                  </div>
                 :(()=>{const pOK=(defLevels.propulsion||0)>=6;const mOK=(defLevels.materials||0)>=5;const ready=pOK&&mOK;return(
                   <div style={{marginTop:'9px',padding:'9px',background:'#111827',border:`1px solid ${ready?'#4ade80':'#1f2937'}`,borderRadius:'6px',opacity:ready?1:0.7}}>
                     <div style={{fontSize:'11px',fontWeight:700,color:ready?'#4ade80':'#9ca3af',marginBottom:'2px'}}>☢ Phase II: In-Situ Nuclear Retorting</div>
                     <div style={{fontSize:'10px',color:'#6b7280',marginBottom:'5px'}}>Nuclear process heat liquefies heavy crude locked in the formation — the deep tranche conventional methods can't touch. Output ×2.5, surface impact −60%, +2,000 units reserves.</div>
                     <div style={{fontSize:'10px',marginBottom:'6px'}}>Requires: <span style={{color:pOK?'#4ade80':'#ef4444'}}>Propulsion L6 (Nuclear Thermal Drive){pOK?' ✓':` — you: ${defLevels.propulsion||0}`}</span> · <span style={{color:mOK?'#4ade80':'#ef4444'}}>Materials L5{mOK?' ✓':` — you: ${defLevels.materials||0}`}</span></div>
-                    <button onClick={()=>dispatch({type:'ggrbPhase2'})} style={{width:'100%',background:ready?'rgba(74,222,128,.1)':'rgba(0,0,0,.3)',border:`1px solid ${ready?'#4ade80':'#374151'}`,color:ready?'#4ade80':'#4b5563',padding:'8px',borderRadius:'5px',fontSize:'11px',fontWeight:700}}>☢ Activate Phase II — $2,500M</button>
+                    <button onClick={()=>dispatch({type:'ggrbPhase2'})} style={{width:'100%',background:ready?'rgba(74,222,128,.1)':'rgba(0,0,0,.3)',border:`1px solid ${ready?'#4ade80':'#374151'}`,color:ready?'#4ade80':'#4b5563',padding:'8px',borderRadius:'5px',fontSize:'11px',fontWeight:700}}>☢ Activate Phase II — private build, $0 capex</button>
                   </div>);})()}
               </div>}
               {grrbState.surveying&&<div style={{padding:'10px',background:'rgba(217,119,6,.08)',borderRadius:'5px',textAlign:'center'}}><div style={{fontSize:'12px',color:'#d97706',animation:'pulse 2s infinite'}}>🔍 Geological Survey in progress — {grrbState.surveyMo} months remaining</div></div>}

@@ -13,7 +13,7 @@ import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups, opOddsTerms, prog
 import { ALLIED_PROGRAMS, TIERS, TIER_ORDER, ACCESS_RULES } from '../data/alliance.js';
 import { rng } from './rng.js';
 import { memberOf } from '../data/event-ctx.js';
-import { startTranche, MINERAL_VERBS } from './minerals.js';
+import { startTranche, MINERAL_VERBS, authorizeRetort } from './minerals.js';
 import { crewBlock, FORCE_VERBS } from './forces.js';
 import { BASE_VERBS } from './bases.js';
 import { FORCE_RULES } from '../data/forces.js';
@@ -537,12 +537,10 @@ function handOverStewardship(g,S,fx,ck){
   S.setStewardship(p=>{const n2={...p};delete n2[ck];g.stewardship=n2;return n2;});S.setConcessions(prev=>{const n2=new Set(prev);n2.add(ck);g.concessions=n2;return n2;});S.setNationRelations(p=>{const n2={...p};DIP_TARGETS.forEach(t=>{if(t.region===cp.region)n2[t.id]=Math.min(100,(n2[t.id]||0)+20);});return n2;});S.setRivalTension(p=>({...p,china:Math.max(0,(p.china||0)-6),russia:Math.max(0,(p.russia||0)-6)}));fx.toast(`🤝 Handed the ministry back — ${nat?.n} keeps you as concession partner; the region exhales`);
 }
 
-// Resources tab: extraction rates, Greater Green River Basin survey and Phase II, renewables.
+// Resources tab: extraction rates (licensing policy; private operators, F5 #37), Greater Green River Basin survey and Phase II, renewables.
 function setExtraction(g,S,fx,k,v){S.setResExtraction(p=>({...p,[k]:v}));}
-function ggrbPhase2(g,S,fx){
-  const ready=(g.defLevels.propulsion||0)>=6&&(g.defLevels.materials||0)>=5;
-  if(!ready){fx.toast('⚠ Requires Propulsion L6 + Materials L5');return;}if((g.stats?.treasury||0)<2500){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-2500}));S.setGrrbState(p=>({...p,phase2:true}));g.grrbState={...g.grrbState,phase2:true};S.setResources(p=>({...p,shaleOil:{...p.shaleOil,r:(p.shaleOil?.r||0)+2000}}));fx.toast('☢ In-Situ Nuclear Retorting online — deep tranche unlocked, output ×2.5');S.setLog(p=>[{msg:'☢ GGRB Phase II: nuclear retorting operational — +2,000 units',yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
-}
+// F5 (#37): Phase II is authorized by the state and built by private capital (src/sim/minerals.js); no treasury capex.
+function ggrbPhase2(g,S,fx){authorizeRetort(g,S,fx);}
 function ggrbSurvey(g,S,fx){if((g.stats?.treasury||0)<800){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-800}));S.setGrrbState({surveying:true,surveyMo:6,unlocked:false});g.grrbState={surveying:true,surveyMo:6,unlocked:false};fx.toast('🏔️ GGRB Geological Survey started — 6 months');}
 function buildRenewable(g,S,fx,k){const lvl=g.resources?.renewable?.[k]||0;
   if(!g.stats||g.stats.treasury<400){fx.toast('⚠ Insufficient');return;}if(lvl>=5){fx.toast('Max level');return;}S.setStats(p=>({...p,treasury:p.treasury-400}));S.setResources(p=>({...p,renewable:{...p.renewable,[k]:(p.renewable?.[k]||0)+1}}));S.setActiveEffects(p=>[...p,{id:`ren_${k}_${fx.now()}`,source:`renewable_${k}`,stat:'inflation',d:-0.04,monthsLeft:999,totalMonths:999}]);

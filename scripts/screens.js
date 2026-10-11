@@ -92,8 +92,8 @@ const chinaControls = async (page) => {
 SCENARIOS['e4-minerals-390'] = async (page) => {
   await chinaControls(page);
   await page.evaluate(() => document.querySelector('[data-tab=resources]').click()); await settle(page, 400);
-  await page.evaluate(() => document.querySelector('[data-mineral=gallium] [data-mineral-head]').click()); await settle(page, 300);
-  await page.evaluate(() => [...document.querySelectorAll('[data-mineral=gallium] button')].find((b) => /Build plant/.test(b.textContent)).click()); await settle(page, 300);
+  await page.evaluate(() => document.querySelector('[data-seg=processing]')?.click()); await settle(page, 300);
+  await page.evaluate(() => [...document.querySelectorAll('[data-mineral=gallium] button')].find((b) => b.dataset.lever === 'guarantee')?.click()); await settle(page, 300);
   await page.evaluate(() => document.querySelector('[data-minerals]').scrollIntoView({ block: 'start' })); await settle(page, 400);
 };
 SCENARIOS['e4-slowdown-390'] = async (page) => {
@@ -122,6 +122,16 @@ SCENARIOS['e8-sof-crews-390'] = async (page) => { await inGame(page); await paus
   await page.evaluate(() => document.querySelector('[data-forces-crews]').scrollIntoView({ block: 'start' })); await settle(page, 300); };
 SCENARIOS['e8-unpaid-390'] = async (page) => { await inGame(page); await pause(page); await page.evaluate(() => { const h = window.__wl; h.fund(20000); }); await page.evaluate(() => document.querySelector('[data-tab=defense]').click()); await settle(page, 300);
   await page.evaluate(() => { const el = document.querySelector('input[type=range][min="0"][max="150"]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, '0'); el.dispatchEvent(new Event('input', { bubbles: true })); }); await months(page, 7); await toForces(page); };
+// F5 (#37): private capital. Processing with a lever in force, Natural with an authorized GGRB retort, the treasury why with sector income.
+const toRes = async (page, sub) => { await page.evaluate(() => document.querySelector('[data-tab=resources]').click()); await settle(page, 400); await page.evaluate((s) => document.querySelector(`[data-seg=${s}]`).click(), sub); await settle(page, 400); };
+SCENARIOS['f5-processing-390'] = async (page) => { await inGame(page); await pause(page); await page.evaluate(() => window.__wl.fund(20000)); await toRes(page, 'processing');
+  await page.evaluate(() => [...document.querySelectorAll('[data-mineral=gallium] button')].find((b) => b.dataset.lever === 'guarantee').click()); await settle(page, 300);
+  await page.evaluate(() => document.querySelector('[data-mineral=rareEarth]').scrollIntoView({ block: 'start' })); await settle(page, 300); };
+SCENARIOS['f5-natural-390'] = async (page) => { await inGame(page); await pause(page); await page.evaluate(() => { const h = window.__wl; h.fund(20000); h.levels({ materials: 5, propulsion: 6 }); }); await toRes(page, 'natural');
+  await tapText(page, 'Commission Geological Survey'); await adv(page, 7); await tapText(page, 'Activate Phase II'); await page.evaluate(() => document.querySelector('[data-retort] [data-lever=permit]').click()); await settle(page, 300); await adv(page, 2);
+  await page.evaluate(() => document.querySelector('[data-retort]').scrollIntoView({ block: 'center' })); await settle(page, 300); };
+SCENARIOS['f5-why-390'] = async (page) => { await inGame(page); await pause(page); await page.evaluate(() => window.__wl.mineral('enrichment', { cap: 12 })); await settle(page, 200); await adv(page, 1);
+  await page.evaluate(() => document.querySelector('[data-why^="Treasury"]').click()); await settle(page, 500); };
 SCENARIOS['p3d-hud-doctrine-390'] = async (page) => { await startUSA(page); await settle(page, 700); };
 SCENARIOS['p3d-nav-econ-390'] = async (page) => { await inGame(page); await pause(page); await page.evaluate(() => document.querySelector('[data-tab=technology]').click()); await settle(page, 500); };
 

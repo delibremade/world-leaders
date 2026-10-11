@@ -1,21 +1,31 @@
 // E4 (#16): minerals and processing chain. One implementation of flows, coverage and the monthly step, shared by the
 // verbs (actions.js), the month (tick.js), the E7 mineral gate (selectors.js) and the Resources / Defense tabs.
-// State g.minerals: own {mineral:{ore,cap,stock,reserve}}, built {mineral:plants}, plants [{m,mo}], deals [{m,n,units,price,mo}],
+// State g.minerals: own {mineral:{ore,cap,stock,reserve}}, built {mineral:plants}, proj {mineral|'retort':{prog,levers}} (F5 #37: private
+// builds in progress and the state levers in force on each), deals [{m,n,units,price,mo}],
 // recycle [m], release [m], pact bool, controls [m] (ours), against {nation:[m]} (AI controls on us, recomputed monthly),
 // queue [{id,left:{m:u},need:{m:u}}] (tranches and, since E8 #20, platform builds waiting for minerals, FIFO).
 import { MINERALS, MINERAL_IDS, MINERAL_START, ROW_CAP, SLOT_INPUTS, PROGRAM_INPUTS, PLATFORM_INPUTS, MINERAL_RULES as R } from '../data/minerals.js';
 import { BLACK_PROGRAMS, PLATFORMS } from '../data/platforms.js';
 import { NATIONS, NATION_BLOC } from '../data/nations.js';
 import { ALLIED_PROGRAMS } from '../data/alliance.js';
+import { oilPriceTerms, renewableTotal } from './selectors.js';
 
 const EPS = 1e-9;
 const PROCESSORS = Object.keys(MINERAL_START);
 export function newMinerals(nid) {
   const st = MINERAL_START[nid] || {};
   const own = Object.fromEntries(MINERAL_IDS.map((m) => { const [ore, cap, stock] = st[m] || [0, 0, 0]; return [m, { ore, cap, stock, reserve: 0 }]; }));
-  return { own, built: {}, plants: [], deals: [], recycle: [], release: [], pact: false, controls: [], against: {}, queue: [] };
+  return { own, built: {}, proj: {}, deals: [], recycle: [], release: [], pact: false, controls: [], against: {}, queue: [] };
 }
-const M = (g) => g.minerals || newMinerals(g.country?.id);
+// Saves before F5 hold treasury-built `plants` [{m,mo}]: each carries over as private progress on that mineral.
+function norm(mm) {
+  if (mm.proj && !mm.plants) return mm;
+  const proj = { ...(mm.proj || {}) };
+  for (const p of mm.plants || []) if (MINERALS[p.m]) proj[p.m] = { levers: [], ...proj[p.m], prog: Math.max(proj[p.m]?.prog || 0, Math.max(0, R.plant.mo - p.mo)) };
+  const rest = { ...mm }; delete rest.plants;
+  return { ...rest, proj };
+}
+const M = (g) => norm(g.minerals || newMinerals(g.country?.id));
 const me = (g) => g.country?.id;
 
 // Tranche inputs: a program override, else its role slot. A regular platform (PLATFORMS) declares its own per-unit inputs (E8, #20).
@@ -93,17 +103,86 @@ export function rivalSupplyFactor(g, n) {
 // Monthly cost of holding export controls on a mineral you process ($M).
 export const controlCost = (mm, m) => Math.round(mm.own[m].cap * MINERALS[m].price * R.controls.exportCost);
 
-// Monthly cost lines of the chain ($M, positive = cost), shared by the month and the Resources tab.
+// Monthly cost lines of the chain ($M, positive = cost), shared by the month and the Resources tab. Plants are private (F5): no upkeep.
 export function mineralCosts(g) {
   const mm = M(g); const by = {};
   const add = (m, v) => { if (v) by[m] = (by[m] || 0) + v; };
   for (const m of MINERAL_IDS) {
-    add(m, (mm.built[m] || 0) * R.plant.upkeep);
     if (mm.recycle.includes(m)) add(m, R.recycle.cost);
     if (mm.controls.includes(m)) add(m, controlCost(mm, m));
   }
   for (const d of mm.deals) if (!controlling(g, d.n, d.m)) add(d.m, d.price);
   return { by, pact: mm.pact ? R.pact.cost : 0, total: Object.values(by).reduce((a, b) => a + b, 0) + (mm.pact ? R.pact.cost : 0) };
+}
+
+// ── F5 (#37): private capital. One implementation of the margin, pace and sector income (data/minerals.js documents the formula).
+const I = R.invest;
+export const PROJECTS = [...MINERAL_IDS, 'retort'];
+export const leverCost = (capex, k) => Math.round(capex * R.levers[k].frac);
+// Share of foreign processing of m (nations + rest of world) that controls exports against us.
+function controlledShare(g, m) {
+  const mm = M(g); const p = me(g); let world = ROW_CAP[m] || 0, cut = 0;
+  for (const n of PROCESSORS) { if (n === p) continue; const c = capOf(g, n, m); world += c; if (controlling(g, n, m)) cut += c; }
+  return world > 0 ? cut / world : 0;
+}
+const queuedNeed = (mm, m) => mm.queue.reduce((s, q) => s + (q.left[m] || 0), 0);
+// Investor outlook on a project: margin terms, whether it is profitable, months of progress per month, ETA.
+export function projectOutlook(g, id) {
+  const mm = M(g); const pj = mm.proj[id]; const levers = pj?.levers || []; const L = levers.map((k) => R.levers[k]);
+  let capex, need, block = null, terms;
+  if (id === 'retort') {
+    capex = R.retort.capex; need = R.retort.mo;
+    if (!pj) block = 'not authorized';
+    terms = [{ label: 'Oil price terms', value: oilPriceTerms(g, { renTot: renewableTotal(g), hormuzHit: false }).mult }];
+  } else {
+    const o = mm.own[id]; capex = R.plant.capex; need = R.plant.mo;
+    if (o.cap + R.plant.add > R.capMax) block = `capacity at its ${R.capMax}/mo bound`;
+    terms = [
+      { label: `Price $${MINERALS[id].price}M / hurdle $${I.hurdle}M`, value: MINERALS[id].price / I.hurdle },
+      { label: o.ore > 0 ? 'Domestic ore' : 'No ore: imported concentrate', value: o.ore > 0 ? 1 : R.noOreEff },
+      { label: 'Scarcity: foreign export controls', value: 1 + I.scarcity * controlledShare(g, id) },
+      { label: 'Demand: tranches waiting', value: 1 + I.demand * Math.min(1, queuedNeed(mm, id) / I.demandRef) },
+      { label: 'Saturation: plants built', value: 1 / (1 + I.sat * (mm.built[id] || 0)) },
+      { label: 'Greenfield: no ore, no plant', value: o.ore > 0 || o.cap > 0 ? 1 : I.greenfield },
+    ];
+  }
+  const base = terms.reduce((a, t) => a * t.value, 1);
+  const raw = base + L.reduce((a, l) => a + l.margin, 0);
+  const margin = L.some((l) => l.floor) ? Math.max(raw, 1) : raw;
+  const profitable = !block && margin >= 1 - EPS;
+  const pace = profitable ? Math.min(I.maxPace, margin) * (1 + L.reduce((a, l) => a + l.pace, 0)) : 0;
+  const prog = pj?.prog || 0;
+  return { id, terms, base, margin, profitable, pace, prog, need, eta: pace > 0 ? Math.ceil((need - prog) / pace - EPS) : Infinity, levers, capex, block };
+}
+// Royalties + sector tax ($M/month) on processing capacity above the start data.
+export function sectorIncome(g) {
+  const mm = M(g); const st = MINERAL_START[me(g)] || {}; const by = {};
+  for (const m of MINERAL_IDS) {
+    const o = mm.own[m]; const extra = Math.max(0, o.cap - (st[m]?.[1] || 0)); if (!extra) continue;
+    by[m] = extra * (o.ore > 0 ? 1 : R.noOreEff) * MINERALS[m].price * (R.sector.tax + (o.ore > 0 ? R.sector.royalty : 0));
+  }
+  return { by, total: Math.round(Object.values(by).reduce((a, b) => a + b, 0)) };
+}
+// The month's private builds: every profitable project advances by its pace; a finished one comes online and consumes its levers.
+function stepProjects(g, S, fx, mm) {
+  const outs = PROJECTS.map((id) => projectOutlook(g, id)).filter((o) => o.pace > 0);
+  if (!outs.length) return mm;
+  const own = { ...mm.own }; const built = { ...mm.built }; const proj = { ...mm.proj };
+  for (const o of outs) {
+    const prog = o.prog + o.pace;
+    if (prog < o.need - EPS) { proj[o.id] = { levers: o.levers, prog }; continue; }
+    delete proj[o.id];
+    if (o.id === 'retort') { retortOnline(g, S, fx); continue; }
+    own[o.id] = { ...own[o.id], cap: Math.min(R.capMax, own[o.id].cap + R.plant.add) }; built[o.id] = (built[o.id] || 0) + 1;
+    fx.toast(`🏭 Private ${MINERALS[o.id].n} plant online — +${R.plant.add}/mo, no treasury capex`);
+  }
+  return { ...mm, own, built, proj };
+}
+function retortOnline(g, S, fx) {
+  const gs = { ...g.grrbState, phase2: true }; g.grrbState = gs; S.setGrrbState(gs);
+  const res = { ...g.resources, shaleOil: { ...g.resources?.shaleOil, r: (g.resources?.shaleOil?.r || 0) + 2000 } }; g.resources = res; S.setResources(res);
+  fx.toast('☢ Private in-situ retorting online — deep tranche unlocked, output ×2.5');
+  S.setLog((p) => [{ msg: '☢ GGRB Phase II: private nuclear retorting operational — +2,000 units', yr: g.date.yr, mo: g.date.mo }, ...(p || []).slice(0, 19)]);
 }
 
 // Programs where the player is a non-founding partner or co-developer: each owes its binding mineral at R.contribution/month.
@@ -128,19 +207,14 @@ export function stepMinerals(g, S, fx, cash, ns) {
   let mm = M(g);
   mm = { ...mm, against: aiControls(g) };
   g.minerals = mm;
-  const own = Object.fromEntries(MINERAL_IDS.map((m) => [m, { ...mm.own[m] }]));
-  const built = { ...mm.built };
-  // Plants under construction come online.
-  const plants = [];
-  for (const pl of mm.plants) {
-    if (pl.mo > 1) { plants.push({ ...pl, mo: pl.mo - 1 }); continue; }
-    own[pl.m].cap = Math.min(R.capMax, own[pl.m].cap + R.plant.add); built[pl.m] = (built[pl.m] || 0) + 1;
-    fx.toast(`🏭 ${MINERALS[pl.m].n} processing plant online — +${R.plant.add}/mo`);
-  }
-  mm = { ...mm, own, built, plants };
+  // Private builds advance; finished plants come online (F5).
+  mm = stepProjects(g, S, fx, mm);
   g.minerals = mm;
+  const own = Object.fromEntries(MINERAL_IDS.map((m) => [m, { ...mm.own[m] }]));
   const cost = mineralCosts(g);
   if (cost.total) cash('Minerals', -cost.total);
+  const inc = sectorIncome(g).total;
+  if (inc) cash('Minerals sector', inc);
   const f = mineralFlows(g);
   for (const m of MINERAL_IDS) {
     const o = own[m];
@@ -172,13 +246,28 @@ export function stepMinerals(g, S, fx, cash, ns) {
 const pay = (g, S, v) => S.setStats((s) => ({ ...s, treasury: s.treasury - v }));
 const bumpRel = (g, S, ids, d) => { const nr = { ...g.nationRelations }; for (const n of ids) if (n !== me(g) && n in nr) nr[n] = Math.max(-100, Math.min(100, nr[n] + d)); g.nationRelations = nr; S.setNationRelations(nr); };
 const known = (m) => !!MINERALS[m];
-function buildPlant(g, S, fx, m) {
-  const mm = M(g); if (!known(m)) return;
-  const pending = mm.plants.filter((p) => p.m === m).length;
-  if (mm.own[m].cap + (pending + 1) * R.plant.add > R.capMax) { fx.toast(`⚠ ${MINERALS[m].n} capacity at its ${R.capMax}/mo bound`); return; }
-  if ((g.stats?.treasury || 0) < R.plant.capex) { fx.toast(`⚠ Plant needs $${R.plant.capex.toLocaleString()}M`); return; }
-  pay(g, S, R.plant.capex); setM(g, S, { ...mm, plants: [...mm.plants, { m, mo: R.plant.mo }] });
-  fx.toast(`🏗️ ${MINERALS[m].n} processing plant — $${R.plant.capex.toLocaleString()}M, online in ${R.plant.mo}mo, $${R.plant.upkeep}M/mo upkeep`);
+const projName = (id) => (id === 'retort' ? 'GGRB retorting' : `${MINERALS[id].n} plant`);
+// F5: a state lever on a private build. Costs frac x capex once, stays in force until that build comes online.
+function enactLever(g, S, fx, id, k) {
+  const mm = M(g); const L = R.levers[k]; if (!L || !PROJECTS.includes(id)) return;
+  const pj = mm.proj[id];
+  if (id === 'retort' && !pj) { fx.toast('⚠ Authorize GGRB Phase II first'); return; }
+  if (pj?.levers.includes(k)) { fx.toast(`${L.n} already in force`); return; }
+  const o = projectOutlook(g, id); if (o.block) { fx.toast(`⚠ ${projName(id)}: ${o.block}`); return; }
+  const cost = leverCost(o.capex, k);
+  if ((g.stats?.treasury || 0) < cost) { fx.toast(`⚠ ${L.n} needs $${cost}M`); return; }
+  pay(g, S, cost); setM(g, S, { ...mm, proj: { ...mm.proj, [id]: { prog: pj?.prog || 0, levers: [...(pj?.levers || []), k] } } });
+  const n = projectOutlook(g, id);
+  fx.toast(`${L.i} ${L.n} · ${projName(id)}: $${cost}M — ${n.profitable ? `private build ~${n.eta}mo` : 'still not profitable for investors'}`);
+}
+// GGRB Phase II (v57: $2,500M from the treasury). F5: the state authorizes, private capital builds the retort.
+export function authorizeRetort(g, S, fx) {
+  const mm = M(g);
+  if (!((g.defLevels?.propulsion || 0) >= 6 && (g.defLevels?.materials || 0) >= 5)) { fx.toast('⚠ Requires Propulsion L6 + Materials L5'); return; }
+  if (g.grrbState?.phase2 || mm.proj.retort) { fx.toast('Phase II already authorized'); return; }
+  setM(g, S, { ...mm, proj: { ...mm.proj, retort: { prog: 0, levers: [] } } });
+  const o = projectOutlook(g, 'retort');
+  fx.toast(`☢ Phase II authorized — private operators build in-situ retorting${o.profitable ? `, ~${o.eta}mo` : ' once oil prices recover'}; no treasury capex`);
 }
 function signOfftake(g, S, fx, m, n) {
   const mm = M(g); if (!known(m) || !NATIONS[n] || n === me(g)) return;
@@ -229,7 +318,7 @@ function toggleExportControl(g, S, fx, m) {
   fx.toast(`🔒 ${MINERALS[m].n} export controls — rivals cut off; relations −${R.controls.relHit} outside your bloc`);
 }
 export const MINERAL_VERBS = {
-  buildPlant: (g, S, fx, { mineral }) => buildPlant(g, S, fx, mineral),
+  enactLever: (g, S, fx, { project, lever }) => enactLever(g, S, fx, project, lever),
   signOfftake: (g, S, fx, { mineral, nation }) => signOfftake(g, S, fx, mineral, nation),
   cancelOfftake: (g, S, fx, { mineral, nation }) => cancelOfftake(g, S, fx, mineral, nation),
   buyStockpile: (g, S, fx, { mineral }) => buyStockpile(g, S, fx, mineral),
@@ -241,13 +330,13 @@ export const MINERAL_VERBS = {
 
 // One row per mineral for the Resources tab.
 export function mineralView(g) {
-  const mm = M(g); const f = mineralFlows(g); const c = mineralCosts(g); const p = me(g);
+  const mm = M(g); const f = mineralFlows(g); const c = mineralCosts(g); const inc = sectorIncome(g); const p = me(g);
   return MINERAL_IDS.map((m) => {
     const o = mm.own[m];
     const partners = PROCESSORS.filter((n) => n !== p && NATIONS[n] && (MINERAL_START[n]?.[m]?.[1] || 0) > 0 && !mm.deals.some((d) => d.m === m && d.n === n))
       .map((n) => ({ id: n, n: NATIONS[n].n, cap: MINERAL_START[n][m][1], controls: controlling(g, n, m), price: offtakePrice(g, n, m), units: offtakeUnits(n, m) }))
       .sort((a, b) => b.cap - a.cap);
-    return { id: m, ...MINERALS[m], ...o, flow: f[m], upkeep: c.by[m] || 0, plants: mm.plants.filter((x) => x.m === m), built: mm.built[m] || 0,
+    return { id: m, ...MINERALS[m], ...o, flow: f[m], upkeep: c.by[m] || 0, proj: projectOutlook(g, m), income: inc.by[m] || 0, built: mm.built[m] || 0,
       deals: mm.deals.filter((d) => d.m === m).map((d) => ({ ...d, name: NATIONS[d.n]?.n, paused: controlling(g, d.n, m) })),
       controlCost: controlCost(mm, m), recycling: mm.recycle.includes(m), releasing: mm.release.includes(m), controlled: mm.controls.includes(m),
       controlledBy: Object.entries(mm.against || {}).filter(([, ms]) => ms.includes(m)).map(([n]) => NATIONS[n]?.n || n),

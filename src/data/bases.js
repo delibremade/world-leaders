@@ -23,8 +23,9 @@ export function distanceKm(a, b) {
 //   response flashpoint months and the intervene gate in theaters within reach
 //   sphere   monthly sphere gain in the host region                          lane     import-cost cut when a route's chokepoint is in reach
 //   shield   rival pressure response in theaters within reach, scaled down   t1       Tier-1 operation odds when the target's home is in reach
-// private: a private-capital node (Part 3 / F5): capex is the government's enabling share, no upkeep. TODO(#57, #54): once F5 lands,
-// route port enabling through the private-capital model in src/sim/minerals.js instead of a flat treasury share.
+// private: a private-capital node (Part 3 as amended by F5 #37). The state authorizes it for $0 and may pull the same levers as a processing
+// plant (MINERAL_RULES.levers, priced as frac x this capex); investors build it while its margin is >= 1 (src/sim/bases.js portOutlook) at
+// min(maxPace, margin) months per month; once online it pays `income` $M/mo to the treasury (port fees, royalties and tax), no upkeep.
 export const NODE_TYPES = {
   naval:     { n: 'Naval base',          i: '⚓', reach: 1500, capex: 1500, mo: 24, upkeep: 10, host: 4, mult: { choke: 1.5, sustain: 0.25, lane: 0.05 }, d: 'Pier, fuel and repair for the fleet. Holds the chokepoints it can reach; escorts bite.' },
   air:       { n: 'Air base',            i: '✈️', reach: 1200, capex: 1000, mo: 18, upkeep: 7,  host: 3, mult: { sortie: 0.35, response: 1, isr: 1 }, d: 'Sortie generation in theater. Air units within reach weigh more; faster flashpoint response.' },
@@ -33,7 +34,7 @@ export const NODE_TYPES = {
   radar:     { n: 'Radar / ISR site',    i: '📡', reach: 2500, capex: 350,  mo: 9,  upkeep: 2,  host: 1, mult: { isr: 3 }, d: 'Early warning and collection. +3 ISR, which every op, strike and Tier-1 odds reads.' },
   bmd:       { n: 'Missile defense site', i: '🛡️', reach: 800,  capex: 800,  mo: 15, upkeep: 4,  host: 2, mult: { shield: 0.25, isr: 1 }, d: 'Interceptors over the host region. Rival pressure responses there land softer.' },
   sof:       { n: 'SOF forward staging', i: '🥷', reach: 1500, capex: 200,  mo: 6,  upkeep: 1,  host: 1, mult: { response: 2, t1: 0.05, isr: 1 }, d: 'A quiet compound for Tier 1. Faster flashpoint response; better odds on regime change nearby.' },
-  port:      { n: 'Port / processing node', i: '🏗️', reach: 0, capex: 300,  mo: 18, upkeep: 0,  host: 0, private: true, mult: { sphere: 0.03, lane: 0.05 }, d: 'Private capital builds it; you enable it. Trade-lane access and a slow pull on the host region.' },
+  port:      { n: 'Port / processing node', i: '🏗️', reach: 0, capex: 1200, mo: 18, upkeep: 0,  host: 0, private: true, income: 6, mult: { sphere: 0.03, lane: 0.05 }, d: 'Private capital builds it, you authorize and enable it. Port fees to the treasury, trade-lane access, a slow pull on the host region.' },
 };
 export const NODE_IDS = Object.keys(NODE_TYPES);
 
@@ -45,6 +46,8 @@ export const BASE_RULES = {
   reopenMo: 6,      // months a closed base waits before consent can reopen it
   foreignTension: 0.25, // monthly tension with the top hostile competitor present (>= 25) in a region where you hold a foreign node
   ai: { every: 3, p: 0.25, max: 5, lead: 25 }, // AI nations place every 3 months with probability p while under max new nodes, where their sphere >= lead
+  // Private port margin terms (F5 model): lane value when a chokepoint is within laneKm, host-region sphere, trade agreements with nations there.
+  port: { laneKm: 1500, lane: 1.3, noLane: 0.85, sphereBase: 0.6, spherePer: 40, tradePer: 0.15 },
 };
 
 // Real candidate locations. host: a NATIONS id (consent runs on relations and pacts) or null (a local host outside the registry;

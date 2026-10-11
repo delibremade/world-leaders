@@ -8,7 +8,9 @@ import { COUNTRIES, NATIONS } from '../src/data/nations.js';
 import { REGION_GEO } from '../src/data/regions.js';
 import { CHOKEPOINTS } from '../src/data/chokepoints.js';
 import { NODE_TYPES, NODE_IDS, SITES, SITE_IDS, REAL_BASES, BASE_RULES as R, project, unproject, distanceKm, KM_PER_PX } from '../src/data/bases.js';
-import { newBases, nodeId, nodesOf, activeNodes, consent, siteOptions, siteView, basesView, coversChoke, coversRegion, chokesCovered, regionsCovered, kmToRegion, nodeCost, aiCandidates, AI_OWNERS, findNode } from '../src/sim/bases.js';
+import { MINERAL_RULES as MR } from '../src/data/minerals.js';
+import { leverCost } from '../src/sim/minerals.js';
+import { newBases, portOutlook, nodeId, nodesOf, activeNodes, consent, siteOptions, siteView, basesView, coversChoke, coversRegion, chokesCovered, regionsCovered, kmToRegion, nodeCost, aiCandidates, AI_OWNERS, findNode } from '../src/sim/bases.js';
 import { parseRegions, regionAt, WORLD } from '../src/ui/map/path.js';
 import { setRngSource, mulberry32 } from '../src/sim/rng.js';
 import { mount, flush, BUNDLES, gameEnded } from './util/harness.js';
@@ -205,4 +207,29 @@ test('App: bases survive the autosave round trip and the test hook can set them;
     const save = JSON.parse(g.saves.at(-1)); assert.ok(Array.isArray(save.bases?.nodes) && save.bases.nodes.length >= REAL_BASES.length, 'bases in the autosave');
     assert.ok(save.bases.nodes.some((n) => n.owner === 'usa' && n.site === 'guam'));
   } finally { console.error = origErr; g.close(); }
+});
+
+// F5 (#37) model on port nodes: the state authorizes for $0, levers price off the private capex, investors build while the margin holds.
+test('private port: authorized for $0, built by investors at the F5 pace, levers accelerate at frac x capex, online it pays Ports sector; an unprofitable site stalls until a lever floors the margin', () => {
+  const h = headless('usa'); const g = h.g; const t0 = g.stats.treasury; g.sphere.NA = { ...g.sphere.NA, player: 80 };
+  // Panama is in NA (US home, sphere 80) and reaches the canal: profitable without help
+  assert.equal(h.run('buildNode', { site: 'panama', type: 'port' }), true); assert.equal(g.stats.treasury, t0, 'no treasury capex');
+  const n = findNode(g, 'usa', 'panama', 'port'); assert.equal(n.status, 'building'); assert.deepEqual(n.levers, []); assert.equal(n.prog, 0);
+  const o = portOutlook(g, n); assert.ok(o.profitable && o.pace > 0 && o.eta <= NODE_TYPES.port.mo, JSON.stringify(o)); assert.equal(o.terms.length, 4); assert.match(h.toasts.at(-1), /authorized, no treasury capex: private build ~\d+ mo/);
+  const slow = o.eta;
+  assert.equal(h.run('nodeLever', { id: n.id, lever: 'dpa' }), true); assert.equal(g.stats.treasury, t0 - leverCost(NODE_TYPES.port.capex, 'dpa'));
+  assert.equal(h.run('nodeLever', { id: n.id, lever: 'dpa' }), false, 'already in force');
+  const o2 = portOutlook(g, findNode(g, 'usa', 'panama', 'port')); assert.ok(o2.eta < slow, `DPA shortens ${slow} -> ${o2.eta}`); assert.ok(o2.pace > o.pace);
+  rich(g); for (let i = 0; i < o2.eta; i++) { g.sphere.NA = { ...g.sphere.NA, player: 80 }; months(h, 1); }
+  const done = findNode(g, 'usa', 'panama', 'port'); assert.equal(done.status, 'active'); assert.equal(done.prog, undefined); assert.ok(h.toasts.some((t) => /Private Port .* online: \$6M\/mo/.test(t)));
+  months(h, 1); assert.equal(h.ui.ledger['Ports sector'], NODE_TYPES.port.income);
+  // Hambantota: no chokepoint within 1,500 km, US sphere 10 in South Asia: investors wait until the offtake guarantee floors the margin
+  g.sphere.SAS = { ...g.sphere.SAS, player: 12 };
+  assert.equal(h.run('buildNode', { site: 'hambantota', type: 'port' }), true); assert.match(h.toasts.at(-1), /not yet profitable/);
+  const hb = findNode(g, 'usa', 'hambantota', 'port'); assert.ok(!portOutlook(g, hb).profitable);
+  months(h, 3); assert.equal(findNode(g, 'usa', 'hambantota', 'port').prog, 0, 'stalled');
+  h.run('nodeLever', { id: hb.id, lever: 'guarantee' }); assert.ok(portOutlook(g, findNode(g, 'usa', 'hambantota', 'port')).profitable, 'floored at 1');
+  months(h, 1); assert.ok(findNode(g, 'usa', 'hambantota', 'port').prog > 0);
+  assert.equal(h.run('nodeLever', { id: nodeId('usa', 'norfolk', 'naval'), lever: 'dpa' }), false, 'levers only on private nodes');
+  assert.ok(Object.keys(MR.levers).length === 5);
 });

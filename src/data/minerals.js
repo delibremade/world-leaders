@@ -14,6 +14,8 @@
 //  - `row` is the rest of the world: processors outside NATIONS (Indonesia nickel, Chile lithium, Vietnam tungsten,
 //    Kazakhstan titanium). It is a market bucket, not a nation, and nobody can export-control it.
 //  - The v57 Resources `rareEarth` extraction is export revenue, unrelated to this feedstock (E5 merges the two views).
+//  - Oil, gas and coal extraction is private under licence (F5, #37): the v57 `Extraction` line is the state's take (royalties +
+//    tax), and the extraction level is licensing policy. Neither changed value.
 export const MINERALS = {
   rareEarth: { n: 'Rare earths', i: '🧲', price: 20, use: 'magnets in motors, actuators, guidance' },
   gallium: { n: 'Gallium', i: '📡', price: 25, use: 'GaN radar and EW transmitters' },
@@ -74,12 +76,29 @@ export const PLATFORM_INPUTS = {
   hypersonic_bty: { tungsten: 2, rareEarth: 1, titanium: 1 }, mech_division: { nickel: 1 }, frigate_sqn: { nickel: 1 },
   ssbn_fleet: { nickel: 3, titanium: 2, enrichment: 2 }, strategic_bombers: { titanium: 2, rareEarth: 1 }, icbm_force: { tungsten: 1, enrichment: 2 },
 };
-// Monthly bounds and levers. capex/upkeep in $M; mo = build months; add = capacity units/month a plant brings online.
+// Monthly bounds and levers. capex in $M; mo = build months at pace 1; add = capacity units/month a plant brings online.
+// F5 (#37): plants are private capital. Investors build one plant per mineral at a time while it is profitable, paying the
+// capex themselves; the state pulls levers costing frac x capex and earns royalties + sector tax on the new capacity.
+//  margin = price / hurdle x (ore ? 1 : noOreEff) x (1 + scarcity x share of foreign processing controlled against us)
+//           x (1 + demand x min(1, units queued tranches still need / demandRef)) / (1 + sat x plants already built)
+//           x greenfield (no ore and no plant yet: no industry to expand) + lever margins
+//  profitable when margin >= 1 (the offtake guarantee floors it at 1); pace = min(maxPace, margin) x (1 + lever paces), months/month.
+//  Sector income is on capacity above the start data only: start capacity is already inside the v57 GDP tax base.
 export const MINERAL_RULES = {
   capMax: 120, stockMax: 40, reserveMax: 80,
   marketShare: 0.08, // the player's open-market draw on each willing foreign processor
   noOreEff: 0.6,
-  plant: { capex: 1800, upkeep: 15, mo: 36, add: 5 },
+  plant: { capex: 1800, mo: 36, add: 5 }, // capex is the investors'; it sets lever costs and is shown for scale
+  invest: { hurdle: 20, scarcity: 1, demand: 0.5, demandRef: 10, sat: 0.25, maxPace: 1.5, greenfield: 0.5 },
+  levers: {
+    permit: { n: 'Fast-track permits', s: 'Permits', i: '📝', frac: 0.02, pace: 0.5, margin: 0 },
+    credit: { n: 'Tax credit', s: 'Tax credit', i: '🧾', frac: 0.08, pace: 0.15, margin: 0.25 },
+    loan: { n: 'Loan guarantee', s: 'Loan', i: '🏦', frac: 0.05, pace: 0.25, margin: 0.2 },
+    dpa: { n: 'DPA funding', s: 'DPA', i: '🏛️', frac: 0.17, pace: 0.6, margin: 0.3 },
+    guarantee: { n: 'Offtake guarantee', s: 'Offtake', i: '🤝', frac: 0.07, pace: 0.2, margin: 0, floor: 1 },
+  },
+  sector: { tax: 0.12, royalty: 0.05 }, // x refined value of new output; royalty only when it runs on domestic ore
+  retort: { capex: 2500, mo: 36 }, // GGRB Phase II in-situ retorting: margin = oil price terms (selectors.oilPriceTerms)
   offtake: { units: 3, partnerCut: 0.5, term: 36, relMin: 0, premiumRel: 60 }, // units = min(units, partner cap x partnerCut); price x (1 + (premiumRel - rel)/100) when rel < premiumRel
   stockpile: { lot: 10, markup: 1.2, release: 5 },
   recycle: { cost: 20, add: 1 }, // not for enrichment

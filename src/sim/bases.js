@@ -12,6 +12,10 @@ import { parseRegions } from '../data/geo.js';
 import { CHOKEPOINTS, IMPORT_ROUTES } from '../data/chokepoints.js';
 import { isAllyOf, topHostile } from './formulas.js';
 import { rng } from './rng.js';
+import { leverCost } from './minerals.js';
+import { MINERAL_RULES as MR } from '../data/minerals.js';
+import { DIP_TARGETS } from '../data/nations.js';
+const EPS = 1e-9;
 
 export const nodeId = (owner, site, type) => `${owner}:${site}:${type}`;
 export function newBases() {
@@ -82,7 +86,7 @@ export function siteOptions(g, sid) {
   const c = consent(g, sid); const treasury = g.stats?.treasury || 0;
   return site.types.map((type) => {
     const cost = nodeCost(type, sid, pid); const have = findNode(g, pid, sid, type);
-    const reason = have ? (have.status === 'closed' ? 'Closed by the host' : have.status === 'building' ? `Building, ${have.mo} mo` : 'Built') : !c.ok ? c.reason : treasury < cost.capex ? `Need $${cost.capex}M` : null;
+    const reason = have ? (have.status === 'closed' ? 'Closed by the host' : have.status === 'building' ? `Building, ${have.mo} mo` : 'Built') : !c.ok ? c.reason : !cost.private && treasury < cost.capex ? `Need $${cost.capex}M` : null;
     return { type, ...NODE_TYPES[type], ...cost, have, ok: !reason, reason };
   });
 }
@@ -93,7 +97,7 @@ export function siteView(g, sid) {
 }
 // Every node the player holds, with its reach summary and monthly cost.
 export function basesView(g) {
-  const pid = me(g); const nodes = BS(g).nodes.map((n) => ({ ...n, siteName: SITES[n.site].n, region: SITES[n.site].region, hostName: hostName(SITES[n.site]), mine: n.owner === pid, cost: nodeCost(n.type, n.site, n.owner), chokes: chokesCovered(n), regions: regionsCovered(n), foreign: isForeign(n) }));
+  const pid = me(g); const nodes = BS(g).nodes.map((n) => ({ ...n, siteName: SITES[n.site].n, region: SITES[n.site].region, hostName: hostName(SITES[n.site]), mine: n.owner === pid, cost: nodeCost(n.type, n.site, n.owner), chokes: chokesCovered(n), regions: regionsCovered(n), foreign: isForeign(n), outlook: n.owner === pid && NODE_TYPES[n.type].private && n.status === 'building' ? portOutlook(g, n) : null }));
   const mine = nodes.filter((n) => n.mine); const active = mine.filter((n) => n.status === 'active');
   return { nodes, mine, theirs: nodes.filter((n) => !n.mine), upkeep: active.reduce((s, n) => s + n.cost.upkeep, 0), hostPay: active.reduce((s, n) => s + n.cost.host, 0), building: mine.filter((n) => n.status === 'building'), closed: mine.filter((n) => n.status === 'closed') };
 }
@@ -108,10 +112,18 @@ function buildNode(g, S, fx, sid, type) {
   const opt = siteOptions(g, sid).find((o) => o.type === type);
   if (!opt) { fx.toast(`⚠ ${SITES[sid].n} cannot host a ${NODE_TYPES[type].n}`); return false; }
   if (!opt.ok) { fx.toast('⚠ ' + opt.reason); return false; }
+  const t = NODE_TYPES[type]; const site = SITES[sid];
+  if (t.private) { // F5 model: the state authorizes for $0; investors build while the margin holds
+    const node = { id: nodeId(pid, sid, type), owner: pid, site: sid, type, status: 'building', mo: opt.mo, since: g.tickCount || 0, prog: 0, levers: [] };
+    commit(g, S, [...BS(g).nodes, node]);
+    const o = portOutlook(g, node);
+    fx.toast(`${t.i} ${t.n} at ${site.n} authorized, no treasury capex: ${o.profitable ? `private build ~${o.eta} mo` : 'not yet profitable for investors; pull a lever'}`);
+    logLine(g, S, `${t.i} Authorized: ${t.n}, ${site.n} (private capital)`);
+    return true;
+  }
   S.setStats((p) => ({ ...p, treasury: p.treasury - opt.capex }));
   const node = { id: nodeId(pid, sid, type), owner: pid, site: sid, type, status: 'building', mo: opt.mo, since: g.tickCount || 0 };
   commit(g, S, [...BS(g).nodes, node]);
-  const t = NODE_TYPES[type]; const site = SITES[sid];
   fx.toast(`${t.i} ${t.n} at ${site.n}: $${opt.capex}M, online in ${opt.mo} months${opt.host ? `, $${opt.host}M/mo to ${hostName(site)}` : ''}`);
   logLine(g, S, `${t.i} Breaking ground: ${t.n}, ${site.n}`);
   return true;
@@ -125,10 +137,49 @@ function closeNode(g, S, fx, id) {
   logLine(g, S, `${t.i} Decommissioned: ${t.n}, ${SITES[node.site].n}`);
   return true;
 }
+// F5 lever on a private node you authorized: costs frac x capex once, in force until it comes online. Same table and pricing as plants.
+function nodeLever(g, S, fx, id, k) {
+  const pid = me(g); const node = BS(g).nodes.find((n) => n.id === id && n.owner === pid); const L = MR.levers[k];
+  if (!node || !L || !NODE_TYPES[node.type].private) return false;
+  if (node.status !== 'building') { fx.toast(`⚠ ${SITES[node.site].n} is not under construction`); return false; }
+  if ((node.levers || []).includes(k)) { fx.toast(`${L.n} already in force`); return false; }
+  const cost = leverCost(NODE_TYPES[node.type].capex, k);
+  if ((g.stats?.treasury || 0) < cost) { fx.toast(`⚠ ${L.n} needs $${cost}M`); return false; }
+  S.setStats((p) => ({ ...p, treasury: p.treasury - cost }));
+  const nodes = BS(g).nodes.map((n) => (n.id === id ? { ...n, levers: [...(n.levers || []), k] } : n)); commit(g, S, nodes);
+  const o = portOutlook(g, nodes.find((n) => n.id === id));
+  fx.toast(`${L.i} ${L.n} · ${SITES[node.site].n}: $${cost}M — ${o.profitable ? `private build ~${o.eta} mo` : 'still not profitable for investors'}`);
+  return true;
+}
 export const BASE_VERBS = {
   buildNode: (g, S, fx, { site, type }) => buildNode(g, S, fx, site, type),
   closeNode: (g, S, fx, { id }) => closeNode(g, S, fx, id),
+  nodeLever: (g, S, fx, { id, lever }) => nodeLever(g, S, fx, id, lever),
 };
+
+// ── Private capital (F5 #37) for port nodes: investor margin from lane value, host-region sphere and trade ties, saturation across your
+// ports; levers add margin and pace exactly as on a plant; pace = min(maxPace, margin) x (1 + lever paces), months of progress per month.
+export function portOutlook(g, node) {
+  const sid = node.site; const site = SITES[sid]; const P = R.port; const I = MR.invest; const t = NODE_TYPES[node.type];
+  const levers = node.levers || []; const L = levers.map((k) => MR.levers[k]);
+  const lane = Object.keys(CHOKEPOINTS).some((k) => distanceKm(siteLL(sid), chokeLL(k)) <= P.laneKm);
+  const pv = g.sphere?.[site.region]?.player || 0;
+  const ties = DIP_TARGETS.filter((d) => d.region === site.region && g.tradeAgreements?.has?.(d.id)).length;
+  const ports = nodesOf(g).filter((n) => NODE_TYPES[n.type].private && n.status === 'active').length;
+  const terms = [
+    { label: lane ? 'Lane value: a chokepoint within reach' : 'No chokepoint within reach', value: lane ? P.lane : P.noLane },
+    { label: `Host-region sphere ${Math.round(pv)}%`, value: P.sphereBase + pv / P.spherePer },
+    { label: `Trade agreements in the region: ${ties}`, value: 1 + P.tradePer * ties },
+    { label: `Saturation: ${ports} port${ports === 1 ? '' : 's'} held`, value: 1 / (1 + I.sat * ports) },
+  ];
+  const base = terms.reduce((a, x) => a * x.value, 1);
+  const raw = base + L.reduce((a, l) => a + l.margin, 0);
+  const margin = L.some((l) => l.floor) ? Math.max(raw, 1) : raw;
+  const profitable = margin >= 1 - EPS;
+  const pace = profitable ? Math.min(I.maxPace, margin) * (1 + L.reduce((a, l) => a + l.pace, 0)) : 0;
+  const prog = node.prog || 0; const need = t.mo;
+  return { terms, base, margin, profitable, pace, prog, need, eta: pace > 0 ? Math.ceil((need - prog) / pace - EPS) : Infinity, levers, capex: t.capex, income: t.income || 0 };
+}
 
 // ── AI placement. Every 3 months after the grace period each AI nation may break ground where it leads (sphere >= lead) on a host
 // that is not hostile to its bloc, preferring sites that reach a chokepoint (Djibouti crowds). Deterministic through the seeded rng.
@@ -171,6 +222,15 @@ export function stepBases(g, S, fx, cash) {
   const pid = me(g); if (!pid) return;
   let changed = false; const nodes = BS(g).nodes.map((n) => ({ ...n }));
   for (const n of nodes) {
+    if (n.status === 'building' && n.owner === pid && NODE_TYPES[n.type].private) { // F5: investors advance it by its pace while the margin holds
+      const o = portOutlook(g, n); if (o.pace <= 0) continue;
+      changed = true; n.prog = (n.prog || 0) + o.pace;
+      if (n.prog < o.need - EPS) { n.mo = Math.max(1, Math.ceil(o.need - n.prog - EPS)); continue; }
+      n.status = 'active'; n.mo = 0; delete n.prog; delete n.levers;
+      fx.toast(`${NODE_TYPES[n.type].i} Private ${NODE_TYPES[n.type].n} at ${SITES[n.site].n} online: $${NODE_TYPES[n.type].income}M/mo to the treasury, no capex`);
+      logLine(g, S, `${NODE_TYPES[n.type].i} Online (private capital): ${NODE_TYPES[n.type].n}, ${SITES[n.site].n}`);
+      continue;
+    }
     if (n.status === 'building') { n.mo -= 1; changed = true; if (n.mo <= 0) { n.status = 'active'; n.mo = 0; if (n.owner === pid) { fx.toast(`${NODE_TYPES[n.type].i} ${NODE_TYPES[n.type].n} at ${SITES[n.site].n} is operational`); logLine(g, S, `${NODE_TYPES[n.type].i} Operational: ${NODE_TYPES[n.type].n}, ${SITES[n.site].n}`); } } }
     if (n.owner !== pid) continue;
     const c = consent(g, n.site, n);
@@ -178,10 +238,11 @@ export function stepBases(g, S, fx, cash) {
     else if (n.status === 'closed') { n.closed = (n.closed || 0) + 1; changed = true; if (n.closed >= R.reopenMo && c.ok) { n.status = 'active'; delete n.closed; fx.toast(`${NODE_TYPES[n.type].i} ${SITES[n.site].n} reopened: ${hostName(SITES[n.site])} consents again`); logLine(g, S, `${NODE_TYPES[n.type].i} Base reopened: ${NODE_TYPES[n.type].n}, ${SITES[n.site].n}`); } }
   }
   // Costs: upkeep on active nodes, basing agreements on active foreign ones.
-  let upkeep = 0, hostPay = 0;
-  for (const n of nodes) { if (n.owner !== pid || n.status !== 'active') continue; const c = nodeCost(n.type, n.site, pid); upkeep += c.upkeep; hostPay += c.host; }
+  let upkeep = 0, hostPay = 0, ports = 0;
+  for (const n of nodes) { if (n.owner !== pid || n.status !== 'active') continue; const c = nodeCost(n.type, n.site, pid); upkeep += c.upkeep; hostPay += c.host; ports += NODE_TYPES[n.type].income || 0; }
   if (upkeep) cash('Base upkeep', -upkeep);
   if (hostPay) cash('Basing agreements', -hostPay);
+  if (ports) cash('Ports sector', ports);
   // Foreign presence draws tension: the top hostile competitor with a real stake (>= 25) in a region where you hold an active foreign node.
   const regionsWithForeign = new Set(nodes.filter((n) => n.owner === pid && n.status === 'active' && isForeign(n)).map((n) => SITES[n.site].region));
   if (regionsWithForeign.size) {
