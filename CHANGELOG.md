@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.78.0 (2026-10-11) — F7a (#55): tangible order of battle, data
+- New registry `src/data/orbat.js` (spec Part 9), data only; the engine reads it from F7b. No behavior change, no parity case touched.
+- `ORBAT`: real 2024 inventories for all eight playable nations, 141 lines by type (airframes, hulls, formations, launchers), each with count, 2024 mission-capable rate and `status_source` (IISS Military Balance 2024, World Air Forces 2024, Naval Vessel Register, Air & Space Forces Almanac 2024; the owner corrects). US: 47 lines incl. F-22 183, F-35A/B/C 410/140/75, F/A-18E/F 560, F-15E 218, F-15EX 8, B-1B 45, B-2A 19, B-52H 76, KC-135 376, KC-46 80, E-3 16, C-17 222, 11 CVN, 49 SSN, 14 SSBN, 4 SSGN, 73 DDG, 0 FFG, 30 amphibs, 31 active BCTs + 27 ARNG, 21 USMC battalions, 400 Minuteman III.
+- `CREW_RATIOS`: crew sets per platform, people per set, maintainers per platform, sourced per role (fighter 1.25 pilots; SSBN Blue/Gold; CVN ship's company 3,000; BCT 4,200-4,500). Every 2024 fleet is crewable from its 2024 active strength (US needs ~360k of 1.28M).
+- `MANPOWER`: headcounts and recruitable population per nation (cohort 17-24, military-age 18-49, eligibility, 2024 active, reserve, accessions); `manpowerCap` = military-age x eligibility, the hard bound F7b enforces.
+- `OWNER_PARAMS`: B-21 planned buy 200 (program of record 100), F/A-XX active with IOC 2035. `UNIT_PLATFORMS`: platforms each procured unit adds to an existing fleet line (squadron 24, bomb squadron 12, B-21 tranche 20, one hull per ship); every catalog program lands in a line.
+- Tests: `test/orbat.test.js` (6).
+
 ## 0.77.0 (2026-10-11) — F9c (#57): base effects wired in
 - Intentional rule change. `src/sim/reach.js` holds reach and one aggregator per effect; tick, formulas, events, actions and the UI call it (test/bases-effects.test.js guards against re-derivation). Only `active` nodes count, so a host closure removes every effect the same month.
 - Chokepoint control: the weight at a chokepoint is the ships in its theater plus your naval bases (+1.5) and hubs (+0.5) within reach, less half of the rivals' there. NSA Bahrain plus half a frigate secures Hormuz; a crowded Gulf (two rival naval bases) is contestable, not owned. Escort posture reads `escorted` on the same weight. Naval bases and ports on your import routes cut the secured import bill by 5% each (cap 10%).
