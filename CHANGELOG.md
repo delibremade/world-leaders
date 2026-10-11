@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.88.0 (2026-10-11) — D4: Forces master-detail
+- UI only, no rule change; parity goldens untouched. Desktop branches sit behind `useWide()` (>= 1100px); the phone tree is unchanged.
+- Equipment: the order of battle is one sortable table of every type (branch, in service, ready, MC now and target, crewless, maintenance) beside the selected type's detail (maintenance slider, modernize, retire, source) with the fleet summary and crews panels; inventory and theaters under the table. Retire still goes through the confirm panel.
+- Manpower, Quality, Training and Special flow into two columns.
+- `DataTable` gains `rowProps` (the 390px selectors `data-line` keep working on table rows). Table cell padding 8px.
+- Tests: `desktop-layout.test.js` +2 (table beside detail, many rows visible, no sideways scroll, select, sort, retire through confirm; two columns). Existing Forces tests green at 390 and 1280.
+
 ## 0.87.0 (2026-10-11) — D3: Arsenal master-detail and tables
 - UI only, no rule change; parity goldens untouched (verb parity green). Phone tree unchanged: every desktop branch is behind `useWide()` (>= 1100px), so jsdom and 390px render the old stacked panels.
 - New shared primitives: `shell/DataTable.jsx` (sortable columns, selected row, ArrowUp/Down, ~30px rows, aria-sort) and `shell/useWide.js` (one media hook; `Sheet` now uses it too). CSS: `.wl-md` master-detail, `.wl-cols` multi-column panels, `.wl-tbl`.

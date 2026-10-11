@@ -5,7 +5,7 @@ import { useState } from 'react';
 
 const cmp = (a, b) => (typeof a === 'number' && typeof b === 'number' ? a - b : String(a ?? '').localeCompare(String(b ?? ''), undefined, { numeric: true }));
 
-export function DataTable({ id, label, title, count, columns, rows, rowId, selected, onSelect, initialSort = null }) {
+export function DataTable({ id, label, title, count, columns, rows, rowId, selected, onSelect, rowProps, initialSort = null }) {
   const [sort, setSort] = useState(initialSort); // { col, dir: 1 | -1 } | null = source order
   const col = sort && columns.find((c) => c.id === sort.col);
   const shown = col ? [...rows].sort((a, b) => sort.dir * cmp(col.get(a), col.get(b))) : rows;
@@ -26,7 +26,7 @@ export function DataTable({ id, label, title, count, columns, rows, rowId, selec
         <tbody>{shown.map((r) => {
           const rid = rowId(r);
           return (
-            <tr key={rid} data-row={rid} tabIndex={selected === rid ? 0 : -1} aria-selected={selected === rid} onClick={() => onSelect?.(rid)} onFocus={() => onSelect && selected !== rid && onSelect(rid)}>
+            <tr key={rid} data-row={rid} tabIndex={selected === rid ? 0 : -1} aria-selected={selected === rid} {...rowProps?.(r)} onClick={() => onSelect?.(rid)} onFocus={() => onSelect && selected !== rid && onSelect(rid)}>
               {columns.map((c) => <td key={c.id} data-num={c.num || undefined} data-tone={c.tone?.(r)}>{c.cell ? c.cell(r) : c.get(r)}</td>)}
             </tr>);
         })}</tbody>

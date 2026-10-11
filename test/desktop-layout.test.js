@@ -157,3 +157,43 @@ test('1440px: Arsenal Procurement shows every platform in one table; Exports sho
     assert.deepEqual(errors, []);
   } finally { await ctx.close(); }
 });
+
+// D4 Forces: Equipment is the order of battle as one sortable table beside the selected type's detail; the other
+// four sub-tabs flow into columns. Every table column is reachable without sideways scrolling at 1440 and 1920.
+for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
+  test(`${W}px: Forces Equipment is a type table beside a detail pane; select, sort, retire through confirm`, async () => {
+    const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
+    try {
+      await page.evaluate(() => { const h = window.__wl; h.field('f47', 2); h.forces({ crews: { land: 6, air: 0, sea: 6 } }); });
+      await go(page, 'forces'); await seg(page, 'equipment');
+      const t = await box(page, '[data-table=fleet]'), d = await box(page, '[data-detail=fleet]');
+      assert.ok(t && d && t.w >= 480 && d.w >= 320 && d.x >= t.r - 1, `table ${JSON.stringify(t)} detail ${JSON.stringify(d)}`);
+      assert.ok(await visibleRows(page, '[data-table=fleet]', H) >= (H >= 1000 ? 25 : 15), 'many types visible at once');
+      const scrolls = await page.evaluate(() => { const w = document.querySelector('[data-table=fleet]'); return w.scrollWidth > w.clientWidth + 1; });
+      if (W >= 1440) assert.equal(scrolls, false, 'no sideways scroll inside the table');
+      await page.evaluate(() => document.querySelector('[data-line=f22]').click()); await settle(page, 200);
+      const det = await page.evaluate(() => document.querySelector('[data-line-detail=f22]')?.innerText || '');
+      assert.match(det, /Source: Air & Space Forces Almanac/); assert.match(det, /Modernize/);
+      await page.click('[data-sort=count]'); await settle(page, 100);
+      const counts = await page.evaluate(() => [...document.querySelectorAll('[data-table=fleet] tbody tr td:nth-child(3)')].map((c) => +c.textContent.replace(/,/g, '')));
+      assert.deepEqual(counts, [...counts].sort((a, b) => b - a), 'count sorts high to low');
+      const n0 = await page.evaluate(() => +document.querySelector('[data-row=f22] td:nth-child(3)').textContent.replace(/,/g, ''));
+      await page.evaluate(() => document.querySelector('[data-retire=f22]').click()); await settle(page, 400);
+      const c = await stableRect(page, '[data-confirm]', { within: { W, H } }); assert.ok(c && c.x >= 0 && c.r <= W + 0.5, 'confirm panel inside the viewport');
+      await page.evaluate(() => document.querySelector('[data-confirm-ok]').click()); await settle(page, 400);
+      assert.equal(await page.evaluate(() => +document.querySelector('[data-row=f22] td:nth-child(3)').textContent.replace(/,/g, '')), n0 - 12, 'retiring 12 drops the count');
+      assert.deepEqual(errors, []);
+    } finally { await ctx.close(); }
+  });
+}
+test('1440px: Forces Manpower, Quality, Training, Special use two columns', async () => {
+  const { ctx, page } = await openGame(browser, { width: 1440, height: 900 });
+  try {
+    await go(page, 'forces');
+    for (const id of ['manpower', 'quality', 'training', 'specialized']) {
+      await seg(page, id);
+      const cols = await page.evaluate(() => new Set([...document.querySelectorAll('[data-forces] > section')].map((e) => Math.round(e.getBoundingClientRect().x))).size);
+      assert.ok(cols >= 2, `${id}: ${cols} column(s)`);
+    }
+  } finally { await ctx.close(); }
+});
