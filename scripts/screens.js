@@ -96,6 +96,16 @@ SCENARIOS['e4-minerals-390'] = async (page) => {
   await page.evaluate(() => [...document.querySelectorAll('[data-mineral=gallium] button')].find((b) => b.dataset.lever === 'guarantee')?.click()); await settle(page, 300);
   await page.evaluate(() => document.querySelector('[data-minerals]').scrollIntoView({ block: 'start' })); await settle(page, 400);
 };
+// F10 (#58): tangible minerals. Reserves in tonnes with years to zero and source; Processing with named plants and t/yr.
+for (const sub of ['reserves', 'processing']) {
+  SCENARIOS[`f10-${sub}-390`] = async (page) => {
+    await inGame(page); await pause(page);
+    await page.evaluate(() => document.querySelector('[data-tab=resources]').click()); await settle(page, 400);
+    await page.evaluate((s) => document.querySelector(`[data-segbar=resources] [data-seg=${s}]`)?.click(), sub); await settle(page, 400);
+    await page.evaluate(() => document.querySelector('[data-minerals]')?.scrollIntoView({ block: 'start' })); await settle(page, 400);
+  };
+}
+
 SCENARIOS['e4-slowdown-390'] = async (page) => {
   await chinaControls(page);
   await page.evaluate((ids) => { for (const m of ids) window.__wl.mineral(m, { stock: 0 }); }, IDS); await settle(page, 300);
@@ -179,3 +189,4 @@ if (process.argv[1] && process.argv[1].endsWith('screens.js')) {
   const names = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(SCENARIOS);
   run(names).then((r) => process.exit(r.some((x) => x.errors.length) ? 1 : 0));
 }
+

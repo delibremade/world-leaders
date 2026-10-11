@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.81.0 (2026-10-11) — F10 (#58): tangible minerals
+- Data and view only; the sim still runs on game units, so behavior is identical and no parity case moved. One conversion: tonnes = units x tPerUnit, tPerUnit = 2024 world refined output / 1200 (1 unit/mo = 1% of world per year).
+- `MINERAL_UNITS`: unit label, 2024 world output and `status_source` for all ten rows (USGS MCS 2025, IEA 2025, WNA; owner corrects). Enrichment in kSWU.
+- `FACILITIES`: named plants per nation and mineral with shares of start capacity (Mountain Pass CA; Urenco Eunice; Norilsk; VSMPO-AVISMA; Georges Besse II; Kokkola; Nikkelverk; China by province in aggregate; everything else one aggregate line). Lynas Seadrift TX listed as planned at 0 t; the US's first private rare-earth build takes that name.
+- Engine: `tonnes`, `plantsOf`, `trancheDemand`; `programSupply` rows add `needT`, `inflowT`, `haveT`; `mineralView` rows add capT, oreT, stockT, years, plants, unit, status_source.
+- Resources tab: Reserves show ore t, refined t/yr, years to zero and the source; Processing shows t/yr, % of world, plant names; Stockpile shows t.
+- Caveats (documented, not fixed): ore is game-scaled feedstock, not USGS reserves; per-tranche demand inherits the game's unit scale and is far above real per-airframe content.
+- Tests: `test/minerals-tonnes.test.js` (4); layout test checks tonnes, plant names and sources at 390 and 1280. Screens: `reports/screens/f10-{reserves,processing}-390.png`.
+
 ## 0.80.0 (2026-10-11) — F7c (#55): Forces tab shows the real order of battle
 - UI only, no rule change; parity goldens untouched.
 - Equipment: Order of battle summary (ready / total, maintenance all types, depot throughput with cost and upgrade months), then Air, Sea and Land panels with every type: count, ready, MC now with its target as the bar marker, crewless, block, depot months. Tap a type for its detail: 2024 count and losses, crew ratio and people, per-type quality, basing, procurement units, source line, a per-type maintenance slider, Modernize and Retire (a squadron, or all) through the confirm sheet with cost and consequences.

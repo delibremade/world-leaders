@@ -60,9 +60,9 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       assert.deepEqual(segs.map((x) => x.id), ['reserves', 'processing', 'stockpile', 'deals', 'controls', 'natural']);
       for (const x of segs) assert.ok(x.h >= 44 && x.w >= 44 && x.r <= W + 0.5, `segment ${JSON.stringify(x)}`);
       const want = {
-        reserves: [/Ore reserves/, /to zero|unrefined|—/, /Rare earths · export extraction/, /Revenue/],
-        processing: [/Processing capacity/, /Private plant|not profitable/, /DPA \$\d+M/, /Offtake \$\d+M/, /Recycle/, /Gallium/],
-        stockpile: [/Stockpile and reserve/, /Buy reserve/, /Release reserve|Hold reserve/],
+        reserves: [/Ore reserves/, /\d+y to zero|100y\+ to zero|unrefined|—/, /t REO\/yr refined/, /USGS MCS 2025/, /Rare earths · export extraction/, /Revenue/],
+        processing: [/Processing capacity/, /Mountain Pass, CA/, /Seadrift, TX/, /t REO\/yr ≈ 2% of world/, /Private plant|not profitable/, /DPA \$\d+M/, /Offtake \$\d+M/, /Recycle/, /Gallium/],
+        stockpile: [/Stockpile and reserve/, /kSWU/, /Buy reserve/, /Release reserve|Hold reserve/],
         deals: [/Offtake deals/, /Available partners/, /Offtake · /, /Processing pact/],
         controls: [/Your export controls/, /Controls against you/, /Rival impact/, /Export control/],
         natural: [/Natural Resource Management/, /Crude Oil/, /Renewable Energy/],

@@ -34,6 +34,9 @@ export function PrivateBuild({ o, label, dispatch }) {
   </div>;
 }
 
+// F10 (#58): real units. t = tonnes (or kSWU for enrichment); every figure is game units x tPerUnit, source on the row.
+const fmtT = (t) => (t <= 0 ? '0' : t >= 1e6 ? `${(t / 1e6).toFixed(1)}M` : t >= 1e4 ? `${Math.round(t / 1e3)}k` : t >= 1e3 ? `${(t / 1e3).toFixed(1)}k` : t >= 10 ? `${Math.round(t)}` : t.toFixed(1));
+const yrs = (y) => (y >= 100 ? '100y+' : y >= 10 ? `${Math.round(y)}y` : `${y.toFixed(1)}y`);
 const mo = (r) => (r.cap > 0 && r.ore > 0 ? Math.ceil(r.ore / r.cap) : null);
 
 function RareEarthExport({ v, dispatch }) {
@@ -55,40 +58,43 @@ function Reserves({ rows, v, dispatch }) {
     <Panel id="ore" title="Ore reserves" figure={`${rows.filter((r) => r.ore > 0).length}/${rows.length} with ore`}>
       {rows.map((r) => { const m = mo(r); return (
         <Row key={r.id} data-mineral={r.id} title={`${r.i} ${r.n}`}
-          sub={r.ore > 0 && !r.cap ? `${Math.round(r.ore)} ore, no refining: worth nothing until investors build processing` : r.cap && !r.ore ? `No ore: plants run at ${R.noOreEff * 100}% on imported concentrate` : `${Math.round(r.ore)} ore · ${r.use}`}
-          value={m ? `${m}mo to zero` : r.ore > 0 ? 'unrefined' : '—'} tone={m && m < 24 ? 'alert' : m && m < 60 ? 'warn' : undefined}><Bar pct={(r.ore / top) * 100} tone={m && m < 24 ? 'alert' : undefined} /></Row>); })}
-      <div className="wl-note">Home plants refine up to their capacity each month and the ore depletes with it. Time to zero = ore / capacity.</div>
+          sub={r.ore > 0 && !r.cap ? `${fmtT(r.oreT)} ${r.unit} ore, no refining: worth nothing until investors build processing` : r.cap && !r.ore ? `No ore: plants run at ${R.noOreEff * 100}% on imported concentrate` : `${fmtT(r.oreT)} ${r.unit} ore · ${fmtT(r.capT)} ${r.unit}/yr refined · ${r.use}`}
+          value={r.years != null ? `${yrs(r.years)} to zero` : r.ore > 0 ? 'unrefined' : '—'} tone={m && m < 24 ? 'alert' : m && m < 60 ? 'warn' : undefined}><Bar pct={(r.ore / top) * 100} tone={m && m < 24 ? 'alert' : undefined} />
+          <small className="wl-note" data-source>{r.status_source}</small></Row>); })}
+      <div className="wl-note">Home plants refine up to their capacity each year and the ore depletes with it. Years to zero = ore tonnes / capacity tonnes per year. Ore is feedstock in refined-equivalent tonnes, game-scaled, not USGS reserves.</div>
     </Panel>
     <RareEarthExport v={v} dispatch={dispatch} />
   </>;
 }
 
 function Processing({ rows, dispatch }) {
-  return <Panel id="proc" title="Processing capacity" figure={`${rows.reduce((a, r) => a + r.cap, 0)}/mo`}>
+  return <Panel id="proc" title="Processing capacity" figure={`${rows.filter((r) => r.cap > 0).length}/${rows.length} processed`}>
     {rows.map((r) => (
       <Row key={r.id} data-mineral={r.id} title={`${r.i} ${r.n}`} stack
-        sub={`${r.cap}/mo ≈ ${r.cap}% of world refining${r.built ? ` · ${r.built} private plant${r.built > 1 ? 's' : ''}` : ''}${r.income ? ` · sector +$${f1(r.income)}M/mo` : ''}${r.upkeep ? ` · $${r.upkeep}M/mo` : ''}`}
+        sub={`${fmtT(r.capT)} ${r.unit}/yr ≈ ${r.cap}% of world (${fmtT(r.worldT)})${r.built ? ` · ${r.built} private plant${r.built > 1 ? 's' : ''}` : ''}${r.income ? ` · sector +$${f1(r.income)}M/mo` : ''}${r.upkeep ? ` · $${r.upkeep}M/mo` : ''}`}
         value={<WhyV title={`${r.n} inflow / month`} terms={[{ label: 'Home processing', value: r.flow.dom }, { label: 'Recycling', value: r.flow.rec }, { label: 'Offtake deals', value: r.flow.off }, { label: 'Allied pact', value: r.flow.pact }, { label: 'Open market', value: r.flow.mkt }]} total={r.flow.total} note={`Secure supply ${f1(r.flow.secure)}/mo (no market).`}>+{f1(r.flow.total)}/mo</WhyV>}>
+        <div data-plants={r.id}>{r.plants.map((pl) => <small key={pl.name} className="wl-note" style={{ display: 'block' }}>🏭 {pl.name} · {fmtT(pl.t)} {r.unit}/yr</small>)}</div>
+        <small className="wl-note" data-source style={{ display: 'block' }}>{r.status_source}</small>
         <PrivateBuild o={r.proj} label="plant" dispatch={dispatch} />
         <div className="wl-row" style={{ flexWrap: 'wrap', marginTop: 4 }}>
           {r.id !== 'enrichment' && <button type="button" className="wl-btn" aria-pressed={r.recycling} onClick={() => dispatch({ type: 'toggleRecycling', payload: { mineral: r.id } })}>{r.recycling ? '♻️ Stop recycling' : `♻️ Recycle +${R.recycle.add}/mo · $${R.recycle.cost}M/mo`}</button>}
         </div>
       </Row>))}
-    <div className="wl-note">Private capital builds plants (+{R.plant.add}/mo, {R.plant.mo} months at pace 1) while they are profitable: world price, scarcity from others' export controls, demand from your programs. Levers (permits, tax credit, loan guarantee, DPA funding, offtake guarantee) cost a fraction of the ${R.plant.capex.toLocaleString()}M capex and last until that plant is online. New capacity pays royalties and tax. 1 unit/mo = 1% of 2024 world refining; capped at {R.capMax}/mo.</div>
+    <div className="wl-note">Private capital builds plants (+{R.plant.add}/mo, {R.plant.mo} months at pace 1) while they are profitable: world price, scarcity from others' export controls, demand from your programs. Levers (permits, tax credit, loan guarantee, DPA funding, offtake guarantee) cost a fraction of the ${R.plant.capex.toLocaleString()}M capex and last until that plant is online. New capacity pays royalties and tax. 1% of 2024 world refining = 1 game unit/mo; tonnes are units x tonnes-per-unit; capped at {R.capMax}%.</div>
   </Panel>;
 }
 
 function Stockpile({ rows, dispatch }) {
-  return <Panel id="stock" title="Stockpile and reserve" figure={`${rows.reduce((a, r) => a + Math.floor(r.stock), 0)} units`}>
+  return <Panel id="stock" title="Stockpile and reserve" figure={`${rows.filter((r) => r.stock >= 1).length}/${rows.length} stocked`}>
     {rows.map((r) => (
-      <Row key={r.id} data-mineral={r.id} title={`${r.i} ${r.n}`} stack sub={`reserve ${r.reserve}/${R.reserveMax} · ${r.releasing ? 'releasing' : 'on hold'} · inflow +${f1(r.flow.total)}/mo`} value={`${Math.floor(r.stock)}/${R.stockMax}`} tone={r.stock < 5 ? 'alert' : undefined}>
+      <Row key={r.id} data-mineral={r.id} title={`${r.i} ${r.n}`} stack sub={`reserve ${r.reserve}/${R.reserveMax} · ${r.releasing ? 'releasing' : 'on hold'} · inflow +${fmtT(r.inflowT)} ${r.unit}/mo`} value={`${fmtT(r.stockT)}/${fmtT(r.stockMaxT)} ${r.unit}`} tone={r.stock < 5 ? 'alert' : undefined}>
         <Bar pct={(r.stock / R.stockMax) * 100} tone={r.stock < 5 ? 'alert' : 'good'} />
         <div className="wl-row" style={{ flexWrap: 'wrap', marginTop: 4 }}>
           <button type="button" className="wl-btn wl-btn-primary" onClick={() => dispatch({ type: 'buyStockpile', payload: { mineral: r.id } })}>📦 Buy reserve ${Math.round(R.stockpile.lot * r.price * R.stockpile.markup)}M</button>
           <button type="button" className="wl-btn" aria-pressed={r.releasing} onClick={() => dispatch({ type: 'toggleStockpileRelease', payload: { mineral: r.id } })}>{r.releasing ? '⏸ Hold reserve' : '▶ Release reserve'}</button>
         </div>
       </Row>))}
-    <div className="wl-note">Buy {R.stockpile.lot} units at {Math.round((R.stockpile.markup - 1) * 100)}% over market; a released reserve feeds {R.stockpile.release}/mo into the stockpile.</div>
+    <div className="wl-note">Buy {R.stockpile.lot} units (a lot is 10 x the tonnes in 1 unit, shown on each row) at {Math.round((R.stockpile.markup - 1) * 100)}% over market; a released reserve feeds {R.stockpile.release}/mo into the stockpile.</div>
   </Panel>;
 }
 
