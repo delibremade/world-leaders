@@ -5,6 +5,8 @@ import { launch, openGame, overflow, settle, stableRect } from './util/browser.j
 // Q1 (#41), layout in real Chromium: the bell fits the HUD row, the feed sheet with 20 entries and the routing view
 // stay inside the viewport with 44px targets and no sideways scroll. Writes the review screenshots to docs/shots/.
 
+// Review screenshots are opt-in (SHOTS=1 npm test): a 1280px page.screenshot timed out on the CI runner and must not gate it.
+const SHOTS = !!process.env.SHOTS;
 let browser;
 before(async () => { browser = await launch(); });
 after(async () => { await browser?.close(); });
@@ -31,7 +33,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       await page.evaluate(({ PHASES, TEXTS }) => { for (let i = 0; i < 20; i++) { window.__wl.phase(PHASES[i % 8]); window.__wl.notify(`${TEXTS[i % 8]} #${i + 1}`); window.__wl.phase(null); } }, { PHASES, TEXTS });
       await settle(page, 200);
       assert.equal(await page.evaluate(() => document.querySelector('[data-bell-badge]').textContent), String(before0 + 20));
-      await page.screenshot({ path: `docs/shots/41-hud-bell-${W}.png`, clip: { x: 0, y: 0, width: W, height: 150 } });
+      if (SHOTS) await page.screenshot({ path: `docs/shots/41-hud-bell-${W}.png`, clip: { x: 0, y: 0, width: W, height: 150 } });
       await page.evaluate(() => document.querySelector('[data-bell]').click());
       const sh = await landed(page, W, H);
       assert.ok(sh && sh.x >= -0.5 && sh.r <= W + 0.5 && sh.b <= H + 0.5, `sheet ${JSON.stringify(sh)}`);
@@ -39,13 +41,13 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       assert.equal(rows.length, before0 + 20); assert.ok(rows.every((r) => r.h >= 43.5 && r.r <= W + 0.5 && r.x >= -0.5), 'rows are 44px targets inside the sheet');
       const o = await overflow(page, W); assert.ok(o.scrollWidth <= W, `scrollWidth ${o.scrollWidth}`); assert.deepEqual(o.bad, []);
       assert.ok(await page.evaluate(() => { const b = document.querySelector('[data-feed-list]').parentElement; return b.scrollHeight > b.clientHeight; }), '20 entries scroll inside the sheet');
-      await page.screenshot({ path: `docs/shots/41-feed-${W}.png` });
+      if (SHOTS) await page.screenshot({ path: `docs/shots/41-feed-${W}.png` });
       await page.evaluate(() => document.querySelector('[data-feed-tab=routing]').click()); await settle(page, 250);
       const btns = await page.evaluate(() => [...document.querySelectorAll('[data-route]')].map((e) => { const b = e.getBoundingClientRect(); return { w: b.width, h: b.height, r: b.right }; }));
       assert.equal(btns.length, 26, '8 classes x 3 + orders x 2');
       assert.ok(btns.every((b) => b.w >= 43.5 && b.h >= 43.5 && b.r <= W + 0.5), 'routing buttons are 44px targets inside the sheet');
       const o2 = await overflow(page, W); assert.ok(o2.scrollWidth <= W); assert.deepEqual(o2.bad, []);
-      await page.screenshot({ path: `docs/shots/41-routing-${W}.png` });
+      if (SHOTS) await page.screenshot({ path: `docs/shots/41-routing-${W}.png` });
       assert.deepEqual(errors, []);
     } finally { await ctx.close(); }
   });
