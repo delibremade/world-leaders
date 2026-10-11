@@ -8,8 +8,9 @@ import { Why } from '../shell/Why.jsx';
 import { PLATFORMS, BLACK_PROGRAMS, DEPLOYABLE, SLOTS } from '../../data/platforms.js';
 import { REGIONS, POSTURE_LABELS } from '../../data/regions.js';
 import { BRANCHES, crewOf, FORCE_RULES } from '../../data/forces.js';
-import { isrScore, triadLegs } from '../../sim/formulas.js';
-import { forceView } from '../../sim/forces.js';
+import { isrOf, triadLegs } from '../../sim/formulas.js';
+import { baseIsr } from '../../sim/reach.js';
+import { forceView, fleetView } from '../../sim/forces.js';
 import { f0, f1, f2, tone, WhyV } from '../shell/fmt.jsx';
 
 export const FORCES_SUBS = [
@@ -24,12 +25,11 @@ function Manpower({ fv, v, dispatch }) {
   const units = Object.values(v.platforms).reduce((a, b) => a + (b || 0), 0) + Object.values(v.platformsImported).reduce((a, b) => a + (b || 0), 0);
   const payroll = Math.round(units * 3 * (pay / 100) + fv.payroll);
   return <>
-    <Panel id="strength" title="Strength" figure={`${f0(fv.active)} / 100`} tone={tone(fv.active, 30, 50)}>
-      <Row title="Active" sub="60 = a fully manned 2024 force" value={f1(fv.active)}><Bar pct={fv.active} tone={tone(fv.active, 30, 50)} marker={60} /></Row>
-      <Row title="Reserve" sub={`Attrition feeds it ${R.reserveIn * 100}%`} value={f1(fv.reserve)}><Bar pct={fv.reserve} /></Row>
-      <Row title="Recruits" sub="Unemployment and pay set the intake" value={<WhyV title="Recruits / month" mult total={R.recruit * fv.labor * pay / 100}
-        terms={[{ label: 'Base intake', value: R.recruit }, { label: 'Labor market (unemployment)', value: fv.labor }, { label: `Pay ${pay}%`, value: pay / 100 }]}>+{f2(fv.recruits)}/mo</WhyV>} />
-      <Row title="Attrition" sub="Leavers move to the reserve" value={`−${f2(fv.attrition)}/mo`} tone="alert" />
+    <Panel id="strength" title="Strength" figure={`${f0(fv.idx.active)} / 100`} tone={tone(fv.idx.active, 30, 50)}>
+      <Row title="Active" sub="60 = a fully manned 2024 force" value={f1(fv.idx.active)}><Bar pct={fv.idx.active} tone={tone(fv.idx.active, 30, 50)} marker={60} /></Row>
+      <Row title="Reserve" sub={`Attrition feeds it ${R.reserveIn * 100}%`} value={f1(fv.idx.reserve)}><Bar pct={fv.idx.reserve} /></Row>
+      <Row title="Recruits" sub="Unemployment and pay set the intake" value={`+${f0(fv.recruits)}/mo`} />
+      <Row title="Attrition" sub="Leavers move to the reserve" value={`−${f0(fv.attrition)}/mo`} tone="alert" />
     </Panel>
     <Panel id="retention" title="Retention" figure={`${Math.round(fv.retention)}%`} tone={tone(fv.retention, 35, 50)}>
       <Row title="Retention now" sub={`Closes ${R.retLag * 100}% of the gap each month`} value={<WhyV title="Retention target" terms={fv.retTerms} total={fv.retTarget}>→ {Math.round(fv.retTarget)}%</WhyV>} tone={fv.retTarget < fv.retention - 1 ? 'alert' : undefined}><Bar pct={fv.retention} tone={tone(fv.retention, 35, 50)} marker={fv.retTarget} /></Row>
@@ -90,6 +90,7 @@ function Training({ fv, ask, dispatch }) {
 }
 
 function Equipment({ fv, v, dispatch, toast }) {
+  const fl = fleetView(v);
   const own = (pid) => (BLACK_PROGRAMS[pid] ? +v.blackPrograms[pid] || 0 : (v.platforms[pid] || 0) + (v.platformsImported[pid] || 0));
   const meta = (pid) => PLATFORMS[pid] || BLACK_PROGRAMS[pid];
   const ids = [...Object.keys(PLATFORMS), ...Object.keys(BLACK_PROGRAMS)].filter((pid) => own(pid) > 0);
@@ -103,6 +104,7 @@ function Equipment({ fv, v, dispatch, toast }) {
     dispatch({ type: 'deployUnit', payload: { region: rid, unit: pid } });
   };
   return <>
+    {fleetPanel(fl, dispatch)}
     <Panel id="crews" title="Crews vs airframes and hulls" figure={fv.branches.some((b) => b.gap > 0) ? 'gap' : 'covered'} tone={fv.branches.some((b) => b.gap > 0) ? 'alert' : 'good'} data-forces-crews>
       {fv.branches.map((b) => (
         <Row key={b.id} title={b.n} sub={`${b.crews} crews / ${b.need} needed · ${b.deployed} stationed${b.pipe ? ` · ${b.pipe} training` : ''}`} value={b.gap > 0 ? `gap ${b.gap}` : 'covered'} tone={b.gap > 0 ? 'alert' : 'good'}>
@@ -137,12 +139,35 @@ function Equipment({ fv, v, dispatch, toast }) {
   </>;
 }
 
+// F7 (#55): the order of battle. Render helper, not a component (CLAUDE.md rule 4).
+const RETIRE_STEP = { airframe: 12, hull: 1, formation: 1, launcher: 10 };
+function fleetPanel(fl, dispatch) {
+  if (!fl) return null;
+  const n = fl.lines.reduce((a, l) => a + l.count, 0); const ready = fl.lines.reduce((a, l) => a + l.ready, 0);
+  const mx = Math.round(fl.lines.reduce((a, l) => a + l.mx, 0) / Math.max(1, fl.lines.length));
+  return <Panel id="fleet" title="Order of battle" figure={`${ready.toLocaleString()} / ${n.toLocaleString()} ready`} data-forces-fleet>
+    <Row title="Maintenance, all types" sub={`$${Math.round(fl.maintenance)}M/mo · 100% = 2024 funding`} value={`${mx}%`}>
+      <input className="wl-slider" type="range" min="0" max="150" step="5" value={mx} aria-label="Maintenance budget" onChange={(e) => dispatch({ type: 'setMaintenance', payload: { line: 'all', pct: +e.target.value } })} />
+    </Row>
+    <Row title="Depot throughput" sub={`$${Math.round(fl.depotCost)}M/mo · upgrades ${fl.modMo} months`} value={`${fl.depot}%`}>
+      <input className="wl-slider" type="range" min="20" max="200" step="10" value={fl.depot} aria-label="Depot throughput" onChange={(e) => dispatch({ type: 'setDepot', payload: { pct: +e.target.value } })} />
+    </Row>
+    {fl.lines.map((l) => <Row key={l.id} data-line={l.id} title={l.n} stack
+      sub={`${l.ready}/${l.count} ready · MC ${Math.round(l.mc)}%${l.crewless ? ` · ${l.crewless} crewless` : ''}${l.blk ? ` · block ${l.blk}` : ''}${l.mod ? ` · depot ${l.mod}mo` : ''}`} value={l.count.toLocaleString()} tone={l.crewless ? 'alert' : undefined}>
+      {l.count > 0 && <div className="wl-row" style={{ flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+        <button type="button" className="wl-btn wl-btn-sm" disabled={!!l.modWhy} title={l.modWhy || ''} data-modernize={l.id} onClick={() => dispatch({ type: 'modernize', payload: { line: l.id } })}>Modernize ${l.modCost.toLocaleString()}M</button>
+        <button type="button" className="wl-btn wl-btn-sm wl-btn-alert" data-retire={l.id} onClick={() => dispatch({ type: 'retire', payload: { line: l.id, n: RETIRE_STEP[l.cls] || 1 } })}>Retire {Math.min(l.count, RETIRE_STEP[l.cls] || 1)}</button>
+      </div>}
+    </Row>)}
+  </Panel>;
+}
+
 function Specialized({ fv, v, ask, dispatch }) {
   const u = fv.units; const busy = fv.sof.pipes.length >= fv.sofRules.maxPipes;
-  // TODO(#57 F9c): read isrOf(v) once F7 lands here, so radar and forward sites (src/sim/reach.js baseIsr) show in this figure.
-  const isr = isrScore(v.platforms, v.defLevels, v.intelInfra, v.blackPrograms);
+  // F9c (#57): the ISR every consumer reads, radar and forward sites included.
+  const isr = isrOf(v); const sites = baseIsr(v.bases, v.country?.id);
   const part = [['Reconnaissance constellation ×2', (v.platforms.satellite_net || 0) * 2], ['RQ-170 wings ×2', (v.platforms.rq170 || 0) * 2], ['RQ-180 wings ×4', (v.platforms.rq180 || 0) * 4], ['Space R&D level', v.defLevels.space || 0], ['ISR fusion', v.intelInfra?.isr_fusion ? 4 : 0]];
-  const terms = [...part.map(([label, value]) => ({ label, value })), { label: 'Special access programs', value: isr - part.reduce((a, [, x]) => a + x, 0) }];
+  const terms = [...part.map(([label, value]) => ({ label, value })), { label: 'Special access programs', value: isr - sites - part.reduce((a, [, x]) => a + x, 0) }, { label: 'Radar and forward sites', value: sites }];
   const nuke = [['ssbn_fleet', 'SSBN fleet'], ['strategic_bombers', 'Strategic bombers'], ['icbm_force', 'ICBM silos']];
   const legs = triadLegs(v.platforms, v.blackPrograms);
   const cyber = v.platforms.cyber_command || 0;

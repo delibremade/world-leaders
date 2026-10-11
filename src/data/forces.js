@@ -68,3 +68,30 @@ export const SOF_UNITS = {
 };
 export const SOF_START = { usa: { t2: 3, t1: 2 }, russia: { t2: 3, t1: 1 }, china: { t2: 3, t1: 1 }, cuba: { t2: 1, t1: 0 } };
 export const SOF_DEFAULT = { t2: 2, t1: 1 };
+
+// ── F7 (#55), spec Part 9: the tangible order of battle (inventories in src/data/orbat.js). Game rules, tuned for play, on the v57
+// money scale. Manpower is headcounts; `manPts` (formulas.js) maps them back to the 0..100 index above (60 = the nation's 2024 active).
+export const FLEET_RULES = {
+  // Capability weight per platform (F-35A = 1): role base x airframe generation. Game weights, not sourced.
+  roleW: { fighter: 1, attack: 0.7, bomber: 3, tanker: 0.6, awacs: 2, airlift: 0.5, mpa: 0.8, ew: 0.8, isr: 0.4, drone: 0.3, helo: 0.25,
+    carrier: 25, ssn: 6, ssbn: 10, ssgn: 8, ssk: 2.5, cruiser: 5, destroyer: 4, frigate: 2, lcs: 1, corvette: 0.8, amphib: 3,
+    armor: 12, infantry: 9, stryker: 10, battalion: 2.5, icbm: 0.5 },
+  genF: { 3: 0.6, 4: 0.8, 5: 1, 6: 1.3 },
+  // Force quality applied per type: qualityF(q)^sens. Complex kit (5th/6th gen) feels quality most; launchers least.
+  sens: { gen6: 1, gen5: 1, gen4: 0.8, gen3: 0.6, hull: 0.7, formation: 0.9, launcher: 0.4 },
+  // Maintenance budget per type, % of 2024 funding (0..200). MC target = 2024 MC x (pct/100)^maintExp (capped at maintCap) x depot term
+  // x quality term (relative to the start, half sensitivity) x (1 + mcBlk x block). MC moves converge x depot/100 of the gap a month,
+  // so a 10% cut costs an F-22 fleet ~3 points of MC within 12 months.
+  maintExp: 0.8, maintCap: 1.12, depotExp: 0.3, converge: 0.12, mcBlk: 0.04,
+  // $M/mo: Maintenance = sum n x weight x om x pct/100 (US ~$60M at 100%); Depot = depotCost x Maintenance at 100% x (depot/100)^1.5.
+  om: 0.01, depotCost: 0.25, pctMax: 200,
+  // Modernization (block upgrade / SLEP): one-time n x weight x modCost $M, modMo x 100/depot months, modShare of the fleet in the depot
+  // meanwhile; each block +blkGain effectiveness. maxBlk blocks per type.
+  modCost: 8, modMo: 24, modShare: 0.15, blkGain: 0.08, maxBlk: 3,
+  // Peacetime attrition (mishaps), share of airframes per year; hulls and formations 0.
+  lossYr: { airframe: 0.003, hull: 0, formation: 0, launcher: 0 },
+  // Crews: each branch's share of active strength that crews and maintains its fleet = 2024 need / 2024 active x (1 + crewSlack).
+  crewSlack: 0.1,
+  // Equipment factor bounds (ready capability / 2024 capability at reference quality).
+  eqMin: 0.3, eqMax: 1.25,
+};

@@ -25,7 +25,8 @@ export const PLATFORMS={
 // Black Programs — classified next-gen platforms. Require a Special Access Program office + deep R&D.
 // Bleeding-edge capability AND the highest-value espionage targets (rivals will try to steal them).
 export const BLACK_PROGRAMS={
-  b21:  {n:'B-21 Raider',i:'🛩️',cost:8000, mo:30,req:{aircraft:5,munitions:4,materials:4},mil:22,cap:6,
+  b21:  {n:'B-21 Raider',i:'🛩️',cost:8000, mo:30,req:{aircraft:5,munitions:4,materials:4},mil:22,cap:10,
+    // F7 (#55): cap = OWNER_PARAMS.b21.plannedBuy (200) / UNIT_PLATFORMS.b21.per (20 airframes a tranche); test/fleet.test.js holds them equal.
     d:'Stealth strategic bomber. +22 military, strengthens nuclear deterrent.',bonus:'deterrent',exportable:false,deployable:true,dOrder:9,slot:'bomber'},
   f47:  {n:'F-47 (NGAD)',i:'✈️',cost:11000,mo:36,req:{aircraft:6,propulsion:5,computers:5},mil:26,cap:8,
     d:'6th-gen air dominance fighter. +26 military, commands CCA drone formations.',bonus:'air',exportable:false,deployable:true,dOrder:10,slot:'gen6'},

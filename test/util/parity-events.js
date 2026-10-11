@@ -29,6 +29,10 @@ const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activ
 // pinned cases are re-baselined citing #37 and #57 together (F5 merged first; F9 re-ran the baseline on top of it).
 // F9c wires bases into chokepoint control, deployed weight, ISR, flashpoints, pressure and sphere (Bahrain secures Hormuz from month 1), so all five
 // are re-baselined again citing #57.
+// #55 (F7): the tangible order of battle. Strength is headcounts and every nation starts with its real 2024 fleet, so the Maintenance and
+// Depot ledger lines land on the treasury from month 1 and the equipment factor (fleet MC x crews x per-type quality) replaces the global
+// quality multiplier in every capability consumer (F9c's theaterWeight reads it through forceMult); all five pinned cases are re-baselined
+// citing #55 and #57 together (F9c merged first; F7 re-ran the baseline on top of it; guarded by test/fleet.test.js and test/bases-effects.test.js).
 const NEW_KEYS = ['arsenal', 'minerals', 'forces', 'bases'];
 const dropNew = (s) => { if (!NEW_KEYS.some((k) => s.includes(`"${k}"`))) return s; const o = JSON.parse(s); for (const k of NEW_KEYS) delete o[k]; return JSON.stringify(o); };
 const strip = (s) => { const o = JSON.parse(dropNew(s)); delete o.evState; return JSON.stringify(o); };

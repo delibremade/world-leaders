@@ -2,7 +2,7 @@
 // World events: eligibility (`when`), context weight (`w`), and 2-3 in-place responses wired to engine actions.
 // Flashpoints: four inline responses. Answering closes the card and leaves an "in effect" row in the outliner.
 // Pure data + pure predicates over the live state `g`. Costs are $M.
-import { navalWeight, panamaPriorityBlock } from '../sim/formulas.js';
+import { navalWeight, panamaPriorityBlock, manPts } from '../sim/formulas.js';
 import { CHOKEPOINTS } from './chokepoints.js';
 import { maxTen, memberOf, ownedMembers, squeezed, squeezedCount, mineralName, lowestReadiness } from './event-ctx.js';
 import { NATIONS } from './nations.js';
@@ -171,7 +171,7 @@ export const WORLD_RULES = {
     ],
   },
   recruitment_slump: {
-    when: (g) => !!g.forces && (g.forces.retention < 45 || g.forces.active < 45),
+    when: (g) => !!g.forces && (g.forces.retention < 45 || manPts(g.forces).active < 45), // F7: index points (60 = 2024 active)
     w: (g) => 1 + Math.max(0, 45 - g.forces.retention) / 30,
     responses: [
       { id: 'bonus', label: 'Enlistment bonuses', tags: ['Retention +10'], cost: 600, sfx: [{ k: 'retention', d: 10 }], mods: { cash: -15 } },
