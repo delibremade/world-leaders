@@ -184,6 +184,7 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
   .wl-nav button:hover{background:rgba(59,130,246,.08)}
 }
 kbd{font:inherit;font-size:${SIZE.micro}px;color:${c.text.dim};border:1px solid ${c.border.strong};border-radius:3px;padding:0 4px}
+.wl-flank{display:flex;flex-direction:column;gap:${SPACE[6]}px;min-width:0}
 .wl-nav-f,.wl-nav kbd{display:none}
 @media (min-width:${BREAK.desktop}px){
   .wl-app{grid-template-columns:clamp(160px,12vw,224px) minmax(0,1fr) clamp(264px,19vw,380px)}
@@ -204,5 +205,16 @@ kbd{font:inherit;font-size:${SIZE.micro}px;color:${c.text.dim};border:1px solid 
   .wl-fig{min-height:40px}
   .wl-hud-row>.wl-pause-chip{order:2;flex:0 1 300px;flex-basis:300px;white-space:normal;line-height:1.3;text-align:left}
   .wl-hud:has(.wl-pause-chip) .wl-hud-nation{flex-basis:160px}
+  /* Overview: the map owns the main column; the situation cards flank it in their own scroll column. */
+  .wl-ov-col{display:grid!important;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;gap:${SPACE[6]}px!important;overflow:hidden!important}
+  .wl-ov-col>.wl-map-card{order:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .wl-ov-col>.wl-flank{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));align-items:start;max-height:clamp(150px,24vh,260px);overflow-y:auto;padding-right:2px}
+  .wl-mv{flex:1;min-height:0;display:flex;flex-direction:column}
+  /* the whole world (1000x520) fits the stage with no crop; bars take the ocean colour */
+  .wl-mv-stage{flex:1;min-height:240px;container-type:size;background:${c.bg.ocean};border-radius:${RADIUS.lg}px}
+  .wl-mv-host{position:absolute!important;left:50%;top:50%;transform:translate(-50%,-50%);width:min(100cqw,192.3cqh);height:min(100cqh,52cqw)!important}
+  .wl-mv [data-map-legend]{font-size:${SIZE.small}px!important}
+  .wl-mv [data-map-modes] button{min-height:36px!important}
+  .wl-mv>div:last-child{display:none} /* mode hint: each chip carries it as a hover title */
 }
 `;
