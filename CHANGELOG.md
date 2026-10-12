@@ -5,6 +5,7 @@
 - >= 1100px: the map owns the main column (vitals left, outliner right, both unchanged); hegemony race, risk, issues, deployments and log move into a scrolling card strip under it (`.wl-flank`). Phone order unchanged (map first, cards below).
 - The whole world (1000:520) fits the stage with no crop (container-query box); map is ~50% of the viewport width at 1440 and 1920. Pixi renderer now resizes with its container (`app.resize()` in the existing ResizeObserver); before, the canvas kept its first size.
 - Legend text 11px, mode chips 36px, mode hint moved to each chip's hover title.
+- Why breakdowns open on hover only where the primary pointer hovers (`(hover:hover) and (pointer:fine)`); emulated phones and touch keep tap-to-toggle. Fixes a race where a hover-opened breakdown was still open when the next figure was tapped (opened-states test, 390px).
 - Tests: `desktop-layout.test.js` +3 (map width, aspect, cards below, flanks inside the viewport at 1280/1440/1920).
 
 ## 0.85.0 (2026-10-11) — D1: desktop-first shell
