@@ -799,7 +799,7 @@ function WorldLeadersInner({resumeSignal}){
         unread={unreadCount(feed)} onFeed={()=>setFeedOpen(true)} canStep={plan.canStep&&!plan.running} onStep={stepMonth} paused={paused} onPause={v=>{setPaused(v);if(!v)setPauseWhy(null);}} onTogglePause={togglePause} pauseLocked={hardGate&&!paused} gameSpeed={gameSpeed} onSpeed={setGameSpeed} lastSaved={lastSaved} onQuit={()=>{setPhase('select');setGameOver(null);}} doctrineLabel={doctrine?`${DOCTRINES[doctrine].i} ${DOCTRINES[doctrine].n}`:null}/>
       <EventCards doctrine={doctrine} activeDecision={activeDecision} decisionDesc={activeDecision?(typeof activeDecision.desc==='function'?activeDecision.desc({ten:rivalTension,bt:blocTrade,ns:stats||{},country}):activeDecision.desc):''} worldEvent={evOpen.world} flashpoint={evOpen.flashpoint} worldOpts={eventOptions(evView,'world')} decisionOpts={activeDecision?eventOptions(evView,'decision'):null} country={country} fpOpts={eventOptions(evView,'flashpoint')} dispatch={dispatch} fxBadge={fxBadge} readyBriefs={issues.filter(i=>i.status==='briefed'&&briefs[i.type]).map(i=>({type:i.type,ttl:i.ttl,title:ISSUES[i.type]?.title,icon:ISSUES[i.type]?.icon,rc:briefs[i.type].rc,n:(briefs[i.type].opts||[]).length}))} onOpenBrief={t=>{setActiveTab('intel');setIntelIssue(t);}} onOpenRegion={rid=>{setActiveTab('overview');setSelNation(null);setSelectedRegion(rid);}}/>
 
-      <div className="wl-body" style={{flex:1,display:'flex',overflow:'hidden'}}>
+      <div className="wl-body" data-vertical={PARENT[activeTab]||activeTab} style={{flex:1,display:'flex',overflow:'hidden'}}>
         {/* Left vitals — always visible, clickable */}
         <div className="wl-vitals" style={{width:'205px',background:'#0a0e14',borderRight:'1px solid #1f2937',overflowY:'auto',padding:'10px',flexShrink:0}}>
           <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'10px'}}>Nation Vitals <span style={{color:'#4b5563',fontWeight:400,textTransform:'none',letterSpacing:'0'}}>· click to drill</span></div>
@@ -814,7 +814,16 @@ function WorldLeadersInner({resumeSignal}){
 
         {/* OVERVIEW / MAP TAB */}
         {activeTab==='overview'&&<div className="wl-pane-wrap" data-sentinel="overview">{segOverview}<div className="wl-overview" style={{flex:1,display:'flex',overflow:'hidden'}}>
-          <div style={{flex:1,overflowY:'auto',padding:'12px',display:'flex',flexDirection:'column',gap:'12px'}}>
+          <div className="wl-ov-col" style={{flex:1,overflowY:'auto',padding:'12px',display:'flex',flexDirection:'column',gap:'12px'}}>
+            {/* SVG WORLD MAP */}
+            <div className="wl-map-card" style={{background:'#0a0f1a',borderRadius:'10px',border:'1px solid #1f2937',padding:'12px'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',marginBottom:'8px'}}><div style={{fontSize:'11px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px'}}>World Map · tap a region</div><Help items={HELP_TIPS}/></div>
+              <MapView mode={mapMode} onModeChange={setMapMode} onRegionTap={rid=>setSelectedRegion(selectedRegion===rid?null:rid)} onSiteTap={sid=>{setSelNation(null);setSelectedRegion(null);setSelSite(sid);}} onBuildToggle={setBuildMode}
+                view={{country,sphere,selectedRegion,forceDeployments,flashpoint,sphereTrend,intelOps,defExports,doctrine,nationRelations,embassies,defensePacts,chokeStatus,rivalTension,blockades,tradeAgreements,importContracts,embargoes,embargoedBy,forcePosture,sanctions,moles,expelled:expelR.current,concessions,bases,build:buildMode,selectedSite:selSite}}/>
+
+            </div>
+
+            <div className="wl-flank">
             {/* Vitals drill-down */}
             {vitalsDrill&&<VitalsDrillPanel/>}
             {(()=>{const n=(flashpoint?1:0)+Object.values(rivalHolds||{}).filter(m=>m>0).length+Object.keys(blockades).length+Object.values(chokeStatus).filter(s=>s==='disrupted').length+Object.entries(rivalTension).filter(([cid,t])=>t>=70&&cid!==country?.id&&!isAllyOf(country?.id,cid)).length;return <button onClick={()=>setActiveTab('sitroom')} style={{width:'100%',background:n>0?'rgba(239,68,68,.08)':'#0d1117',border:`1px solid ${n>0?'#7f1d1d':'#1f2937'}`,color:n>0?'#ef4444':'#6b7280',padding:'8px',borderRadius:'8px',fontSize:'11px',fontWeight:700,textAlign:'left'}}>🎖️ Situation Room · {n>0?`${n} live situation${n>1?'s':''} — open`:'quiet — open'}</button>;})()}
@@ -849,14 +858,6 @@ function WorldLeadersInner({resumeSignal}){
                 <div style={{height:'3px',background:'#1f2937',borderRadius:'2px'}}><div style={{height:'100%',width:`${Math.min(100,r.score/85*100)}%`,background:(rivalHolds[r.cid]||0)>0?'#ef4444':r.score>hegScore?'#f0c040':'#6b7280',borderRadius:'2px'}}/></div>
               </div>))}
             </div>
-            {/* SVG WORLD MAP */}
-            <div className="wl-map-card" style={{background:'#0a0f1a',borderRadius:'10px',border:'1px solid #1f2937',padding:'12px'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',marginBottom:'8px'}}><div style={{fontSize:'11px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px'}}>World Map · tap a region</div><Help items={HELP_TIPS}/></div>
-              <MapView mode={mapMode} onModeChange={setMapMode} onRegionTap={rid=>setSelectedRegion(selectedRegion===rid?null:rid)} onSiteTap={sid=>{setSelNation(null);setSelectedRegion(null);setSelSite(sid);}} onBuildToggle={setBuildMode}
-                view={{country,sphere,selectedRegion,forceDeployments,flashpoint,sphereTrend,intelOps,defExports,doctrine,nationRelations,embassies,defensePacts,chokeStatus,rivalTension,blockades,tradeAgreements,importContracts,embargoes,embargoedBy,forcePosture,sanctions,moles,expelled:expelR.current,concessions,bases,build:buildMode,selectedSite:selSite}}/>
-
-            </div>
-
             {/* Risk signals: moved out of the right column so the map owns the main column on desktop */}
               {stats&&<div style={{background:'#0d1117',border:'1px solid #1f2937',borderRadius:'10px',padding:'12px'}}>
                 <div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',marginBottom:'8px'}}>Risk Signals</div>
@@ -888,6 +889,7 @@ function WorldLeadersInner({resumeSignal}){
             </div>}
 
             <div><div style={{fontSize:'10px',color:'#6b7280',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'5px'}}>Log</div>{log.slice(0,6).map((e,i)=><div key={i} style={{fontSize:'11px',color:i===0?'#d1d5db':'#4b5563',padding:'3px 0',borderBottom:'1px solid #0d1117',lineHeight:'1.4'}}><span style={{color:'#374151',marginRight:'6px'}}>{MONTHS[e.mo]} {e.yr||''}</span>{e.msg}</div>)}</div>
+            </div>
           </div>
 
           {/* Right intel panel */}

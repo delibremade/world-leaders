@@ -1,6 +1,9 @@
 // Arsenal vertical (E5b, spec Part 8): the industrial side of defense. Programs | Procurement | Supply | Partnerships |
 // Exports | Deterrence. State is read through programView, programSupply, accessView (the verbs' own rules); no game logic here.
+import { useState } from 'react';
 import { Seg } from '../shell/Seg.jsx';
+import { DataTable } from '../shell/DataTable.jsx';
+import { useWide } from '../shell/useWide.js';
 import { Panel, Row, Bar } from '../shell/Panel.jsx';
 import { NukeRegister } from '../shell/NukeRegister.jsx';
 import { f0, tone, WhyV } from '../shell/fmt.jsx';
@@ -20,11 +23,38 @@ export const ARSENAL_SUBS = [
 const stageName = (k) => STAGES.find(([x]) => x === k)?.[1];
 const mn = (m) => MINERALS[m]?.n || m;
 
+function ProgramCard({ r, v, dispatch }) {
+  const { sapOffice, blackResearch, arsenal, defLevels } = v;
+  const bid = r.id, bp = r.bp, n = r.n; const slotN = SLOTS.find(([k]) => k === r.slot)?.[1]; const live = r.action === 'produce'; const waiting = r.action === 'wait';
+  const d = arsenal.dev?.[bid]; const rs = blackResearch?.id === bid ? blackResearch : null; const prog = d ? d.prog / d.mo : rs ? rs.prog / rs.mo : 0;
+  const sp = programSupply(v, bid); const q = sp.queued;
+  const burnRow = d || rs ? devCost(bp, r.start) : null;
+  return <Panel key={bid} id={`prog_${bid}`} data-program={bid} title={`${bp.i} ${bp.n}${n > 0 ? ' ✓' : ''}`} figure={stageName(r.stage)} tone={r.stage === 'full' ? 'good' : r.stage === 'lrip' ? 'good' : undefined}>
+    <Row title={slotN} sub={`${bp.d}${r.buy ? ' · bought from the USA' : ''}`} value={n > 0 ? 'FIELDED' : undefined} tone="good" data-source={r.status_source} />
+    {Object.keys(bp.req).length > 0 && <small className="wl-note" style={{ display: 'block' }}>Req: {Object.entries(bp.req).map(([vv, rq]) => <span key={vv} data-tone={(defLevels[vv] || 0) >= rq ? 'good' : 'alert'} style={{ marginRight: 6 }}>{DV[vv]?.n} L{rq}</span>)}</small>}
+    {(waiting || burnRow) && <Row title="In development" sub={burnRow ? `Burn about $${Math.round(burnRow.cost / burnRow.mo)}M/mo of $${(burnRow.cost / 1000).toFixed(1)}B` : undefined} value={`⏳ ${r.monthsLeft}mo to ${r.start === 'proto' ? 'LRIP' : 'operational'}`} tone="warn"><Bar pct={prog * 100} /></Row>}
+    {live && <>
+      <Row title="Fielded" sub={`+${bp.mil} military${bp.isr ? ` · +${bp.isr} ISR` : bp.bonus === 'multiplier' ? ' · air ×1.15' : bp.bonus === 'deterrent' ? ' · nuclear deterrent' : ''}${n > 0 ? ` · force mil +${Math.round(bp.mil * Math.sqrt(n))} · next tranche at ${Math.round(sapRate(r.stage === 'full' ? Math.max(n, 6) : n) * 100)}% of program` : ''}`} value={`${n} unit${n === 1 ? '' : 's'}`} />
+      <Row data-supply title="Supply" tone={q.length ? 'alert' : sp.coverage < 1 ? 'warn' : undefined}
+        sub={`per tranche ${Object.entries(inputsOf(bid)).map(([m, u]) => `${MINERALS[m].i}${u}`).join(' ')}`}
+        value={q.length ? `⏳ ${q.length} tranche${q.length > 1 ? 's' : ''} slowed: ${mn(q[0].binding)} short · ~${q[0].months === Infinity ? '∞' : q[0].months}mo` : `Supply ${Math.round(sp.coverage * 100)}%${sp.binding ? ` · short of ${mn(sp.binding)}` : ''}`} />
+      <button type="button" className="wl-btn wl-btn-primary" style={r.block ? { opacity: 0.55 } : undefined} aria-disabled={!!r.block} onClick={() => dispatch({ type: 'sapTranche', payload: { program: bid } })}>
+        {n > 0 ? `🏭 Tranche #${n + 1} — $${r.cost}M${/industrial base/.test(r.block || '') ? ' · needs Materials L4' : ''}` : `🏭 Produce ${bp.n} — $${r.cost}M`}</button>
+      {r.block && <div className="wl-note" data-tone="alert">{r.block}</div>}
+    </>}
+    {!live && !waiting && (!sapOffice ? <div className="wl-note">🔒 Needs the SAP office · ${(r.cost / 1000).toFixed(1)}B · {r.months}mo</div>
+      : <><button type="button" className="wl-btn wl-btn-primary" style={r.block ? { opacity: 0.55 } : undefined} aria-disabled={!!r.block} onClick={() => dispatch({ type: 'sapInitiate', payload: { program: bid } })}>
+        {r.action === 'initiate' && blackResearch ? 'SAP busy' : `${r.action === 'fund' ? 'Fund prototype' : 'Initiate'} $${(r.cost / 1000).toFixed(1)}B · ${r.months}mo`}</button>
+        {r.block && <div className="wl-note" data-tone="alert">{r.block}</div>}</>)}
+  </Panel>;
+}
+
 function Programs({ v, dispatch }) {
+  const wide = useWide(); const [sel, setSel] = useState(null);
   const rows = programView(v); const { sapOffice, blackResearch, arsenal, defLevels, blackPrograms, stats } = v;
   const by = Object.fromEntries(STAGES.map(([k]) => [k, rows.filter((r) => r.stage === k).length]));
   const short = (stats?.treasury || 0) < 1500;
-  return <>
+  const pipeline = (
     <Panel id="pipeline" title="Pipeline" figure={`${rows.length} programs`}>
       <div className="wl-row" style={{ flexWrap: 'wrap', gap: 6 }}>
         {STAGES.map(([k, n]) => <span key={k} className={`wl-chip${by[k] ? ' wl-chip-command' : ''}`} data-stage-count={k}>{n} {by[k]}</span>)}
@@ -36,31 +66,28 @@ function Programs({ v, dispatch }) {
           {blackResearch && <Bar pct={(blackResearch.prog / blackResearch.mo) * 100} />}</Row>}
       {Object.keys(blackPrograms).length > 0 && <Row title="◆ Operational" sub={Object.keys(blackPrograms).map((b) => `${BLACK_PROGRAMS[b].i} ${BLACK_PROGRAMS[b].n}`).join(' · ')} />}
     </Panel>
+  );
+  if (wide) {
+    const cur = rows.find((r) => r.id === sel) || rows[0];
+    const cov = (r) => (r.action === 'produce' ? Math.round(programSupply(v, r.id).coverage * 100) : null);
+    const cols = [
+      { id: 'n', label: 'Program', get: (r) => r.bp.n, cell: (r) => `${r.bp.i} ${r.bp.n}${r.n > 0 ? ' ✓' : ''}` },
+      { id: 'slot', label: 'Slot', get: (r) => SLOTS.find(([k]) => k === r.slot)?.[1] || '' },
+      { id: 'stage', label: 'Stage', get: (r) => STAGES.findIndex(([k]) => k === r.stage), cell: (r) => stageName(r.stage), tone: (r) => (r.stage === 'full' || r.stage === 'lrip' ? 'good' : undefined) },
+      { id: 'fielded', label: 'Fielded', num: true, get: (r) => r.n || 0, cell: (r) => (r.n > 0 ? `×${r.n}` : '—'), tone: (r) => (r.n > 0 ? 'good' : undefined) },
+      { id: 'status', label: 'Status', get: (r) => (r.action === 'wait' ? r.monthsLeft : r.block ? 999 : 0), cell: (r) => (r.action === 'wait' ? `⏳ ${r.monthsLeft}mo` : r.action === 'produce' ? 'ready' : r.block ? 'blocked' : r.action), tone: (r) => (r.action === 'wait' ? 'warn' : r.block ? 'alert' : undefined) },
+      { id: 'cost', label: 'Cost', num: true, get: (r) => r.cost, cell: (r) => `$${r.cost >= 1000 ? (r.cost / 1000).toFixed(1) + 'B' : r.cost + 'M'}` },
+      { id: 'supply', label: 'Supply', num: true, get: (r) => cov(r) ?? -1, cell: (r) => (cov(r) == null ? '—' : `${cov(r)}%`), tone: (r) => (cov(r) == null ? undefined : tone(cov(r), 50, 100)) },
+    ];
+    return <div className="wl-md" data-master-detail="programs">
+      <div>{pipeline}<DataTable id="programs" label="Programs" title="Programs" columns={cols} rows={rows} rowId={(r) => r.id} selected={cur?.id} onSelect={setSel} /></div>
+      <div data-catalog={v.country?.id} data-detail="programs">{cur ? <ProgramCard key={cur.id} r={cur} v={v} dispatch={dispatch} /> : <div className="wl-detail-empty">No programs.</div>}</div>
+    </div>;
+  }
+  return <>
+    {pipeline}
     <div data-catalog={v.country?.id} className="wl-stack">
-      {rows.map((r) => {
-        const bid = r.id, bp = r.bp, n = r.n; const slotN = SLOTS.find(([k]) => k === r.slot)?.[1]; const live = r.action === 'produce'; const waiting = r.action === 'wait';
-        const d = arsenal.dev?.[bid]; const rs = blackResearch?.id === bid ? blackResearch : null; const prog = d ? d.prog / d.mo : rs ? rs.prog / rs.mo : 0;
-        const sp = programSupply(v, bid); const q = sp.queued;
-        const burnRow = d || rs ? devCost(bp, r.start) : null;
-        return <Panel key={bid} id={`prog_${bid}`} data-program={bid} title={`${bp.i} ${bp.n}${n > 0 ? ' ✓' : ''}`} figure={stageName(r.stage)} tone={r.stage === 'full' ? 'good' : r.stage === 'lrip' ? 'good' : undefined}>
-          <Row title={slotN} sub={`${bp.d}${r.buy ? ' · bought from the USA' : ''}`} value={n > 0 ? 'FIELDED' : undefined} tone="good" data-source={r.status_source} />
-          {Object.keys(bp.req).length > 0 && <small className="wl-note" style={{ display: 'block' }}>Req: {Object.entries(bp.req).map(([vv, rq]) => <span key={vv} data-tone={(defLevels[vv] || 0) >= rq ? 'good' : 'alert'} style={{ marginRight: 6 }}>{DV[vv]?.n} L{rq}</span>)}</small>}
-          {(waiting || burnRow) && <Row title="In development" sub={burnRow ? `Burn about $${Math.round(burnRow.cost / burnRow.mo)}M/mo of $${(burnRow.cost / 1000).toFixed(1)}B` : undefined} value={`⏳ ${r.monthsLeft}mo to ${r.start === 'proto' ? 'LRIP' : 'operational'}`} tone="warn"><Bar pct={prog * 100} /></Row>}
-          {live && <>
-            <Row title="Fielded" sub={`+${bp.mil} military${bp.isr ? ` · +${bp.isr} ISR` : bp.bonus === 'multiplier' ? ' · air ×1.15' : bp.bonus === 'deterrent' ? ' · nuclear deterrent' : ''}${n > 0 ? ` · force mil +${Math.round(bp.mil * Math.sqrt(n))} · next tranche at ${Math.round(sapRate(r.stage === 'full' ? Math.max(n, 6) : n) * 100)}% of program` : ''}`} value={`${n} unit${n === 1 ? '' : 's'}`} />
-            <Row data-supply title="Supply" tone={q.length ? 'alert' : sp.coverage < 1 ? 'warn' : undefined}
-              sub={`per tranche ${Object.entries(inputsOf(bid)).map(([m, u]) => `${MINERALS[m].i}${u}`).join(' ')}`}
-              value={q.length ? `⏳ ${q.length} tranche${q.length > 1 ? 's' : ''} slowed: ${mn(q[0].binding)} short · ~${q[0].months === Infinity ? '∞' : q[0].months}mo` : `Supply ${Math.round(sp.coverage * 100)}%${sp.binding ? ` · short of ${mn(sp.binding)}` : ''}`} />
-            <button type="button" className="wl-btn wl-btn-primary" style={r.block ? { opacity: 0.55 } : undefined} aria-disabled={!!r.block} onClick={() => dispatch({ type: 'sapTranche', payload: { program: bid } })}>
-              {n > 0 ? `🏭 Tranche #${n + 1} — $${r.cost}M${/industrial base/.test(r.block || '') ? ' · needs Materials L4' : ''}` : `🏭 Produce ${bp.n} — $${r.cost}M`}</button>
-            {r.block && <div className="wl-note" data-tone="alert">{r.block}</div>}
-          </>}
-          {!live && !waiting && (!sapOffice ? <div className="wl-note">🔒 Needs the SAP office · ${(r.cost / 1000).toFixed(1)}B · {r.months}mo</div>
-            : <><button type="button" className="wl-btn wl-btn-primary" style={r.block ? { opacity: 0.55 } : undefined} aria-disabled={!!r.block} onClick={() => dispatch({ type: 'sapInitiate', payload: { program: bid } })}>
-              {r.action === 'initiate' && blackResearch ? 'SAP busy' : `${r.action === 'fund' ? 'Fund prototype' : 'Initiate'} $${(r.cost / 1000).toFixed(1)}B · ${r.months}mo`}</button>
-              {r.block && <div className="wl-note" data-tone="alert">{r.block}</div>}</>)}
-        </Panel>;
-      })}
+      {rows.map((r) => <ProgramCard key={r.id} r={r} v={v} dispatch={dispatch} />)}
     </div>
   </>;
 }
@@ -113,13 +140,14 @@ function Deterrence({ v }) {
 }
 
 export function ArsenalTab({ sub, onSub, view, dispatch, toast, onJump, exportVert, onExportVert }) {
+  const wide = useWide();
   const body = sub === 'procurement' ? <Procurement v={view} dispatch={dispatch} /> : sub === 'supply' ? <Supply v={view} onJump={onJump} />
     : sub === 'partnerships' ? <Partnerships v={view} dispatch={dispatch} /> : sub === 'exports' ? <Exports v={view} dispatch={dispatch} vert={exportVert} onVert={onExportVert} />
     : sub === 'deterrence' ? <Deterrence v={view} /> : <Programs v={view} dispatch={dispatch} />;
   return (
     <div className="wl-pane-wrap" data-sentinel="arsenal">
       <Seg id="arsenal" label="Arsenal" items={ARSENAL_SUBS} active={sub} onSelect={onSub} cols={3} />
-      <div className="wl-tabroot" data-arsenal data-arsenal-sub={sub}>{body}</div>
+      <div className={`wl-tabroot${wide && ['supply', 'partnerships', 'deterrence'].includes(sub) ? ' wl-cols' : ''}`} data-arsenal data-arsenal-sub={sub}>{body}</div>
     </div>
   );
 }

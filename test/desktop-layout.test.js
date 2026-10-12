@@ -30,7 +30,7 @@ const clipped = (page) => page.evaluate(() => [...document.querySelectorAll('bod
 
 for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
   test(`${W}px: every vertical fills >= 80% of the width, nothing clipped or scrolling sideways`, async () => {
-    const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
+    const { ctx, page, errors } = await openGame(browser, { svg: true, width: W, height: H });
     try {
       for (const t of PANES) {
         await go(page, t);
@@ -46,7 +46,7 @@ for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
 
 for (const [W, H] of [[1280, 800], [1920, 1080]]) {
   test(`${W}px: labelled left rail shows all nine verticals with full names and badges inside the viewport`, async () => {
-    const { ctx, page } = await openGame(browser, { width: W, height: H });
+    const { ctx, page } = await openGame(browser, { svg: true, width: W, height: H });
     try {
       const rows = await page.evaluate(() => [...document.querySelectorAll('[data-nav] [data-tab]')].map((b) => { const r = b.getBoundingClientRect(); const l = b.querySelector('.wl-nav-f'); const lr = l.getBoundingClientRect(); return { t: b.dataset.tab, x: r.x, w: r.width, b: r.bottom, label: l.textContent, lw: lr.width, trunc: l.scrollWidth > l.clientWidth + 1 }; }));
       assert.deepEqual(rows.map((r) => r.t), TABS);
@@ -58,7 +58,7 @@ for (const [W, H] of [[1280, 800], [1920, 1080]]) {
 }
 
 test('1440px: shortcuts switch verticals, change speed, step a month, and Escape closes the side panel', async () => {
-  const { ctx, page, errors } = await openGame(browser, { width: 1440, height: 900 });
+  const { ctx, page, errors } = await openGame(browser, { svg: true, width: 1440, height: 900 });
   try {
     const cur = () => page.evaluate(() => document.querySelector('[data-nav] [aria-current=page]')?.dataset.tab);
     await page.mouse.move(700, 450);
@@ -80,7 +80,7 @@ test('1440px: shortcuts switch verticals, change speed, step a month, and Escape
 });
 
 test('1440px: hovering a HUD figure opens its breakdown without a click; leaving closes it', async () => {
-  const { ctx, page } = await openGame(browser, { width: 1440, height: 900 });
+  const { ctx, page } = await openGame(browser, { svg: true, width: 1440, height: 900 });
   try {
     await page.hover('[data-why^="Treasury"]'); await settle(page, 500);
     assert.ok(await page.$('[data-why-content^="Treasury"]'), 'hover opens');
@@ -88,5 +88,112 @@ test('1440px: hovering a HUD figure opens its breakdown without a click; leaving
     assert.equal(await page.$('[data-why-content^="Treasury"]'), null, 'leave closes');
     await page.click('[data-why^="Treasury"]'); await settle(page, 400);
     assert.ok(await page.$('[data-why-content^="Treasury"]'), 'click still opens and stays open');
+  } finally { await ctx.close(); }
+});
+
+// D2 Overview: the map is the centerpiece. It is the largest block on the screen, shows the whole world (no crop,
+// 1000:520), and the situation cards sit under it rather than beside it.
+for (const [W, H, minW] of [[1280, 800, 560], [1440, 900, 700], [1920, 1080, 960]]) {
+  test(`${W}px: Overview map is dominant (>= ${minW}px wide, whole world, cards below, vitals and outliner flank)`, async () => {
+    const { ctx, page } = await openGame(browser, { width: W, height: H });
+    try {
+      await page.evaluate(() => document.querySelector('[data-tab=overview]').click()); await settle(page, 600);
+      const r = await page.evaluate(() => { const q = (s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, r: b.right, b: b.bottom, w: b.width, h: b.height }; }; return { host: q('.wl-mv-host') || q('[data-map] svg'), vitals: q('.wl-vitals'), outliner: q('[data-outliner]'), flank: q('.wl-flank'), card: q('.wl-map-card') }; });
+      assert.ok(r.host.w >= minW, `map ${Math.round(r.host.w)}px < ${minW}`);
+      assert.ok(Math.abs(r.host.w / r.host.h - 1000 / 520) < 0.08, `whole world, aspect ${(r.host.w / r.host.h).toFixed(2)}`);
+      assert.ok(r.vitals.r <= r.card.x + 1 && r.card.x + r.card.w <= r.outliner.x + 1, 'vitals left, outliner right of the map');
+      assert.ok(r.flank.y >= r.card.b - 1, 'situation cards sit under the map');
+      for (const k of ['vitals', 'outliner', 'flank', 'card']) assert.ok(r[k].r <= W + 0.5 && r[k].b <= H + 0.5, `${k} inside the viewport`);
+    } finally { await ctx.close(); }
+  });
+}
+
+// D3 Arsenal: Programs and Procurement are master-detail (sortable table beside a detail pane); Exports is a buyers table.
+const seg = (page, id) => page.evaluate((id) => document.querySelector(`[data-seg=${id}]`).click(), id).then(() => settle(page, 300));
+const box = (page, sel) => page.evaluate((sel) => { const e = document.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, r: r.right, b: r.bottom, w: r.width, h: r.height }; }, sel);
+const visibleRows = (page, sel, H) => page.evaluate(([sel, H]) => [...document.querySelectorAll(`${sel} tbody tr`)].filter((r) => { const b = r.getBoundingClientRect(); return b.top >= 0 && b.bottom <= H; }).length, [sel, H]);
+for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
+  test(`${W}px: Arsenal Programs is a table beside a detail pane; sorts, selects, arrow keys`, async () => {
+    const { ctx, page, errors } = await openGame(browser, { svg: true, width: W, height: H });
+    try {
+      await page.evaluate(() => { const h = window.__wl; h.fund(60000); h.field('b21', 1); h.field('f47', 1); });
+      await go(page, 'arsenal');
+      const t = await box(page, '[data-table=programs]'), d = await box(page, '[data-detail=programs]');
+      assert.ok(t && d && t.w >= 420 && d.w >= 320 && d.x >= t.r - 1, `table ${JSON.stringify(t)} detail ${JSON.stringify(d)}`);
+      assert.ok((t.w + d.w) / W >= 0.5, 'list + detail use the width');
+      assert.equal(await visibleRows(page, '[data-table=programs]', H), 7, 'all seven programs visible at once');
+      const title = () => page.evaluate(() => document.querySelector('[data-detail=programs] [data-program]')?.dataset.program);
+      const first = await title();
+      await page.click('[data-table=programs] tbody tr:nth-child(3)'); await settle(page, 150);
+      assert.notEqual(await title(), first, 'row click swaps the detail');
+      const order = () => page.evaluate(() => [...document.querySelectorAll('[data-table=programs] tbody tr')].map((r) => r.dataset.row));
+      const before = await order(); await page.click('[data-sort=cost]'); await settle(page, 100); const first1 = await order();
+      assert.notDeepEqual(first1, before, 'cost sort reorders'); await page.click('[data-sort=cost]'); await settle(page, 100);
+      assert.deepEqual((await order()), [...first1].reverse(), 'second click reverses');
+      assert.equal(await page.evaluate(() => document.querySelector('[data-sort=cost]').closest('th').getAttribute('aria-sort')), 'ascending', 'numeric columns sort high-to-low first, then reverse');
+      const cur = await title(); await page.focus('[data-table=programs] tbody tr[aria-selected=true]'); await page.keyboard.press('ArrowDown'); await settle(page, 150);
+      assert.notEqual(await title(), cur, 'ArrowDown moves the selection');
+      const o = await overflow(page, W); assert.deepEqual(o.bad, []);
+      assert.deepEqual(errors, []);
+    } finally { await ctx.close(); }
+  });
+}
+test('1440px: Arsenal Procurement shows every platform in one table; Exports shows every buyer; supply/partnerships/deterrence use two columns', async () => {
+  const { ctx, page, errors } = await openGame(browser, { svg: true, width: 1440, height: 900 });
+  try {
+    await go(page, 'arsenal'); await seg(page, 'procurement');
+    const n = await page.evaluate(() => document.querySelectorAll('[data-table=platforms] tbody tr').length);
+    assert.ok(n >= 19 && await visibleRows(page, '[data-table=platforms]', 900) >= 17, `platform rows ${n}`);
+    const d = await box(page, '[data-detail=platforms]'), t = await box(page, '[data-table=platforms]'); assert.ok(d.x >= t.r - 1, 'detail pane beside the table');
+    await page.click('[data-table=platforms] tbody tr:nth-child(2)'); await settle(page, 150);
+    assert.match(await page.evaluate(() => document.querySelector('[data-detail=platforms] [data-platform]').dataset.platform), /\w+/);
+    await seg(page, 'exports');
+    assert.ok(await page.evaluate(() => document.querySelectorAll('[data-table=buyers] tbody tr').length) >= 12);
+    for (const id of ['supply', 'partnerships', 'deterrence']) {
+      await seg(page, id);
+      const cols = await page.evaluate(() => new Set([...document.querySelectorAll('[data-arsenal] > section')].map((e) => Math.round(e.getBoundingClientRect().x))).size);
+      assert.ok(cols >= 2, `${id}: ${cols} column(s)`);
+    }
+    assert.deepEqual(errors, []);
+  } finally { await ctx.close(); }
+});
+
+// D4 Forces: Equipment is the order of battle as one sortable table beside the selected type's detail; the other
+// four sub-tabs flow into columns. Every table column is reachable without sideways scrolling at 1440 and 1920.
+for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
+  test(`${W}px: Forces Equipment is a type table beside a detail pane; select, sort, retire through confirm`, async () => {
+    const { ctx, page, errors } = await openGame(browser, { svg: true, width: W, height: H });
+    try {
+      await page.evaluate(() => { const h = window.__wl; h.field('f47', 2); h.forces({ crews: { land: 6, air: 0, sea: 6 } }); });
+      await go(page, 'forces'); await seg(page, 'equipment');
+      const t = await box(page, '[data-table=fleet]'), d = await box(page, '[data-detail=fleet]');
+      assert.ok(t && d && t.w >= 480 && d.w >= 320 && d.x >= t.r - 1, `table ${JSON.stringify(t)} detail ${JSON.stringify(d)}`);
+      assert.ok(await visibleRows(page, '[data-table=fleet]', H) >= (H >= 1000 ? 25 : 15), 'many types visible at once');
+      const scrolls = await page.evaluate(() => { const w = document.querySelector('[data-table=fleet]'); return w.scrollWidth > w.clientWidth + 1; });
+      if (W >= 1440) assert.equal(scrolls, false, 'no sideways scroll inside the table');
+      await page.evaluate(() => document.querySelector('[data-line=f22]').click()); await settle(page, 200);
+      const det = await page.evaluate(() => document.querySelector('[data-line-detail=f22]')?.innerText || '');
+      assert.match(det, /Source: Air & Space Forces Almanac/); assert.match(det, /Modernize/);
+      await page.click('[data-sort=count]'); await settle(page, 100);
+      const counts = await page.evaluate(() => [...document.querySelectorAll('[data-table=fleet] tbody tr td:nth-child(3)')].map((c) => +c.textContent.replace(/,/g, '')));
+      assert.deepEqual(counts, [...counts].sort((a, b) => b - a), 'count sorts high to low');
+      const n0 = await page.evaluate(() => +document.querySelector('[data-row=f22] td:nth-child(3)').textContent.replace(/,/g, ''));
+      await page.evaluate(() => document.querySelector('[data-retire=f22]').click()); await settle(page, 400);
+      const c = await stableRect(page, '[data-confirm]', { within: { W, H } }); assert.ok(c && c.x >= 0 && c.r <= W + 0.5, 'confirm panel inside the viewport');
+      await page.evaluate(() => document.querySelector('[data-confirm-ok]').click()); await settle(page, 400);
+      assert.equal(await page.evaluate(() => +document.querySelector('[data-row=f22] td:nth-child(3)').textContent.replace(/,/g, '')), n0 - 12, 'retiring 12 drops the count');
+      assert.deepEqual(errors, []);
+    } finally { await ctx.close(); }
+  });
+}
+test('1440px: Forces Manpower, Quality, Training, Special use two columns', async () => {
+  const { ctx, page } = await openGame(browser, { svg: true, width: 1440, height: 900 });
+  try {
+    await go(page, 'forces');
+    for (const id of ['manpower', 'quality', 'training', 'specialized']) {
+      await seg(page, id);
+      const cols = await page.evaluate(() => new Set([...document.querySelectorAll('[data-forces] > section')].map((e) => Math.round(e.getBoundingClientRect().x))).size);
+      assert.ok(cols >= 2, `${id}: ${cols} column(s)`);
+    }
   } finally { await ctx.close(); }
 });

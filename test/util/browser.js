@@ -28,10 +28,11 @@ export async function appHtml({ split = false } = {}) {
   return shell(js).replace('<script>', '<script>window.__WL_TEST=true;</script><script>');
 }
 // Open the app at a viewport, pick the first nation, answer the doctrine card, return the page.
-export async function openGame(browser, { width = 390, height = 844, doctrine = true } = {}) {
+export async function openGame(browser, { width = 390, height = 844, doctrine = true, svg = false } = {}) {
   const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, isMobile: width < 900, hasTouch: width < 900 });
   const page = await ctx.newPage();
   const errors = []; page.on('pageerror', (e) => errors.push(String(e)));
+  if (svg) await page.addInitScript(() => { globalThis.__WL_FORCE_SVG = true; }); // SVG map: tests that are not about the WebGL map skip swiftshader (CI runner load)
   await page.setContent(await appHtml(), { waitUntil: 'load' });
   await settle(page, 300);
   await page.locator('.cc').first().click(); await settle(page, 400);
