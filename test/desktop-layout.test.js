@@ -46,7 +46,7 @@ for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
 
 for (const [W, H] of [[1280, 800], [1920, 1080]]) {
   test(`${W}px: labelled left rail shows all nine verticals with full names and badges inside the viewport`, async () => {
-    const { ctx, page } = await openGame(browser, { width: W, height: H });
+    const { ctx, page } = await openGame(browser, { svg: true, width: W, height: H });
     try {
       const rows = await page.evaluate(() => [...document.querySelectorAll('[data-nav] [data-tab]')].map((b) => { const r = b.getBoundingClientRect(); const l = b.querySelector('.wl-nav-f'); const lr = l.getBoundingClientRect(); return { t: b.dataset.tab, x: r.x, w: r.width, b: r.bottom, label: l.textContent, lw: lr.width, trunc: l.scrollWidth > l.clientWidth + 1 }; }));
       assert.deepEqual(rows.map((r) => r.t), TABS);
@@ -58,7 +58,7 @@ for (const [W, H] of [[1280, 800], [1920, 1080]]) {
 }
 
 test('1440px: shortcuts switch verticals, change speed, step a month, and Escape closes the side panel', async () => {
-  const { ctx, page, errors } = await openGame(browser, { width: 1440, height: 900 });
+  const { ctx, page, errors } = await openGame(browser, { svg: true, width: 1440, height: 900 });
   try {
     const cur = () => page.evaluate(() => document.querySelector('[data-nav] [aria-current=page]')?.dataset.tab);
     await page.mouse.move(700, 450);
@@ -80,7 +80,7 @@ test('1440px: shortcuts switch verticals, change speed, step a month, and Escape
 });
 
 test('1440px: hovering a HUD figure opens its breakdown without a click; leaving closes it', async () => {
-  const { ctx, page } = await openGame(browser, { width: 1440, height: 900 });
+  const { ctx, page } = await openGame(browser, { svg: true, width: 1440, height: 900 });
   try {
     await page.hover('[data-why^="Treasury"]'); await settle(page, 500);
     assert.ok(await page.$('[data-why-content^="Treasury"]'), 'hover opens');
