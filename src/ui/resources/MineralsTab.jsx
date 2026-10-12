@@ -3,6 +3,8 @@
 // on the Reserves screen next to the rare-earth ore it is not to be confused with.
 import { useState } from 'react';
 import { Panel, Row, Bar } from '../shell/Panel.jsx';
+import { DataTable } from '../shell/DataTable.jsx';
+import { useWide } from '../shell/useWide.js';
 import { ConfirmSheet } from '../shell/Confirm.jsx';
 import { WhyV, f1, tone } from '../shell/fmt.jsx';
 import { MINERALS, MINERAL_RULES as R } from '../../data/minerals.js';
@@ -52,24 +54,19 @@ function RareEarthExport({ v, dispatch }) {
   </Panel>;
 }
 
-function Reserves({ rows, v, dispatch }) {
-  const top = Math.max(1, ...rows.map((r) => r.ore));
-  return <>
-    <Panel id="ore" title="Ore reserves" figure={`${rows.filter((r) => r.ore > 0).length}/${rows.length} with ore`}>
-      {rows.map((r) => { const m = mo(r); return (
+function ReserveRow({ r, top }) {
+  const m = mo(r);
+  return (
+
         <Row key={r.id} data-mineral={r.id} title={`${r.i} ${r.n}`}
           sub={r.ore > 0 && !r.cap ? `${fmtT(r.oreT)} ${r.unit} ore, no refining: worth nothing until investors build processing` : r.cap && !r.ore ? `No ore: plants run at ${R.noOreEff * 100}% on imported concentrate` : `${fmtT(r.oreT)} ${r.unit} ore · ${fmtT(r.capT)} ${r.unit}/yr refined · ${r.use}`}
           value={r.years != null ? `${yrs(r.years)} to zero` : r.ore > 0 ? 'unrefined' : '—'} tone={m && m < 24 ? 'alert' : m && m < 60 ? 'warn' : undefined}><Bar pct={(r.ore / top) * 100} tone={m && m < 24 ? 'alert' : undefined} />
-          <small className="wl-note" data-source>{r.status_source}</small></Row>); })}
-      <div className="wl-note">Home plants refine up to their capacity each year and the ore depletes with it. Years to zero = ore tonnes / capacity tonnes per year. Ore is feedstock in refined-equivalent tonnes, game-scaled, not USGS reserves.</div>
-    </Panel>
-    <RareEarthExport v={v} dispatch={dispatch} />
-  </>;
+          <small className="wl-note" data-source>{r.status_source}</small></Row>
+  );
 }
 
-function Processing({ rows, dispatch }) {
-  return <Panel id="proc" title="Processing capacity" figure={`${rows.filter((r) => r.cap > 0).length}/${rows.length} processed`}>
-    {rows.map((r) => (
+function ProcRow({ r, dispatch }) {
+  return (
       <Row key={r.id} data-mineral={r.id} title={`${r.i} ${r.n}`} stack
         sub={`${fmtT(r.capT)} ${r.unit}/yr ≈ ${r.cap}% of world (${fmtT(r.worldT)})${r.built ? ` · ${r.built} private plant${r.built > 1 ? 's' : ''}` : ''}${r.income ? ` · sector +$${f1(r.income)}M/mo` : ''}${r.upkeep ? ` · $${r.upkeep}M/mo` : ''}`}
         value={<WhyV title={`${r.n} inflow / month`} terms={[{ label: 'Home processing', value: r.flow.dom }, { label: 'Recycling', value: r.flow.rec }, { label: 'Offtake deals', value: r.flow.off }, { label: 'Allied pact', value: r.flow.pact }, { label: 'Open market', value: r.flow.mkt }]} total={r.flow.total} note={`Secure supply ${f1(r.flow.secure)}/mo (no market).`}>+{f1(r.flow.total)}/mo</WhyV>}>
@@ -79,43 +76,131 @@ function Processing({ rows, dispatch }) {
         <div className="wl-row" style={{ flexWrap: 'wrap', marginTop: 4 }}>
           {r.id !== 'enrichment' && <button type="button" className="wl-btn" aria-pressed={r.recycling} onClick={() => dispatch({ type: 'toggleRecycling', payload: { mineral: r.id } })}>{r.recycling ? '♻️ Stop recycling' : `♻️ Recycle +${R.recycle.add}/mo · $${R.recycle.cost}M/mo`}</button>}
         </div>
-      </Row>))}
-    <div className="wl-note">Private capital builds plants (+{R.plant.add}/mo, {R.plant.mo} months at pace 1) while they are profitable: world price, scarcity from others' export controls, demand from your programs. Levers (permits, tax credit, loan guarantee, DPA funding, offtake guarantee) cost a fraction of the ${R.plant.capex.toLocaleString()}M capex and last until that plant is online. New capacity pays royalties and tax. 1% of 2024 world refining = 1 game unit/mo; tonnes are units x tonnes-per-unit; capped at {R.capMax}%.</div>
-  </Panel>;
+      </Row>
+  );
 }
 
-function Stockpile({ rows, dispatch }) {
-  return <Panel id="stock" title="Stockpile and reserve" figure={`${rows.filter((r) => r.stock >= 1).length}/${rows.length} stocked`}>
-    {rows.map((r) => (
+function StockRow({ r, dispatch }) {
+  return (
       <Row key={r.id} data-mineral={r.id} title={`${r.i} ${r.n}`} stack sub={`reserve ${r.reserve}/${R.reserveMax} · ${r.releasing ? 'releasing' : 'on hold'} · inflow +${fmtT(r.inflowT)} ${r.unit}/mo`} value={`${fmtT(r.stockT)}/${fmtT(r.stockMaxT)} ${r.unit}`} tone={r.stock < 5 ? 'alert' : undefined}>
         <Bar pct={(r.stock / R.stockMax) * 100} tone={r.stock < 5 ? 'alert' : 'good'} />
         <div className="wl-row" style={{ flexWrap: 'wrap', marginTop: 4 }}>
           <button type="button" className="wl-btn wl-btn-primary" onClick={() => dispatch({ type: 'buyStockpile', payload: { mineral: r.id } })}>📦 Buy reserve ${Math.round(R.stockpile.lot * r.price * R.stockpile.markup)}M</button>
           <button type="button" className="wl-btn" aria-pressed={r.releasing} onClick={() => dispatch({ type: 'toggleStockpileRelease', payload: { mineral: r.id } })}>{r.releasing ? '⏸ Hold reserve' : '▶ Release reserve'}</button>
         </div>
-      </Row>))}
+      </Row>
+  );
+}
+
+const RES_NOTE = <div className="wl-note">Home plants refine up to their capacity each year and the ore depletes with it. Years to zero = ore tonnes / capacity tonnes per year. Ore is feedstock in refined-equivalent tonnes, game-scaled, not USGS reserves.</div>;
+const PROC_NOTE = <div className="wl-note">Private capital builds plants (+{R.plant.add}/mo, {R.plant.mo} months at pace 1) while they are profitable: world price, scarcity from others' export controls, demand from your programs. Levers (permits, tax credit, loan guarantee, DPA funding, offtake guarantee) cost a fraction of the ${R.plant.capex.toLocaleString()}M capex and last until that plant is online. New capacity pays royalties and tax. 1% of 2024 world refining = 1 game unit/mo; tonnes are units x tonnes-per-unit; capped at {R.capMax}%.</div>;
+const STK_NOTE = <div className="wl-note">Buy {R.stockpile.lot} units (a lot is 10 x the tonnes in 1 unit, shown on each row) at {Math.round((R.stockpile.markup - 1) * 100)}% over market; a released reserve feeds {R.stockpile.release}/mo into the stockpile.</div>;
+
+// Desktop master-detail for the three per-mineral screens: a sortable table of every mineral beside the selected one's
+// full row (all its levers). Phone keeps the stacked panels. Top-level component; the selection is its own state.
+function MineralMD({ id, title, rows, cols, render, notes, extra }) {
+  const [sel, setSel] = useState(null);
+  const cur = rows.find((r) => r.id === sel) || rows[0];
+  return <div className="wl-md" data-master-detail={id}>
+    <div><DataTable id={id} label={title} title={title} columns={cols} rows={rows} rowId={(r) => r.id} selected={cur?.id} onSelect={setSel} rowProps={(r) => ({ 'data-mineral-row': r.id })} />{notes}</div>
+    <div data-detail={id}>{cur && <Panel key={cur.id} id={`${id}-detail`} title="Selected mineral" figure={`${cur.i} ${cur.n}`}>{render(cur)}</Panel>}{extra}</div>
+  </div>;
+}
+const nameCol = { id: 'n', label: 'Mineral', get: (r) => r.n, cell: (r) => `${r.i} ${r.n}` };
+
+function Reserves({ rows, v, dispatch }) {
+  const wide = useWide(); const top = Math.max(1, ...rows.map((r) => r.ore));
+  if (wide) {
+    const cols = [nameCol,
+      { id: 'ore', label: 'Ore', num: true, get: (r) => r.oreT, cell: (r) => (r.ore > 0 ? `${fmtT(r.oreT)} ${r.unit}` : '—') },
+      { id: 'cap', label: 'Processed', num: true, get: (r) => r.cap, cell: (r) => (r.cap ? `${r.cap}%` : '—') },
+      { id: 'years', label: 'To zero', num: true, get: (r) => (r.years == null ? (r.ore > 0 ? 1e9 : 1e10) : r.years), cell: (r) => (r.years != null ? yrs(r.years) : r.ore > 0 ? 'unrefined' : '—'), tone: (r) => { const m = mo(r); return m && m < 24 ? 'alert' : m && m < 60 ? 'warn' : undefined; } }];
+    return <MineralMD id="ore" title="Ore reserves" rows={rows} cols={cols} render={(r) => <ReserveRow r={r} top={top} />} notes={RES_NOTE} extra={<RareEarthExport v={v} dispatch={dispatch} />} />;
+  }
+  return <>
+    <Panel id="ore" title="Ore reserves" figure={`${rows.filter((r) => r.ore > 0).length}/${rows.length} with ore`}>
+      {rows.map((r) => <ReserveRow key={r.id} r={r} top={top} />)}
+      <div className="wl-note">Home plants refine up to their capacity each year and the ore depletes with it. Years to zero = ore tonnes / capacity tonnes per year. Ore is feedstock in refined-equivalent tonnes, game-scaled, not USGS reserves.</div>
+    </Panel>
+    <RareEarthExport v={v} dispatch={dispatch} />
+  </>;
+}
+
+function Processing({ rows, dispatch }) {
+  const wide = useWide();
+  if (wide) {
+    const cols = [nameCol,
+      { id: 'capT', label: 'Capacity /yr', num: true, get: (r) => r.capT, cell: (r) => `${fmtT(r.capT)} ${r.unit}` },
+      { id: 'cap', label: 'World', num: true, get: (r) => r.cap, cell: (r) => `${r.cap}%` },
+      { id: 'built', label: 'Private plants', num: true, get: (r) => r.built || 0, cell: (r) => r.built || '—' },
+      { id: 'income', label: 'Income', num: true, get: (r) => r.income || 0, cell: (r) => (r.income ? `+$${f1(r.income)}M/mo` : '—'), tone: (r) => (r.income ? 'good' : undefined) },
+      { id: 'rec', label: 'Recycling', get: (r) => (r.recycling ? 1 : 0), cell: (r) => (r.recycling ? '♻️ on' : '—') }];
+    return <MineralMD id="proc" title="Processing capacity" rows={rows} cols={cols} render={(r) => <ProcRow r={r} dispatch={dispatch} />} notes={PROC_NOTE} />;
+  }
+  return <Panel id="proc" title="Processing capacity" figure={`${rows.filter((r) => r.cap > 0).length}/${rows.length} processed`}>
+    {rows.map((r) => <ProcRow key={r.id} r={r} dispatch={dispatch} />)}
+    <div className="wl-note">Private capital builds plants (+{R.plant.add}/mo, {R.plant.mo} months at pace 1) while they are profitable: world price, scarcity from others' export controls, demand from your programs. Levers (permits, tax credit, loan guarantee, DPA funding, offtake guarantee) cost a fraction of the ${R.plant.capex.toLocaleString()}M capex and last until that plant is online. New capacity pays royalties and tax. 1% of 2024 world refining = 1 game unit/mo; tonnes are units x tonnes-per-unit; capped at {R.capMax}%.</div>
+  </Panel>;
+}
+
+function Stockpile({ rows, dispatch }) {
+  const wide = useWide();
+  if (wide) {
+    const cols = [nameCol,
+      { id: 'stock', label: 'Stock', num: true, get: (r) => r.stock, cell: (r) => `${fmtT(r.stockT)}/${fmtT(r.stockMaxT)}`, tone: (r) => (r.stock < 5 ? 'alert' : undefined) },
+      { id: 'reserve', label: 'Reserve', num: true, get: (r) => r.reserve, cell: (r) => `${r.reserve}/${R.reserveMax}` },
+      { id: 'rel', label: 'Reserve mode', get: (r) => (r.releasing ? 1 : 0), cell: (r) => (r.releasing ? 'releasing' : 'on hold') },
+      { id: 'in', label: 'Inflow /mo', num: true, get: (r) => r.inflowT, cell: (r) => `+${fmtT(r.inflowT)} ${r.unit}` }];
+    return <MineralMD id="stock" title="Stockpile and reserve" rows={rows} cols={cols} render={(r) => <StockRow r={r} dispatch={dispatch} />} notes={STK_NOTE} />;
+  }
+  return <Panel id="stock" title="Stockpile and reserve" figure={`${rows.filter((r) => r.stock >= 1).length}/${rows.length} stocked`}>
+    {rows.map((r) => <StockRow key={r.id} r={r} dispatch={dispatch} />)}
     <div className="wl-note">Buy {R.stockpile.lot} units (a lot is 10 x the tonnes in 1 unit, shown on each row) at {Math.round((R.stockpile.markup - 1) * 100)}% over market; a released reserve feeds {R.stockpile.release}/mo into the stockpile.</div>
   </Panel>;
 }
 
 function Deals({ rows, v, dispatch }) {
   const nb = NATIONS[v.country?.id]?.bloc; const canPact = nb === 'west' || nb === 'east'; const pact = v.minerals?.pact;
+  const wide = useWide();
   const deals = rows.flatMap((r) => r.deals.map((d) => ({ ...d, r })));
-  return <>
-    {canPact && <Panel id="pact" title="Allied processing pact" figure={pact ? 'active' : 'off'} tone={pact ? 'good' : undefined}>
+  const pactPanel = (
+    canPact && <Panel id="pact" title="Allied processing pact" figure={pact ? 'active' : 'off'} tone={pact ? 'good' : undefined}>
       <button type="button" className={`wl-btn ${pact ? 'wl-btn-warn' : 'wl-btn-primary'}`} style={{ width: '100%' }} onClick={() => dispatch({ type: 'toggleProcessingPact', payload: {} })}>{pact ? `🤝 Processing pact active · $${R.pact.cost}M/mo — end` : `🤝 Processing pact · bloc partners supply you first — $${R.pact.cost}M/mo`}</button>
       <div className="wl-note">Bloc partners sell you ×{R.pact.share} their open-market share and never control exports against you.</div>
-    </Panel>}
+    </Panel>
+  );
+  const dealsPanel = (
     <Panel id="deals" title="Offtake deals" figure={deals.length}>
-      {deals.length === 0 && <div className="wl-note">No offtake deals. Sign one below: a fixed {R.offtake.term}-month supply at a relation-priced rate.</div>}
+      {deals.length === 0 && <div className="wl-note">No offtake deals. Sign one from Available partners: a fixed {R.offtake.term}-month supply at a relation-priced rate.</div>}
       {deals.map((d) => <Row key={`${d.m}_${d.n}`} data-deal={`${d.m}_${d.n}`} title={`📄 ${d.r.n} · ${d.name}`} sub={`${d.units}/mo · ${d.mo}mo left${d.paused ? ' · paused: they control exports' : ''}`} value={`$${d.price}M/mo`} tone={d.paused ? 'alert' : undefined}
         trailing={<button type="button" className="wl-btn wl-btn-alert" onClick={() => dispatch({ type: 'cancelOfftake', payload: { mineral: d.m, nation: d.n } })}>Cancel</button>} />)}
     </Panel>
+  );
+  const partnersPanel = (
     <Panel id="partners" title="Available partners" figure={rows.reduce((a, r) => a + r.partners.length, 0)}>
       {rows.map((r) => <Row key={r.id} data-mineral={r.id} title={`${r.i} ${r.n}`} sub={r.partners.length ? undefined : 'No willing processor (none refines it, or all control exports)'} stack>
         <div className="wl-row" style={{ flexWrap: 'wrap', marginTop: 4 }}>{r.partners.map((pn) => <button key={pn.id} type="button" className="wl-btn wl-btn-primary" onClick={() => dispatch({ type: 'signOfftake', payload: { mineral: r.id, nation: pn.id } })}>📄 Offtake · {pn.n} {pn.units}/mo ${pn.price}M/mo</button>)}</div>
       </Row>)}
     </Panel>
+  );
+  if (wide) {
+    const pr = rows.flatMap((r) => r.partners.map((pn) => ({ r, pn })));
+    const cols = [
+      { id: 'n', label: 'Mineral', get: (x) => x.r.n, cell: (x) => `${x.r.i} ${x.r.n}` },
+      { id: 'who', label: 'Partner', get: (x) => x.pn.n },
+      { id: 'u', label: 'Units /mo', num: true, get: (x) => x.pn.units },
+      { id: 'price', label: 'Price', num: true, get: (x) => x.pn.price, cell: (x) => `$${x.pn.price}M/mo` },
+      { id: 'act', label: '', get: (x) => x.pn.n, cell: (x) => <button type="button" className="wl-btn wl-btn-sm wl-btn-primary" onClick={() => dispatch({ type: 'signOfftake', payload: { mineral: x.r.id, nation: x.pn.id } })}>📄 Offtake · {x.pn.n}</button> },
+    ];
+    return <div className="wl-md" data-master-detail="deals">
+      <div><DataTable id="partners" label="Available partners" title="Available partners" columns={cols} rows={pr} rowId={(x) => `${x.r.id}_${x.pn.id}`} />{rows.filter((r) => !r.partners.length).map((r) => <div key={r.id} className="wl-note">{r.i} {r.n}: no willing processor (none refines it, or all control exports)</div>)}</div>
+      <div data-detail="deals">{pactPanel}{dealsPanel}</div>
+    </div>;
+  }
+  return <>
+    {pactPanel}
+    {dealsPanel}
+    {partnersPanel}
   </>;
 }
 
@@ -148,5 +233,6 @@ export function MineralsTab({ sub, view, dispatch }) {
   const body = sub === 'processing' ? <Processing rows={rows} dispatch={dispatch} /> : sub === 'stockpile' ? <Stockpile rows={rows} dispatch={dispatch} />
     : sub === 'deals' ? <Deals rows={rows} v={view} dispatch={dispatch} /> : sub === 'controls' ? <Controls rows={rows} v={view} dispatch={dispatch} ask={setAct} />
     : <Reserves rows={rows} v={view} dispatch={dispatch} />;
-  return <div className="wl-tabroot" data-minerals data-minerals-sub={sub}>{body}<ConfirmSheet act={act} onClose={() => setAct(null)} /></div>;
+  const wide = useWide(); const md = sub === 'reserves' || sub === 'processing' || sub === 'stockpile' || !sub;
+  return <div className={`wl-tabroot${wide && !md ? ' wl-cols' : ''}`} data-minerals data-minerals-sub={sub}>{body}<ConfirmSheet act={act} onClose={() => setAct(null)} /></div>;
 }

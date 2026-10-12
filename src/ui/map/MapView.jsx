@@ -38,7 +38,7 @@ export function MapView({ view, mode = 'sphere', onModeChange, onRegionTap, onSi
 
   const { legend } = scene;
   return (
-    <div data-map data-map-mode={mode} data-map-renderer={renderer}>
+    <div className="wl-mv" data-map data-map-mode={mode} data-map-renderer={renderer}>
       <div role="tablist" aria-label="Map mode" data-map-modes style={{ display: 'grid', gridTemplateColumns: `repeat(${MAP_MODES.length}, minmax(0, 1fr))`, gap: 2, padding: 2, marginBottom: SPACE[3], border: `1px solid ${COLOR.border.strong}`, borderRadius: RADIUS.lg, background: COLOR.bg.inset }}>
         {MAP_MODES.map((m) => { const on = m.id === mode; return (
           <button key={m.id} role="tab" aria-selected={on} data-map-mode-btn={m.id} onClick={() => onModeChange?.(m.id)} title={m.hint}
@@ -46,9 +46,9 @@ export function MapView({ view, mode = 'sphere', onModeChange, onRegionTap, onSi
             <span aria-hidden="true" style={{ fontSize: 16 }}>{m.icon}</span><span style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.label}</span>
           </button>); })}
       </div>
-      <div style={{ position: 'relative' }}>
+      <div className="wl-mv-stage" style={{ position: 'relative' }}>
         {renderer === 'pixi'
-          ? <div ref={host} style={{ height, borderRadius: RADIUS.lg, overflow: 'hidden', background: COLOR.bg.ocean, touchAction: 'none' }} />
+          ? <div ref={host} className="wl-mv-host" style={{ height, borderRadius: RADIUS.lg, overflow: 'hidden', background: COLOR.bg.ocean, touchAction: 'none' }} />
           : <SvgMap scene={scene} onRegionTap={(rid) => onRegionTap?.(rid)} onSiteTap={(sid) => onSiteTap?.(sid)} />}
         {/* F9b (#57): the build toggle sits over the map, bottom right, under the thumb. On, every candidate site is a tappable marker. */}
         {onBuildToggle && <button type="button" className={`wl-btn${scene.build ? ' wl-btn-good' : ''}`} data-build-toggle aria-pressed={!!scene.build} onClick={() => onBuildToggle(!scene.build)} title="Build: show every candidate site; tap one to place a base"

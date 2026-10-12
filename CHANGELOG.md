@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.89.0 (2026-10-11) — D5: Resources master-detail
+- UI only, no rule change; parity goldens untouched. Desktop branches sit behind `useWide()` (>= 1100px); the phone tree is unchanged.
+- Reserves, Processing, Stockpile: a sortable table of all ten minerals (ore, processed share, years to zero; capacity, plants, income, recycling; stock, reserve, inflow) beside the selected mineral's full row, state levers and the rare-earth export extraction. Notes under the table.
+- Deals: every offtake option is a row of one partners table with its Offtake button; the allied pact and signed deals sit beside it.
+- Controls and Natural flow into columns (`.wl-cols`, 380px minimum). Extracted `ReserveRow`, `ProcRow`, `StockRow` as top-level components (no logic change).
+- Tests: `desktop-layout.test.js` +3 (table beside detail, all ten minerals visible, detail follows selection, levers in the detail pane, sort, partners rows, two-column controls at 1280/1440/1920). Existing Resources tests green at 390 and 1280.
+
+## 0.88.0 (2026-10-11) — D4: Forces master-detail
+- UI only, no rule change; parity goldens untouched. Desktop branches sit behind `useWide()` (>= 1100px); the phone tree is unchanged.
+- Equipment: the order of battle is one sortable table of every type (branch, in service, ready, MC now and target, crewless, maintenance) beside the selected type's detail (maintenance slider, modernize, retire, source) with the fleet summary and crews panels; inventory and theaters under the table. Retire still goes through the confirm panel.
+- Manpower, Quality, Training and Special flow into two columns.
+- `DataTable` gains `rowProps` (the 390px selectors `data-line` keep working on table rows). Table cell padding 8px.
+- Tests: `desktop-layout.test.js` +2 (table beside detail, many rows visible, no sideways scroll, select, sort, retire through confirm; two columns). Existing Forces tests green at 390 and 1280.
+
+## 0.87.0 (2026-10-11) — D3: Arsenal master-detail and tables
+- UI only, no rule change; parity goldens untouched (verb parity green). Phone tree unchanged: every desktop branch is behind `useWide()` (>= 1100px), so jsdom and 390px render the old stacked panels.
+- New shared primitives: `shell/DataTable.jsx` (sortable columns, selected row, ArrowUp/Down, ~30px rows, aria-sort) and `shell/useWide.js` (one media hook; `Sheet` now uses it too). CSS: `.wl-md` master-detail, `.wl-cols` multi-column panels, `.wl-tbl`.
+- Programs: sortable table of all seven programs (stage, fielded, status, cost, supply) beside the selected program's card. Procurement: all 19 platforms in one table beside the selected platform's actions, force structure, policy and R&D readiness. Exports: sortable buyers table with the offer button per row. Supply, Partnerships, Deterrence flow into two columns.
+- Sub-tab bars are one row at desktop (34px). Nation vitals column hides on every vertical except Overview/Situation (its drill-down renders on Overview only), freeing 205px. Extracted `ProgramCard`, `PlatformRow` as top-level components (no logic change).
+- Tests: `desktop-layout.test.js` +4 (table beside detail, row select, sort, arrow keys, 19 platform rows visible, buyers, two-column panels). `layout.test.js`: the 1280px variants of the Resources, Forces and Arsenal tests now ask 30px segments and 27px rows (owner ruling 2026-10-11); 390px assertions unchanged at 44px.
+
+## 0.86.0 (2026-10-11) — D2: Overview, map dominant
+- UI only, no rule change; parity goldens untouched.
+- >= 1100px: the map owns the main column (vitals left, outliner right, both unchanged); hegemony race, risk, issues, deployments and log move into a scrolling card strip under it (`.wl-flank`). Phone order unchanged (map first, cards below).
+- The whole world (1000:520) fits the stage with no crop (container-query box); map is ~50% of the viewport width at 1440 and 1920. Pixi renderer now resizes with its container (`app.resize()` in the existing ResizeObserver); before, the canvas kept its first size.
+- Legend text 11px, mode chips 36px, mode hint moved to each chip's hover title.
+- Why breakdowns open on hover only where the primary pointer hovers (`(hover:hover) and (pointer:fine)`); emulated phones and touch keep tap-to-toggle. Fixes a race where a hover-opened breakdown was still open when the next figure was tapped (opened-states test, 390px).
+- Tests: `desktop-layout.test.js` +3 (map width, aspect, cards below, flanks inside the viewport at 1280/1440/1920).
+
 ## 0.85.0 (2026-10-11) — D1: desktop-first shell
 - UI only, no rule change; parity goldens untouched. Owner ruling 2026-10-11: desktop first. PLAYABLE-PLAN guardrail 4 and the DESIGN-SYSTEM layout section now say design for 1440px and up; 390px still renders and passes but never constrains.
 - >= 1100px: labelled left rail (full vertical names, number-key hints, badges inline, 160-224px), HUD in one row (nation, three figures, pause reason, speed, bell), outliner column 264-380px. `BREAK.desktop` = 1100.
