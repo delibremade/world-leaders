@@ -162,7 +162,7 @@ test('1440px: Arsenal Procurement shows every platform in one table; Exports sho
 // four sub-tabs flow into columns. Every table column is reachable without sideways scrolling at 1440 and 1920.
 for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
   test(`${W}px: Forces Equipment is a type table beside a detail pane; select, sort, retire through confirm`, async () => {
-    const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
+    const { ctx, page, errors } = await openGame(browser, { svg: true, width: W, height: H });
     try {
       await page.evaluate(() => { const h = window.__wl; h.field('f47', 2); h.forces({ crews: { land: 6, air: 0, sea: 6 } }); });
       await go(page, 'forces'); await seg(page, 'equipment');
@@ -187,7 +187,7 @@ for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
   });
 }
 test('1440px: Forces Manpower, Quality, Training, Special use two columns', async () => {
-  const { ctx, page } = await openGame(browser, { width: 1440, height: 900 });
+  const { ctx, page } = await openGame(browser, { svg: true, width: 1440, height: 900 });
   try {
     await go(page, 'forces');
     for (const id of ['manpower', 'quality', 'training', 'specialized']) {
