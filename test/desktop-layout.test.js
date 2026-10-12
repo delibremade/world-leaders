@@ -30,7 +30,7 @@ const clipped = (page) => page.evaluate(() => [...document.querySelectorAll('bod
 
 for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
   test(`${W}px: every vertical fills >= 80% of the width, nothing clipped or scrolling sideways`, async () => {
-    const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
+    const { ctx, page, errors } = await openGame(browser, { svg: true, width: W, height: H });
     try {
       for (const t of PANES) {
         await go(page, t);
