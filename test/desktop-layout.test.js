@@ -235,7 +235,7 @@ for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
 // influence, sanctions and import blocks flow into two columns under it.
 for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
   test(`${W}px: Trade is a nation table beside the nation's action sheet; select, sort, sanction, columns below`, async () => {
-    const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
+    const { ctx, page, errors } = await openGame(browser, { svg: true, width: W, height: H });
     try {
       await go(page, 'trade');
       const t = await box(page, '[data-table=nations]'), d = await box(page, '[data-detail=nations]');
