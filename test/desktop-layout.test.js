@@ -202,7 +202,7 @@ test('1440px: Forces Manpower, Quality, Training, Special use two columns', asyn
 // Deals is a partners table (every offtake is one row); Controls flows into columns.
 for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
   test(`${W}px: Resources minerals is a table beside the selected mineral's detail; select, sort, levers`, async () => {
-    const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
+    const { ctx, page, errors } = await openGame(browser, { svg: true, width: W, height: H });
     try {
       await go(page, 'resources');
       for (const [sub, table, min] of [['reserves', 'ore', 10], ['processing', 'proc', 10], ['stockpile', 'stock', 10]]) {
