@@ -114,7 +114,7 @@ const box = (page, sel) => page.evaluate((sel) => { const e = document.querySele
 const visibleRows = (page, sel, H) => page.evaluate(([sel, H]) => [...document.querySelectorAll(`${sel} tbody tr`)].filter((r) => { const b = r.getBoundingClientRect(); return b.top >= 0 && b.bottom <= H; }).length, [sel, H]);
 for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
   test(`${W}px: Arsenal Programs is a table beside a detail pane; sorts, selects, arrow keys`, async () => {
-    const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
+    const { ctx, page, errors } = await openGame(browser, { svg: true, width: W, height: H });
     try {
       await page.evaluate(() => { const h = window.__wl; h.fund(60000); h.field('b21', 1); h.field('f47', 1); });
       await go(page, 'arsenal');
@@ -139,7 +139,7 @@ for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
   });
 }
 test('1440px: Arsenal Procurement shows every platform in one table; Exports shows every buyer; supply/partnerships/deterrence use two columns', async () => {
-  const { ctx, page, errors } = await openGame(browser, { width: 1440, height: 900 });
+  const { ctx, page, errors } = await openGame(browser, { svg: true, width: 1440, height: 900 });
   try {
     await go(page, 'arsenal'); await seg(page, 'procurement');
     const n = await page.evaluate(() => document.querySelectorAll('[data-table=platforms] tbody tr').length);
