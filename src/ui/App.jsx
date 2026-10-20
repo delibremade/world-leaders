@@ -42,6 +42,7 @@ import { buildOutliner } from './shell/outliner.js';
 import { CommandCard } from './shell/CommandCard.jsx';
 import { regionCommands, budgetCommands, runCommand } from './shell/commands.js';
 import { buildAlerts } from './shell/alerts.js';
+import { Allocation } from './economy/Allocation.jsx';
 import { newEvState } from '../sim/events.js';
 import { whyFor } from '../data/event-why.js';
 import { openEventCards, eventOptions } from '../sim/selectors.js';
@@ -170,6 +171,8 @@ function WorldLeadersInner({resumeSignal}){
   const [outlinerOpen,setOutlinerOpen]=useState(false);
   const [selBudget,setSelBudget]=useState(null); // V2d: the budget line whose command card is open
   const [alertFocus,setAlertFocus]=useState(null); // V2b: {family, ids} from a top-bar alert chip; rows rise to L2 in the outliner
+  // V2e allocation surface: UI-only state. locks never squeeze; hold = one pool (persisted as a setting); baseline = the allocations when this game opened.
+  const [budgetLocks,setBudgetLocks]=useState(()=>new Set());const [poolHold,setPoolHold]=useState(false);const [allocOpen,setAllocOpen]=useState(false);const baselineR=useRef(null);
   const [history,setHistory]=useState([]);            // 24-month HUD sparklines (presentation, not saved)
   const [interestRate,setInterestRate]=useState(4.0);
   const [taxPolicy,setTaxPolicy]=useState(28);
@@ -378,6 +381,9 @@ function WorldLeadersInner({resumeSignal}){
   if(!notifierR.current)notifierR.current=createNotifier({tick:()=>tickCountR.current,date:()=>dateR.current,onChange:setFeed,onPhase:p=>{if(p)phaseLogR.current.push(p);if(phaseLogR.current.length>240)phaseLogR.current.shift();},onToast:pushToast,onPause:e=>{setPaused(true);setPauseWhy(`${CLASSES[e.cls].label} notice`);}});
   const showToast=useCallback((msg,meta)=>notifierR.current.notify(msg,meta),[]);
   const setRoute=useCallback((cls,route)=>{const r=notifierR.current.setRoute(cls,route);setRoutes(r);try{window.storage&&window.storage.set('wl_feed_routes',JSON.stringify(r));}catch(e){}},[]);
+  useEffect(()=>{(async()=>{try{if(!window.storage)return;const r=await window.storage.get('wl_pool_hold');setPoolHold(r?.value==='1');}catch(e){}})();},[]);
+  const setHold=(v)=>{setPoolHold(!!v);try{window.storage&&window.storage.set('wl_pool_hold',v?'1':'0');}catch(e){}};
+  useEffect(()=>{if(phase!=='play'){baselineR.current=null;return;}if(!baselineR.current)baselineR.current={...budgetAlloc};},[phase]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(()=>{(async()=>{try{if(!window.storage)return;const r=await window.storage.get('wl_feed_routes');setRoutes(notifierR.current.setRoutes(JSON.parse(r.value)));}catch(e){}})();},[]);
 
   const SAVE_VER=52;
@@ -810,7 +816,7 @@ function WorldLeadersInner({resumeSignal}){
         </div>);})()}
       {intelCrisis&&(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1500}}><div style={{background:'#111a2c',border:'2px solid #ff7a45',borderRadius:'10px',padding:'28px',maxWidth:'480px',width:'90%'}}><div style={{fontSize:'11px',color:'#ff7a45',textTransform:'uppercase',letterSpacing:'2px',marginBottom:'8px'}}>🚨 Intelligence Crisis</div><div style={{fontSize:'14px',fontWeight:700,color:'#e6edf7',marginBottom:'8px'}}>{intelCrisis.type==='friendly'?'Operation Discovered by Ally':intelCrisis.type==='stolen'?'Foreign Operation Against You Detected':'Operation Discovered by Adversary'}</div><div style={{fontSize:'12px',color:'#9aa8bf',marginBottom:'14px'}}>Target: {intelCrisis.targetId} · Op: {INTEL_OPS.find(o=>o.id===intelCrisis.opId)?.n}. Choose your response carefully — consequences are real.</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>{intelCrisis.responses.map(r=><div key={r.id} onClick={()=>dispatch({type:'respondIntelCrisis',payload:{response:r.id,crisis:intelCrisis}})} style={{background:'#0c1424',border:'1px solid #2e3f5c',borderRadius:'7px',padding:'10px',cursor:'pointer'}}><div style={{fontSize:'12px',fontWeight:700,color:'#e6edf7',marginBottom:'4px'}}>{r.label}</div>{r.tags.map((t,i)=><div key={i} style={{fontSize:'10px',color:'#7c8aa3'}}>· {t}</div>)}</div>)}</div></div></div>)}
 
-      <Hud version={VERSION} country={country} date={date} stats={stats} ledger={ledger} history={history} hegScore={hegScore} pillars={{e:pillarE,m:pillarM,i:pillarI,t:pillarT}} activeEffects={activeEffects}
+      <Hud version={VERSION} country={country} date={date} stats={stats} ledger={ledger} history={history} hegScore={hegScore} pillars={{e:pillarE,m:pillarM,i:pillarI,t:pillarT}} activeEffects={activeEffects} onAllocate={()=>setAllocOpen(true)}
         pauseReason={plan.reason} hegHold={hegHold} alerts={alerts} onAlert={onAlert} alertFocus={alertFocus?.family||null}
         unread={unreadCount(feed)} onFeed={()=>setFeedOpen(true)} canStep={plan.canStep&&!plan.running} onStep={stepMonth} paused={paused} onPause={v=>{setPaused(v);if(!v)setPauseWhy(null);}} onTogglePause={togglePause} pauseLocked={hardGate&&!paused} gameSpeed={gameSpeed} onSpeed={setGameSpeed} lastSaved={lastSaved} onQuit={()=>{setPhase('select');setGameOver(null);}} doctrineLabel={doctrine?`${DOCTRINES[doctrine].i} ${DOCTRINES[doctrine].n}`:null}/>
       <EventCards doctrine={doctrine} activeDecision={activeDecision} decisionDesc={activeDecision?(typeof activeDecision.desc==='function'?activeDecision.desc({ten:rivalTension,bt:blocTrade,ns:stats||{},country}):activeDecision.desc):''} worldEvent={evOpen.world} flashpoint={evOpen.flashpoint} worldOpts={eventOptions(evView,'world')} decisionOpts={activeDecision?eventOptions(evView,'decision'):null} country={country} fpOpts={eventOptions(evView,'flashpoint')} dispatch={dispatch} fxBadge={fxBadge} readyBriefs={issues.filter(i=>i.status==='briefed'&&briefs[i.type]).map(i=>({type:i.type,ttl:i.ttl,title:ISSUES[i.type]?.title,icon:ISSUES[i.type]?.icon,rc:briefs[i.type].rc,n:(briefs[i.type].opts||[]).length}))} onOpenBrief={t=>{setActiveTab('intel');setIntelIssue(t);}} onOpenRegion={rid=>{setActiveTab('overview');setSelNation(null);setSelectedRegion(rid);}}/>
@@ -1116,54 +1122,20 @@ function WorldLeadersInner({resumeSignal}){
               </div>)}
               <div style={{fontSize:'9px',color:'#7c8aa3',marginTop:'6px'}}>One-off purchases and event costs aren't shown — this is your recurring position.</div>
             </div>);})()}
-            {/* ── Sector Budget Dashboard ─────────────────────────────── */}
-            <div style={{marginBottom:'14px'}}>
+            {/* ── Sector Budgets: one-pool allocation surface (V2e) ───── */}
+            <div style={{marginBottom:'14px'}} data-sector-budgets>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
-                <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px'}}>Sector Budgets</div>
+                <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px'}}>Sector Budgets · one pool</div>
                 <div style={{fontSize:'11px',color:'#9aa8bf'}}>Total: <span style={{color:'#e6edf7',fontWeight:700}}>${Math.round(Object.entries(budgetAlloc).reduce((s,[sec,a])=>s+rSCost(sec,a),0)).toLocaleString()}M/mo</span></div>
               </div>
-              {selBudget&&<CommandCard id="budget" placement="column" title={SECTOR_LABELS[selBudget]} sub={`${budgetAlloc[selBudget]??100}% · keys K J N M`} color="#f5c451" actions={budgetCommands(selBudget,budgetAlloc[selBudget]??100,{age:sectorAge[selBudget]||0,treasury:stats?.treasury||0})} onRun={runCmd} onClose={()=>setSelBudget(null)}/>}
-              {Object.entries(SECTOR_LABELS).map(([sector,label])=>{
-                const alloc=budgetAlloc[sector]||100;
-                const md=rMatDisc(sector);const cost=Math.round(rSCost(sector,alloc));
-                const age=sectorAge[sector]||0;const decaying=age>480;const nearEnd=age>360&&age<=480;
-                const isOver=alloc>100;const isUnder=alloc<100;
-                const effLabel=isOver?`+${((alloc-100)/100).toFixed(2)}× gains`:isUnder?`−${((100-alloc)/100).toFixed(2)}× decay`:'Normal';
-                const effColor=isOver?'#ffb08a':isUnder?'#6ee7a8':'#7c8aa3';
-                return(<div key={sector} style={{background:'#0c1424',border:`1px solid ${decaying?'#ff7a45':nearEnd?'#f0c04055':'#1c2a42'}`,borderRadius:'7px',padding:'10px',marginBottom:'6px'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5px'}}>
-                    <button type="button" data-budget-line={sector} aria-pressed={selBudget===sector} onClick={()=>setSelBudget(selBudget===sector?null:sector)} style={{fontSize:'12px',fontWeight:700,color:'#e6edf7',background:'transparent',border:'none',padding:0,font:'inherit',cursor:'pointer',textDecoration:selBudget===sector?'underline':'none'}}>{label}</button>
-                    <div style={{display:'flex',gap:'5px',alignItems:'center'}}>
-                      {md>0&&<span style={{fontSize:'9px',color:'#6ee7a8',padding:'1px 5px',background:'rgba(110,231,168,.1)',border:'1px solid #6ee7a8',borderRadius:'3px'}}>−{Math.round(md*100)}% mature</span>}
-                      {decaying&&<span style={{fontSize:'9px',color:'#ff7a45',animation:'pulse 1.2s infinite'}}>⚠ AGING</span>}
-                      {nearEnd&&!decaying&&<span style={{fontSize:'9px',color:'#f5c451'}}>⏱ {480-age}mo</span>}
-                      <span style={{fontSize:'12px',fontWeight:700,color:isOver?'#ffb08a':isUnder?'#6ee7a8':'#9aa8bf'}}>${cost}M/mo</span>
-                    </div>
-                  </div>
-                  <div style={{display:'flex',alignItems:'center',gap:'7px',marginBottom:'4px'}}>
-                    <span style={{fontSize:'10px',color:effColor,minWidth:'34px',fontWeight:600}}>{alloc}%</span>
-                    <div style={{flex:1,position:'relative'}}>
-                      <input type="range" min="0" max="200" step="5" value={alloc}
-                        onChange={e=>dispatch({type:'setSectorBudget',payload:{sector,value:+e.target.value}})}
-                        style={{width:'100%',accentColor:isOver?'#ffb08a':isUnder?'#6ee7a8':'#4fb8ff'}}/>
-                      <div style={{position:'absolute',left:'50%',top:'-2px',width:'1px',height:'14px',background:'#2e3f5c',pointerEvents:'none'}}/>
-                    </div>
-                    <span style={{fontSize:'9px',color:'#5b6880',minWidth:'22px',textAlign:'right'}}>200</span>
-                  </div>
-                  <div style={{display:'flex',justifyContent:'space-between',fontSize:'10px',color:effColor}}>
-                    <span>{effLabel}</span>
-                    {(sector==='defense'||sector==='energy')&&age>0&&<span style={{color:decaying?'#ff7a45':nearEnd?'#f5c451':'#5b6880'}}>Age: {age}mo</span>}
-                  </div>
-                  {decaying&&<button onClick={()=>dispatch({type:'modernizeSector',payload:{sector}})} style={{width:'100%',marginTop:'6px',background:'rgba(255,122,69,.08)',border:'1px solid #ff7a45',color:'#ff7a45',padding:'6px',borderRadius:'4px',fontSize:'11px',fontWeight:700}}>
-                    🔄 Great Modernization — costs 30% treasury (${Math.round((stats?.treasury||0)*0.3).toLocaleString()}M)
-                  </button>}
-                </div>);
-              })}
+              <Allocation allocs={budgetAlloc} maturity={sectorMaturity} age={sectorAge} treasury={stats?.treasury||0} locks={budgetLocks} onLock={(k,v)=>setBudgetLocks(p=>{const n2=new Set(p);if(v)n2.add(k);else n2.delete(k);return n2;})} hold={poolHold} onHold={setHold} baseline={baselineR.current||budgetAlloc} dispatch={dispatch} selected={selBudget} onSelect={setSelBudget}>
+                {selBudget&&<CommandCard id="budget" placement="column" title={SECTOR_LABELS[selBudget]} sub={`${budgetAlloc[selBudget]??100}% · keys K J N M`} color="#f5c451" actions={budgetCommands(selBudget,budgetAlloc[selBudget]??100,{age:sectorAge[selBudget]||0,treasury:stats?.treasury||0})} onRun={runCmd} onClose={()=>setSelBudget(null)}/>}
+              </Allocation>
               {(()=>{
                 const defSpend=rSCost('defense',budgetAlloc.defense)+(intelBudget||1)*200/12;
                 const socSpend=rSCost('healthcare',budgetAlloc.healthcare)+rSCost('education',budgetAlloc.education);
                 const ratio=socSpend>0?defSpend/socSpend:99;
-                if(ratio>2)return <div style={{fontSize:'11px',color:'#ff7a45',padding:'6px 8px',background:'rgba(255,122,69,.07)',borderRadius:'5px',border:'1px solid #ef444455'}}>⚠ Defense/Intel {ratio.toFixed(1)}× social spending — legitimacy penalty (−0.07 stability/mo)</div>;
+                if(ratio>2)return <div style={{marginTop:'8px',fontSize:'11px',color:'#ff7a45',padding:'6px 8px',background:'rgba(255,122,69,.07)',borderRadius:'5px',border:'1px solid #ef444455'}}>⚠ Defense/Intel {ratio.toFixed(1)}× social spending — legitimacy penalty (−0.07 stability/mo)</div>;
                 return null;
               })()}
             </div>
@@ -1840,6 +1812,10 @@ function WorldLeadersInner({resumeSignal}){
                 </div>
               </div>}
         </>}
+      </Sheet>
+      <Sheet open={allocOpen} hold="sheet" onClose={()=>setAllocOpen(false)} title="Allocate" subtitle="One pool · hold it and a line you raise squeezes the unlocked others">
+        <div data-allocate-drawer><Allocation compact allocs={budgetAlloc} maturity={sectorMaturity} age={sectorAge} treasury={stats?.treasury||0} locks={budgetLocks} onLock={(k,v)=>setBudgetLocks(p=>{const n2=new Set(p);if(v)n2.add(k);else n2.delete(k);return n2;})} hold={poolHold} onHold={setHold} baseline={baselineR.current||budgetAlloc} dispatch={dispatch}/>
+        <button type="button" className="wl-btn" style={{width:'100%',marginTop:12}} onClick={()=>{setAllocOpen(false);setActiveTab('economy');}} data-allocate-full>Open the full surface in Economy</button></div>
       </Sheet>
       <ConfirmSheet act={act} onClose={()=>{const a=act;setAct(null);if(a?.back)setSelSite(a.back);}}/>
     </div></ClockGateContext.Provider>
