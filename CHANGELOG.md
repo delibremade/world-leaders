@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.89.0 (2026-10-11) — D5: Resources master-detail
+- UI only, no rule change; parity goldens untouched. Desktop branches sit behind `useWide()` (>= 1100px); the phone tree is unchanged.
+- Reserves, Processing, Stockpile: a sortable table of all ten minerals (ore, processed share, years to zero; capacity, plants, income, recycling; stock, reserve, inflow) beside the selected mineral's full row, state levers and the rare-earth export extraction. Notes under the table.
+- Deals: every offtake option is a row of one partners table with its Offtake button; the allied pact and signed deals sit beside it.
+- Controls and Natural flow into columns (`.wl-cols`, 380px minimum). Extracted `ReserveRow`, `ProcRow`, `StockRow` as top-level components (no logic change).
+- Tests: `desktop-layout.test.js` +3 (table beside detail, all ten minerals visible, detail follows selection, levers in the detail pane, sort, partners rows, two-column controls at 1280/1440/1920). Existing Resources tests green at 390 and 1280.
+
 ## 0.88.0 (2026-10-11) — D4: Forces master-detail
 - UI only, no rule change; parity goldens untouched. Desktop branches sit behind `useWide()` (>= 1100px); the phone tree is unchanged.
 - Equipment: the order of battle is one sortable table of every type (branch, in service, ready, MC now and target, crewless, maintenance) beside the selected type's detail (maintenance slider, modernize, retire, source) with the fleet summary and crews panels; inventory and theaters under the table. Retire still goes through the confirm panel.

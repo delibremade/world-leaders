@@ -198,7 +198,7 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
 .wl-tabroot>.wl-md{flex:1 1 0}
 .wl-tabroot:has(>.wl-md){overflow:hidden}
 .wl-detail-empty{padding:${SPACE[8]}px;text-align:center;color:${c.text.dim};font-size:${SIZE.small}px}
-.wl-tabroot.wl-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));align-items:start;align-content:start;gap:${SPACE[6]}px}
+.wl-tabroot.wl-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));align-items:start;align-content:start;gap:${SPACE[6]}px}
 @media (hover:hover){
   .wl-r:hover,.wl-ol-row:hover,.wl-nation-row:hover{background:rgba(59,130,246,.07)}
   .wl-p-head:hover{background:rgba(255,255,255,.03)}
