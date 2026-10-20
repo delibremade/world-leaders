@@ -10,6 +10,8 @@ import { NODE_TYPES, SITES, SITE_IDS, KM_PER_PX } from '../../data/bases.js';
 import { hostName } from '../../sim/bases.js';
 import { COLOR } from '../tokens.js';
 
+// v2 §3: map-mode hotkeys, dock order. Sphere Q, Tension W, Trade E, Energy R, Military T, Intel Y.
+export const MODE_KEYS = ['Q', 'W', 'E', 'R', 'T', 'Y'];
 export const MAP_MODES = [
   { id: 'sphere', label: 'Sphere', icon: '🌍', hint: 'Who holds each region. Hatch = contested within 15 points.' },
   { id: 'tension', label: 'Tension', icon: '🔥', hint: 'Highest rival tension present in each region (ruling 2: always visible).' },

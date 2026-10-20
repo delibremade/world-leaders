@@ -161,6 +161,33 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
 .wl-sel{min-height:${TAP}px;flex:1 1 120px;min-width:0;background:${c.bg.panel};color:${c.text.secondary};border:1px solid ${c.border.strong};border-radius:${RADIUS.lg}px;font:inherit;font-size:${SIZE.small}px;padding:0 ${SPACE[3]}px}
 .wl-wy{background:none;border:none;color:inherit;font:inherit;font-weight:700;min-height:44px;padding:0 0 0 8px;text-decoration:underline dotted;text-underline-offset:3px;text-align:right}
 .wl-slider{width:100%;height:${TAP}px;margin:0}
+/* V2c 2.5D map chrome: level chip top-left, zoom top-right, legend bottom-left, mode dock bottom-right (v2 §3). Phone: the
+   dock and the legend sit under the stage (one thumb, 44px chips); from 900px they float over the map. */
+.wl-mv-lod{position:absolute;left:${SPACE[3]}px;top:${SPACE[3]}px;z-index:2;pointer-events:none;background:${c.bg.panel}e6;color:${c.text.secondary};border-color:${c.border.strong}}
+.wl-mv-zoom{position:absolute;right:${SPACE[3]}px;top:${SPACE[3]}px;z-index:2;display:flex;flex-direction:column;gap:${SPACE[2]}px}
+.wl-mv-zoom>button{min-width:${TAP}px;min-height:${TAP}px;border-radius:${RADIUS.lg}px;border:1px solid ${c.border.strong};background:${c.bg.panel}e6;color:${c.text.primary};font:inherit;font-size:${SIZE.lg}px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.6)}
+.wl-mv-zoom>button:disabled{opacity:.4}
+.wl-mv-zoom>.wl-btn{padding:0 ${SPACE[4]}px;font-size:${SIZE.small}px;background:${c.bg.panel}e6}
+.wl-mv-dock{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px;padding:2px;margin-top:${SPACE[3]}px;border:1px solid ${c.border.strong};border-radius:${RADIUS.lg}px;background:${c.bg.inset}}
+.wl-mv-dock button{min-height:${TAP}px;min-width:0;padding:${SPACE[2]}px 0;border-radius:${RADIUS.md}px;border:1px solid transparent;background:transparent;color:${c.text.muted};font:inherit;font-size:${SIZE.micro}px;font-weight:500;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1.1}
+.wl-mv-dock button[aria-selected=true]{border-color:${c.accent.command};background:rgba(79,184,255,.2);color:${c.text.primary};font-weight:700}
+.wl-mv-dock-i{font-size:16px}
+.wl-mv-dock-l{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wl-mv-dock kbd{display:none}
+.wl-mv-legend{display:flex;flex-wrap:wrap;align-items:center;gap:${SPACE[2]}px ${SPACE[5]}px;margin-top:${SPACE[4]}px;font-size:${SIZE.micro}px;color:${c.text.muted}}
+.wl-mv-legend>.wl-label{font-size:${SIZE.micro}px;font-weight:700}
+.wl-mv-legend-i{display:inline-flex;align-items:center;gap:${SPACE[2]}px}
+.wl-mv-swatch{width:11px;height:11px;border-radius:2px;border:1px solid}
+.wl-mv-glyphs{color:${c.text.dim};flex-basis:100%}
+.wl-mv-hint{font-size:${SIZE.caption}px;color:${c.text.dim};margin-top:${SPACE[2]}px}
+@media (min-width:${BREAK.tablet}px){
+  .wl-mv-dock{position:absolute;right:${SPACE[3]}px;bottom:${SPACE[3]}px;z-index:2;margin:0;display:flex;background:${c.bg.panel}e6;box-shadow:0 8px 24px rgba(0,0,0,.6)}
+  .wl-mv-dock button{min-width:56px;padding:${SPACE[2]}px ${SPACE[2]}px}
+  .wl-mv-dock kbd{display:inline-block;font:inherit;font-size:${SIZE.micro}px;color:${c.text.dim};border:1px solid ${c.border.strong};border-radius:3px;padding:0 3px;margin-left:2px}
+  .wl-mv-legend{position:absolute;left:${SPACE[3]}px;bottom:${SPACE[3]}px;z-index:2;margin:0;max-width:38%;padding:${SPACE[3]}px ${SPACE[4]}px;border-radius:${RADIUS.lg}px;border:1px solid ${c.border.base};background:${c.bg.panel}e6;box-shadow:0 8px 24px rgba(0,0,0,.6)}
+  .wl-mv-glyphs{flex-basis:auto}
+  .wl-mv-hint{display:none}
+}
 @media (min-width:${BREAK.tablet}px){
   .wl-speed{order:0;flex:0 0 auto}
   .wl-speed button{flex:0 0 auto}
