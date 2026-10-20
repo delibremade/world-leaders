@@ -1,11 +1,13 @@
 {
   "name": "world-leaders",
-  "version": "0.91.0",
+  "version": "0.90.0",
   "private": true,
   "type": "module",
   "description": "World Leaders: Tropico-inspired grand-strategy nation simulator. Pure headless sim engine + React UI.",
   "scripts": {
-    "test": "node --test \"test/**/*.test.js\"",
+    "test": "node scripts/test.js",
+    "test:unit": "node scripts/test.js unit",
+    "test:browser": "node scripts/test.js browser",
     "sim": "node scripts/sim.js",
     "balance": "node scripts/balance.js",
     "replay": "node scripts/replay.js",
