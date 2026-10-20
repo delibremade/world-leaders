@@ -1,7 +1,11 @@
 // Tier 1 shell stylesheet (P3c): app grid, HUD, event-card strip, bottom nav / side rail, outliner, sheet,
 // why-popover. Tokens only (docs/DESIGN-SYSTEM.md). Mobile first; the 900px query turns the bottom nav into
 // a left rail and the outliner into a right column.
-import { COLOR, SIZE, SPACE, RADIUS, TAP, ELEVATION, MOTION, Z, BREAK, SURFACE, CONTROL, FONT } from '../tokens.js';
+import { COLOR, SIZE, SPACE, RADIUS, TAP, ELEVATION, MOTION, Z, BREAK, SURFACE, CONTROL, FONT, ALERT } from '../tokens.js';
+
+// Alert families (docs/DESIGN-SYSTEM-V2.md §2) come from tokens.js (V2a).
+const AL = ALERT;
+const fam = (f) => `color:${f.text};border-color:${f.edge};background:${f.fill}`;
 
 const c = COLOR;
 export const SHELL_CSS = `
@@ -299,4 +303,34 @@ kbd{font:inherit;font-size:${SIZE.micro}px;color:${c.text.dim};border:1px solid 
   .wl-mv [data-map-modes] button{min-height:36px!important}
   .wl-mv>div:last-child{display:none} /* mode hint: each chip carries it as a hover title */
 }
+
+/* V2b top bar: alert chips per family, speed pips, well subtitles, tooltip tables, focused outliner rows (v2 §4). */
+.wl-alerts{display:flex;flex-wrap:wrap;gap:${SPACE[2]}px;align-items:center;order:4;flex-basis:100%}
+.wl-alert-chip{display:inline-flex;align-items:center;gap:${SPACE[2]}px;min-height:28px;padding:0 ${SPACE[4]}px;border-radius:${RADIUS.md}px;border:1px solid ${c.border.strong};background:rgba(0,0,0,.3);color:${c.text.muted};font:inherit;font-size:${SIZE.caption}px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+.wl-alert-chip .wl-num{font-size:${SIZE.small}px}
+.wl-alert-chip[data-alert-chip=situation]{${fam(AL.situation)}}
+.wl-alert-chip[data-alert-chip=brief]{${fam(AL.brief)}}
+.wl-alert-chip[data-alert-chip=chokepoint]{${fam(AL.chokepoint)}}
+.wl-alert-chip[data-alert-chip=good]{${fam(AL.good)}}
+.wl-alert-chip[aria-pressed=true]{outline:2px solid currentColor;outline-offset:-1px}
+.wl-alert-chip[data-urgent=true] span:first-child{animation:wl-pulse ${MOTION.pulse} infinite}
+.wl-pips button[data-pip]{font-variant-numeric:tabular-nums}
+.wl-pips button[data-pip]::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.35;margin-right:4px;vertical-align:middle}
+.wl-pips button[data-pip][aria-pressed=true]::before{opacity:1}
+.wl-why-sub{font-size:${SIZE.caption}px;color:${c.text.dim};margin:-${SPACE[2]}px 0 ${SPACE[3]}px;line-height:1.4}
+.wl-why-tbl{width:100%;border-collapse:collapse}
+.wl-why-tbl td{padding:3px 0;vertical-align:top}
+.wl-why-tbl td:last-child{text-align:right;white-space:nowrap;padding-left:${SPACE[4]}px;font-weight:700}
+.wl-why-tbl tfoot td{border-top:1px solid ${c.border.strong};padding-top:${SPACE[3]}px;color:${c.text.primary};font-weight:700}
+.wl-why-tbl tbody tr{border-bottom:1px solid ${c.border.base}}
+.wl-why-tbl tbody tr:last-child{border-bottom:none}
+.wl-ol-row[data-focus=true]{background:${c.bg.raised};box-shadow:inset 3px 0 0 ${c.accent.command},0 4px 14px rgba(0,0,0,.5);border-radius:${RADIUS.md}px;padding-left:${SPACE[3]}px}
+@media (min-width:${BREAK.desktop}px){
+  .wl-alerts{order:2;flex:0 0 auto;flex-basis:auto}
+  .wl-hud:has(.wl-alerts) .wl-hud-row>.wl-pause-chip{flex:0 1 220px;min-width:90px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .wl-alert-l{display:none} /* 1100 to 1679: icon + count only; the chip title carries the words */
+  .wl-hud:has(.wl-alerts){gap:${SPACE[5]}px}
+  .wl-hud:has(.wl-alerts) .wl-hud-figs{width:clamp(480px,38vw,820px);grid-template-columns:repeat(3,minmax(160px,1fr))}
+}
+@media (min-width:1680px){.wl-alert-l{display:inline}}
 `;

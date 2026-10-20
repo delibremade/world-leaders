@@ -41,6 +41,7 @@ import { createNotifier, defaultRoutes, unreadCount, CLASSES } from './shell/fee
 import { buildOutliner } from './shell/outliner.js';
 import { CommandCard } from './shell/CommandCard.jsx';
 import { regionCommands, budgetCommands, runCommand } from './shell/commands.js';
+import { buildAlerts } from './shell/alerts.js';
 import { newEvState } from '../sim/events.js';
 import { whyFor } from '../data/event-why.js';
 import { openEventCards, eventOptions } from '../sim/selectors.js';
@@ -168,6 +169,7 @@ function WorldLeadersInner({resumeSignal}){
   const [selSite,setSelSite]=useState(null);const [buildMode,setBuildMode]=useState(false);const [act,setAct]=useState(null); // F9b site sheet, build mode, confirm sheet
   const [outlinerOpen,setOutlinerOpen]=useState(false);
   const [selBudget,setSelBudget]=useState(null); // V2d: the budget line whose command card is open
+  const [alertFocus,setAlertFocus]=useState(null); // V2b: {family, ids} from a top-bar alert chip; rows rise to L2 in the outliner
   const [history,setHistory]=useState([]);            // 24-month HUD sparklines (presentation, not saved)
   const [interestRate,setInterestRate]=useState(4.0);
   const [taxPolicy,setTaxPolicy]=useState(28);
@@ -735,6 +737,10 @@ function WorldLeadersInner({resumeSignal}){
   const runCmd=(a)=>runCommand(a,{dispatch,ask:setAct,ui:(u)=>{if(u.build!=null)setBuildMode(u.build);if(u.site){setSelNation(null);setSelSite(u.site);}if(u.nation)setSelNation(u.nation);}});
   const cmdView={country,stats,nationRelations,sanctions,embargoes,actionCooldowns,influenceAlloc,platforms,platformsImported,blackPrograms,forceDeployments,resExtraction,bases,intelOps,sphere};
   const regionCard=selectedRegion&&!selNation&&!selSite?<CommandCard id="region" placement={wide?'map':'sheet'} title={REGIONS[selectedRegion]?.n} sub={`${Math.round(sphere[selectedRegion]?.player||0)}% your sphere · keys A S D F Z X C V`} color={country?.color||'#6ee7a8'} actions={regionCommands(cmdView,selectedRegion)} onRun={runCmd} onClose={()=>setSelectedRegion(null)}/>:null;
+  // V2b: outliner rows and the top-bar alert chips come from one builder; a chip focuses its rows and switches the map mode.
+  const outlinerRows=buildOutliner({bases,country,issues,evState,arsenal,flashpoint,worldEvent,ultimatum,confrontation,blockades,intelOps,continuousOps,investigations,platformDev,blackResearch,deployments,defResearch,defLevels,gracePeriod,pariah,hegHold,embargoedBy,expelled:expelR.current,embassyLocks:embLockR.current,blocLock,concessions,sprRelease,actionCooldowns});
+  const alerts=buildAlerts(outlinerRows,{chokeStatus});
+  const onAlert=(a)=>{setMapMode(a.mode);setActiveTab('overview');setVitalsDrill(null);setAlertFocus({family:a.family,ids:a.rowIds,at:Date.now()});setOutlinerOpen(true);};
   return(
     <ClockGateContext.Provider value={clockGate}><div className="wl-app" style={{backgroundImage:'radial-gradient(1100px 540px at 72% -8%,rgba(79,184,255,.07),transparent 62%),radial-gradient(900px 480px at -4% 108%,rgba(180,156,255,.05),transparent 58%)'}}>
       <style>{SHELL_CSS}</style>
@@ -805,7 +811,7 @@ function WorldLeadersInner({resumeSignal}){
       {intelCrisis&&(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.85)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1500}}><div style={{background:'#111a2c',border:'2px solid #ff7a45',borderRadius:'10px',padding:'28px',maxWidth:'480px',width:'90%'}}><div style={{fontSize:'11px',color:'#ff7a45',textTransform:'uppercase',letterSpacing:'2px',marginBottom:'8px'}}>🚨 Intelligence Crisis</div><div style={{fontSize:'14px',fontWeight:700,color:'#e6edf7',marginBottom:'8px'}}>{intelCrisis.type==='friendly'?'Operation Discovered by Ally':intelCrisis.type==='stolen'?'Foreign Operation Against You Detected':'Operation Discovered by Adversary'}</div><div style={{fontSize:'12px',color:'#9aa8bf',marginBottom:'14px'}}>Target: {intelCrisis.targetId} · Op: {INTEL_OPS.find(o=>o.id===intelCrisis.opId)?.n}. Choose your response carefully — consequences are real.</div><div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}}>{intelCrisis.responses.map(r=><div key={r.id} onClick={()=>dispatch({type:'respondIntelCrisis',payload:{response:r.id,crisis:intelCrisis}})} style={{background:'#0c1424',border:'1px solid #2e3f5c',borderRadius:'7px',padding:'10px',cursor:'pointer'}}><div style={{fontSize:'12px',fontWeight:700,color:'#e6edf7',marginBottom:'4px'}}>{r.label}</div>{r.tags.map((t,i)=><div key={i} style={{fontSize:'10px',color:'#7c8aa3'}}>· {t}</div>)}</div>)}</div></div></div>)}
 
       <Hud version={VERSION} country={country} date={date} stats={stats} ledger={ledger} history={history} hegScore={hegScore} pillars={{e:pillarE,m:pillarM,i:pillarI,t:pillarT}} activeEffects={activeEffects}
-        pauseReason={plan.reason}
+        pauseReason={plan.reason} hegHold={hegHold} alerts={alerts} onAlert={onAlert} alertFocus={alertFocus?.family||null}
         unread={unreadCount(feed)} onFeed={()=>setFeedOpen(true)} canStep={plan.canStep&&!plan.running} onStep={stepMonth} paused={paused} onPause={v=>{setPaused(v);if(!v)setPauseWhy(null);}} onTogglePause={togglePause} pauseLocked={hardGate&&!paused} gameSpeed={gameSpeed} onSpeed={setGameSpeed} lastSaved={lastSaved} onQuit={()=>{setPhase('select');setGameOver(null);}} doctrineLabel={doctrine?`${DOCTRINES[doctrine].i} ${DOCTRINES[doctrine].n}`:null}/>
       <EventCards doctrine={doctrine} activeDecision={activeDecision} decisionDesc={activeDecision?(typeof activeDecision.desc==='function'?activeDecision.desc({ten:rivalTension,bt:blocTrade,ns:stats||{},country}):activeDecision.desc):''} worldEvent={evOpen.world} flashpoint={evOpen.flashpoint} worldOpts={eventOptions(evView,'world')} decisionOpts={activeDecision?eventOptions(evView,'decision'):null} country={country} fpOpts={eventOptions(evView,'flashpoint')} dispatch={dispatch} fxBadge={fxBadge} readyBriefs={issues.filter(i=>i.status==='briefed'&&briefs[i.type]).map(i=>({type:i.type,ttl:i.ttl,title:ISSUES[i.type]?.title,icon:ISSUES[i.type]?.icon,rc:briefs[i.type].rc,n:(briefs[i.type].opts||[]).length}))} onOpenBrief={t=>{setActiveTab('intel');setIntelIssue(t);}} onOpenRegion={rid=>{setActiveTab('overview');setSelNation(null);setSelectedRegion(rid);}}/>
 
@@ -1743,8 +1749,7 @@ function WorldLeadersInner({resumeSignal}){
         const sb=sitBadge();
         const badge={overview:(activeDecision?1:0)+(doctrine?0:1)+sb,economy:issues.filter(i=>i.status==='unexamined'||i.status==='ready').length,energy:Object.values(chokeStatus).filter(st=>st==='disrupted').length,intel:intelCrisis?1:0,trade:Object.keys(blocLock||{}).length}[id]||0;
         return {id,icon:TABM[id].i,label:TABM[id].l,short:TAB_SHORT[id],badge,sev:((id==='overview'&&sb)||id==='intel')&&badge?'alert':'warn'};})}/>
-      <Outliner open={outlinerOpen} onOpenChange={setOutlinerOpen} onJump={jumpTo}
-        rows={buildOutliner({bases,country,issues,evState,arsenal,flashpoint,worldEvent,ultimatum,confrontation,blockades,intelOps,continuousOps,investigations,platformDev,blackResearch,deployments,defResearch,defLevels,gracePeriod,pariah,hegHold,embargoedBy,expelled:expelR.current,embassyLocks:embLockR.current,blocLock,concessions,sprRelease,actionCooldowns})}/>
+      <Outliner open={outlinerOpen} onOpenChange={setOutlinerOpen} onJump={jumpTo} focus={alertFocus} rows={outlinerRows}/>
       <Feed open={feedOpen} onClose={closeFeed} entries={feed} routes={routes} onRoute={setRoute} onJump={jumpTo}/>
       <Sheet open={!!selectedRegion||!!selNation||!!selSite} onClose={()=>{setSelectedRegion(null);setSelNation(null);setSelSite(null);}} back={(!!selNation||!!selSite)&&!!selectedRegion} onBack={()=>{setSelNation(null);setSelSite(null);}}
         title={selSite?`${SITES[selSite]?.n||''}`:selNation?`${NATIONS[selNation]?.flag||''} ${nationName(selNation)}`:selectedRegion?REGIONS[selectedRegion]?.n:''} subtitle={selSite?(buildMode?'Build here · tap a node type':'Base site · nodes here and what you can build'):selNation?'Every action on this nation':selectedRegion?`${Math.round(sphere[selectedRegion]?.player||0)}% your sphere · tap a nation for its actions`:''}>
