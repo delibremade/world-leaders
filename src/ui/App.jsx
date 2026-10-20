@@ -26,6 +26,8 @@ import { BottomNav } from './shell/BottomNav.jsx';
 import { Help } from './shell/Help.jsx';
 import { Sheet } from './shell/Sheet.jsx';
 import { NationSheet } from './shell/NationSheet.jsx';
+import { NationDesk } from './trade/NationDesk.jsx';
+import { useWide } from './shell/useWide.js';
 import { SiteSheet } from './map/SiteSheet.jsx';
 import { ConfirmSheet } from './shell/Confirm.jsx';
 import { siteView } from '../sim/bases.js';
@@ -158,7 +160,7 @@ function WorldLeadersInner({resumeSignal}){
   const [darpaDisc,setDarpaDisc]=useState({});
   const [activeDecision,setActiveDecision]=useState(null);
   const [usedDecisions,setUsedDecisions]=useState(new Set());
-  const [activeTab,setActiveTab]=useState('overview');
+  const [activeTab,setActiveTab]=useState('overview');const wide=useWide();
   const [mapMode,setMapMode]=useState('sphere');
   const [selNation,setSelNation]=useState(null);      // P3c nation sheet (presentation)
   const [selSite,setSelSite]=useState(null);const [buildMode,setBuildMode]=useState(false);const [act,setAct]=useState(null); // F9b site sheet, build mode, confirm sheet
@@ -725,6 +727,7 @@ function WorldLeadersInner({resumeSignal}){
     </div>;
   };
 
+  const nationView={country,stats,nationRelations,embassies,defensePacts,tradeAgreements,sanctions,embargoes,embassyMissions,influenceAlloc,influenceBudget,dominance:domR.current,doctrine,defLevels,defExports,intelOps,continuousOps,rivalTension,actionCooldowns,embassyLocks:embLockR.current,resExtraction,platforms,blackPrograms,blackResearch,arsenal,intelInfra,covertPrograms,intelBudget,absorbBonus:absorbR.current};
   return(
     <ClockGateContext.Provider value={clockGate}><div className="wl-app" style={{backgroundImage:'radial-gradient(1100px 540px at 72% -8%,rgba(59,130,246,.07),transparent 62%),radial-gradient(900px 480px at -4% 108%,rgba(167,139,250,.05),transparent 58%)'}}>
       <style>{SHELL_CSS}</style>
@@ -1588,7 +1591,8 @@ function WorldLeadersInner({resumeSignal}){
         {/* TRADE TAB */}
         {activeTab==='trade'&&<div style={{flex:1,overflowY:'auto',padding:'12px'}}>
           {vitalsDrill&&<VitalsDrillPanel/>}
-          <div style={{marginBottom:'12px'}}>
+          {wide&&<NationDesk view={nationView} dispatch={dispatch}/>}
+          <div className="wl-trade" style={{marginBottom:'12px'}}>
 <div style={{marginBottom:'14px'}}>
             {panelBox('bloc','🌐 Bloc Trade Architecture · tiered alignment with real exit costs','#1f2937',(<>
             <div style={{display:'grid',gap:'7px',marginBottom:'14px'}}>
@@ -1736,7 +1740,7 @@ function WorldLeadersInner({resumeSignal}){
       <Sheet open={!!selectedRegion||!!selNation||!!selSite} onClose={()=>{setSelectedRegion(null);setSelNation(null);setSelSite(null);}} back={(!!selNation||!!selSite)&&!!selectedRegion} onBack={()=>{setSelNation(null);setSelSite(null);}}
         title={selSite?`${SITES[selSite]?.n||''}`:selNation?`${NATIONS[selNation]?.flag||''} ${nationName(selNation)}`:selectedRegion?REGIONS[selectedRegion]?.n:''} subtitle={selSite?(buildMode?'Build here · tap a node type':'Base site · nodes here and what you can build'):selNation?'Every action on this nation':selectedRegion?`${Math.round(sphere[selectedRegion]?.player||0)}% your sphere · tap a nation for its actions`:''}>
         {selSite?<SiteSheet g={liveState()} site={siteView(liveState(),selSite)} country={country} dispatch={dispatch} ask={(a)=>{setSelSite(null);setAct(a);}}/>
-        :selNation?<NationSheet nation={selNation} dispatch={dispatch} view={{country,stats,nationRelations,embassies,defensePacts,tradeAgreements,sanctions,embargoes,embassyMissions,influenceAlloc,influenceBudget,dominance:domR.current,doctrine,defLevels,defExports,intelOps,continuousOps,rivalTension,actionCooldowns,embassyLocks:embLockR.current,resExtraction,platforms,blackPrograms,blackResearch,arsenal,intelInfra,covertPrograms,intelBudget,absorbBonus:absorbR.current}}/>
+        :selNation?<NationSheet nation={selNation} dispatch={dispatch} view={nationView}/>
         :<>
           {selectedRegion&&<div data-region-nations><div className="wl-label" style={{margin:'4px 0 2px'}}>Nations here · tap for every action</div>
             {Object.entries(NATIONS).filter(([,n])=>n.region===selectedRegion).map(([id,n])=><button key={id} type="button" className="wl-nation-row" data-nation-row={id} onClick={()=>setSelNation(id)}><span aria-hidden="true" style={{fontSize:18}}>{n.flag}</span><b>{n.n}</b><span className={`wl-chip${id===country?.id?' wl-chip-command':isAllyOf(country?.id,id)?' wl-chip-good':''}`}>{id===country?.id?'you':isAllyOf(country?.id,id)?'ally':NATION_BLOC[id]||'non-aligned'}</span></button>)}

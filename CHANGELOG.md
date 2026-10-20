@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.90.0 (2026-10-11) — D6: Trade nation desk
+- UI only, no rule change; parity goldens untouched. Desktop branch behind `useWide()` (>= 1100px); the phone tree is unchanged.
+- New `trade/NationDesk.jsx`: all 26 nations in one sortable table (bloc, relations, tension, embassy, trade, pact, sanction or embargo, influence weight) beside the selected nation's full action sheet (the same `NationSheet` the map opens: visit, aid, trade agreement, pact, embassy, influence, sanctions, embargo, arms, ops). Sanctions work on every nation (ruling 7).
+- The v57 blocks (bloc trade tiers and EU path, statecraft accordions with bulk actions, influence pool, sanctions regimes, resource imports, currency posture, trade income streams) are untouched and flow into two columns under the desk.
+- App: the nation sheet's view object is one `nationView` const shared by the map sheet and the desk (no duplicate).
+- Tests: `desktop-layout.test.js` +3 (table beside sheet, 26 rows, many visible, row click opens that nation, sort, sanction shows in the table, two columns, no sideways scroll at 1440+).
+
 ## 0.89.0 (2026-10-11) — D5: Resources master-detail
 - UI only, no rule change; parity goldens untouched. Desktop branches sit behind `useWide()` (>= 1100px); the phone tree is unchanged.
 - Reserves, Processing, Stockpile: a sortable table of all ten minerals (ore, processed share, years to zero; capacity, plants, income, recycling; stock, reserve, inflow) beside the selected mineral's full row, state levers and the rare-earth export extraction. Notes under the table.

@@ -230,3 +230,32 @@ for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
     } finally { await ctx.close(); }
   });
 }
+
+// D6 Trade: every nation is a row of one sortable table beside the selected nation's full action sheet; the v57 bloc,
+// influence, sanctions and import blocks flow into two columns under it.
+for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
+  test(`${W}px: Trade is a nation table beside the nation's action sheet; select, sort, sanction, columns below`, async () => {
+    const { ctx, page, errors } = await openGame(browser, { svg: true, width: W, height: H });
+    try {
+      await go(page, 'trade');
+      const t = await box(page, '[data-table=nations]'), d = await box(page, '[data-detail=nations]');
+      assert.ok(t && d && t.w >= 480 && d.w >= 320 && d.x >= t.r - 1 && d.r <= W, `table ${JSON.stringify(t)} detail ${JSON.stringify(d)}`);
+      assert.ok((await box(page, '[data-master-detail=nations]')).b <= H, 'desk inside the viewport');
+      const rows = await page.evaluate(() => document.querySelectorAll('[data-table=nations] tbody tr').length); assert.ok(rows >= 25, `${rows} nations`);
+      assert.ok(await visibleRows(page, '[data-table=nations]', H) >= 10, 'many nations visible at once');
+      if (W >= 1440) assert.equal(await page.evaluate(() => { const w = document.querySelector('[data-table=nations]'); return w.scrollWidth > w.clientWidth + 1; }), false, 'no sideways scroll in the table at 1440+');
+      await page.click('[data-table=nations] [data-nation-row=china]'); await settle(page, 200);
+      assert.ok(await page.$('[data-detail=nations] [data-nation-sheet=china]'), 'row click opens that nation sheet');
+      assert.ok(await page.$('[data-detail=nations] [data-verb-row=stateVisit]') && await page.$('[data-detail=nations] [data-verb-row=toggleSanctions]'), 'sheet carries every verb');
+      await page.click('[data-sort=rel]'); await settle(page, 100);
+      const rels = await page.evaluate(() => [...document.querySelectorAll('[data-table=nations] tbody tr')].map((r) => +r.querySelector('td:nth-child(3)').textContent));
+      assert.deepEqual(rels, [...rels].sort((a, b) => b - a), 'relations sort high to low');
+      await page.evaluate(() => document.querySelector('[data-detail=nations] [data-verb-row=toggleSanctions] button').click()); await settle(page, 300);
+      if (await page.$('[data-confirm-ok]')) { await page.evaluate(() => document.querySelector('[data-confirm-ok]').click()); await settle(page, 300); }
+      assert.equal(await page.evaluate(() => document.querySelector('[data-nation-row=china] td:nth-child(8)').textContent.trim()), '✓', 'sanction shows in the table');
+      const cols = await page.evaluate(() => { const e = document.querySelector('.wl-trade'); return getComputedStyle(e).columnCount; }); assert.equal(cols, '2');
+      assert.deepEqual((await overflow(page, W)).bad, []);
+      assert.deepEqual(errors, []);
+    } finally { await ctx.close(); }
+  });
+}

@@ -21,7 +21,7 @@ export function DataTable({ id, label, title, count, columns, rows, rowId, selec
       <table className="wl-tbl" aria-label={label} onKeyDown={key}>
         <thead><tr>{columns.map((c) => (
           <th key={c.id} scope="col" data-num={c.num || undefined} style={c.w ? { width: c.w } : undefined} aria-sort={sort?.col === c.id ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'}>
-            <button type="button" data-sort={c.id} onClick={() => click(c)} title={`Sort by ${c.label}`}>{c.label}<span aria-hidden="true">{sort?.col === c.id ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}</span></button>
+            <button type="button" data-sort={c.id} onClick={() => click(c)} title={`Sort by ${c.hint || c.label}`}>{c.label}<span aria-hidden="true">{sort?.col === c.id ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}</span></button>
           </th>))}</tr></thead>
         <tbody>{shown.map((r) => {
           const rid = rowId(r);
