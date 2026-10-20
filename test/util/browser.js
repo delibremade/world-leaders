@@ -4,6 +4,7 @@ import { chromium } from 'playwright-core';
 import { existsSync, readdirSync } from 'node:fs';
 import { bundle, BUNDLES } from './harness.js';
 import { shell } from '../../scripts/shell.js';
+import { fontFaceCss } from '../../scripts/fonts.js';
 
 export const settle = (page, ms = 250) => page.waitForTimeout(ms);
 // Wait until an element's box stops moving (sheets slide in): two reads 120ms apart agree, or 3s pass. Returns the last box or null.
@@ -25,7 +26,8 @@ export async function launch() {
 }
 export async function appHtml({ split = false } = {}) {
   const js = await bundle(BUNDLES.app);
-  return shell(js).replace('<script>', '<script>window.__WL_TEST=true;</script><script>');
+  // The shipped fonts ride inline (as in the single-file build) so every layout assertion measures the real faces.
+  return shell(js, { head: fontFaceCss({ inline: true }) }).replace('<script>', '<script>window.__WL_TEST=true;</script><script>');
 }
 // Open the app at a viewport, pick the first nation, answer the doctrine card, return the page.
 export async function openGame(browser, { width = 390, height = 844, doctrine = true, svg = false } = {}) {
