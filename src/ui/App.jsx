@@ -39,6 +39,8 @@ import { ClockGateContext } from './shell/ClockGate.jsx';
 import { clockPlan } from './shell/clock.js';
 import { createNotifier, defaultRoutes, unreadCount, CLASSES } from './shell/feed.js';
 import { buildOutliner } from './shell/outliner.js';
+import { CommandCard } from './shell/CommandCard.jsx';
+import { regionCommands, budgetCommands, runCommand } from './shell/commands.js';
 import { newEvState } from '../sim/events.js';
 import { whyFor } from '../data/event-why.js';
 import { openEventCards, eventOptions } from '../sim/selectors.js';
@@ -165,6 +167,7 @@ function WorldLeadersInner({resumeSignal}){
   const [selNation,setSelNation]=useState(null);      // P3c nation sheet (presentation)
   const [selSite,setSelSite]=useState(null);const [buildMode,setBuildMode]=useState(false);const [act,setAct]=useState(null); // F9b site sheet, build mode, confirm sheet
   const [outlinerOpen,setOutlinerOpen]=useState(false);
+  const [selBudget,setSelBudget]=useState(null); // V2d: the budget line whose command card is open
   const [history,setHistory]=useState([]);            // 24-month HUD sparklines (presentation, not saved)
   const [interestRate,setInterestRate]=useState(4.0);
   const [taxPolicy,setTaxPolicy]=useState(28);
@@ -728,6 +731,10 @@ function WorldLeadersInner({resumeSignal}){
   };
 
   const nationView={country,stats,nationRelations,embassies,defensePacts,tradeAgreements,sanctions,embargoes,embassyMissions,influenceAlloc,influenceBudget,dominance:domR.current,doctrine,defLevels,defExports,intelOps,continuousOps,rivalTension,actionCooldowns,embassyLocks:embLockR.current,resExtraction,platforms,blackPrograms,blackResearch,arsenal,intelInfra,covertPrograms,intelBudget,absorbBonus:absorbR.current};
+  // V2d command cards: one runner for every card (escalatory through the confirm sheet, UI side effects, else the verb).
+  const runCmd=(a)=>runCommand(a,{dispatch,ask:setAct,ui:(u)=>{if(u.build!=null)setBuildMode(u.build);if(u.site){setSelNation(null);setSelSite(u.site);}if(u.nation)setSelNation(u.nation);}});
+  const cmdView={country,stats,nationRelations,sanctions,embargoes,actionCooldowns,influenceAlloc,platforms,platformsImported,blackPrograms,forceDeployments,resExtraction,bases,intelOps,sphere};
+  const regionCard=selectedRegion&&!selNation&&!selSite?<CommandCard id="region" placement={wide?'map':'sheet'} title={REGIONS[selectedRegion]?.n} sub={`${Math.round(sphere[selectedRegion]?.player||0)}% your sphere · keys A S D F Z X C V`} color={country?.color||'#4ade80'} actions={regionCommands(cmdView,selectedRegion)} onRun={runCmd} onClose={()=>setSelectedRegion(null)}/>:null;
   return(
     <ClockGateContext.Provider value={clockGate}><div className="wl-app" style={{backgroundImage:'radial-gradient(1100px 540px at 72% -8%,rgba(79,184,255,.07),transparent 62%),radial-gradient(900px 480px at -4% 108%,rgba(180,156,255,.05),transparent 58%)'}}>
       <style>{SHELL_CSS}</style>
@@ -823,6 +830,7 @@ function WorldLeadersInner({resumeSignal}){
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',marginBottom:'8px'}}><div style={{fontSize:'11px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px'}}>World Map · tap a region</div><Help items={HELP_TIPS}/></div>
               <MapView mode={mapMode} onModeChange={setMapMode} onRegionTap={rid=>setSelectedRegion(selectedRegion===rid?null:rid)} onSiteTap={sid=>{setSelNation(null);setSelectedRegion(null);setSelSite(sid);}} onBuildToggle={setBuildMode}
                 view={{country,sphere,selectedRegion,forceDeployments,flashpoint,sphereTrend,intelOps,defExports,doctrine,nationRelations,embassies,defensePacts,chokeStatus,rivalTension,blockades,tradeAgreements,importContracts,embargoes,embargoedBy,forcePosture,sanctions,moles,expelled:expelR.current,concessions,bases,build:buildMode,selectedSite:selSite}}/>
+              {wide&&regionCard}
 
             </div>
 
@@ -1108,6 +1116,7 @@ function WorldLeadersInner({resumeSignal}){
                 <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px'}}>Sector Budgets</div>
                 <div style={{fontSize:'11px',color:'#9aa8bf'}}>Total: <span style={{color:'#e6edf7',fontWeight:700}}>${Math.round(Object.entries(budgetAlloc).reduce((s,[sec,a])=>s+rSCost(sec,a),0)).toLocaleString()}M/mo</span></div>
               </div>
+              {selBudget&&<CommandCard id="budget" placement="column" title={SECTOR_LABELS[selBudget]} sub={`${budgetAlloc[selBudget]??100}% · keys K J N M`} color="#f0c040" actions={budgetCommands(selBudget,budgetAlloc[selBudget]??100,{age:sectorAge[selBudget]||0,treasury:stats?.treasury||0})} onRun={runCmd} onClose={()=>setSelBudget(null)}/>}
               {Object.entries(SECTOR_LABELS).map(([sector,label])=>{
                 const alloc=budgetAlloc[sector]||100;
                 const md=rMatDisc(sector);const cost=Math.round(rSCost(sector,alloc));
@@ -1117,7 +1126,7 @@ function WorldLeadersInner({resumeSignal}){
                 const effColor=isOver?'#ffb08a':isUnder?'#6ee7a8':'#7c8aa3';
                 return(<div key={sector} style={{background:'#0c1424',border:`1px solid ${decaying?'#ff7a45':nearEnd?'#f0c04055':'#1c2a42'}`,borderRadius:'7px',padding:'10px',marginBottom:'6px'}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5px'}}>
-                    <div style={{fontSize:'12px',fontWeight:700,color:'#e6edf7'}}>{label}</div>
+                    <button type="button" data-budget-line={sector} aria-pressed={selBudget===sector} onClick={()=>setSelBudget(selBudget===sector?null:sector)} style={{fontSize:'12px',fontWeight:700,color:'#e6edf7',background:'transparent',border:'none',padding:0,font:'inherit',cursor:'pointer',textDecoration:selBudget===sector?'underline':'none'}}>{label}</button>
                     <div style={{display:'flex',gap:'5px',alignItems:'center'}}>
                       {md>0&&<span style={{fontSize:'9px',color:'#6ee7a8',padding:'1px 5px',background:'rgba(110,231,168,.1)',border:'1px solid #6ee7a8',borderRadius:'3px'}}>−{Math.round(md*100)}% mature</span>}
                       {decaying&&<span style={{fontSize:'9px',color:'#ff7a45',animation:'pulse 1.2s infinite'}}>⚠ AGING</span>}
@@ -1742,6 +1751,7 @@ function WorldLeadersInner({resumeSignal}){
         {selSite?<SiteSheet g={liveState()} site={siteView(liveState(),selSite)} country={country} dispatch={dispatch} ask={(a)=>{setSelSite(null);setAct(a);}}/>
         :selNation?<NationSheet nation={selNation} dispatch={dispatch} view={nationView}/>
         :<>
+          {!wide&&regionCard}
           {selectedRegion&&<div data-region-nations><div className="wl-label" style={{margin:'4px 0 2px'}}>Nations here · tap for every action</div>
             {Object.entries(NATIONS).filter(([,n])=>n.region===selectedRegion).map(([id,n])=><button key={id} type="button" className="wl-nation-row" data-nation-row={id} onClick={()=>setSelNation(id)}><span aria-hidden="true" style={{fontSize:18}}>{n.flag}</span><b>{n.n}</b><span className={`wl-chip${id===country?.id?' wl-chip-command':isAllyOf(country?.id,id)?' wl-chip-good':''}`}>{id===country?.id?'you':isAllyOf(country?.id,id)?'ally':NATION_BLOC[id]||'non-aligned'}</span></button>)}
             <div className="wl-label" style={{margin:'8px 0 2px'}}>Bases and candidate sites here · tap to build</div>

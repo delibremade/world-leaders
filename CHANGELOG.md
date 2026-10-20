@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.94.0 (2026-10-20) — V2d: command cards
+- UI only, no rule change; parity goldens untouched. New `shell/CommandCard.jsx` (header with colour bar, 4-column grid, icon + label + key per action, escalatory actions orange) and `shell/commands.js` (pure builders: `regionCommands`, `fleetCommands`, `budgetCommands`, and `runCommand`, the one path from a card action to its verb, a UI side effect or the confirm sheet).
+- Overview: selecting a region opens the card (desktop: bottom-center over the map; phone: top of the region sheet) with Deploy A, Station base S, Influence D, State visit F, Sanction Z, Embargo X, Intel op C, Build node V. Targets come from state (best-relations partner, the rival present, the cheapest op not running); sanction, embargo and intel op are orange and confirm first. Every action dispatches an existing `actions.js` verb (`adjustDeployment`, `setInfluence`, `stateVisit`, `toggleSanctions`, `toggleEmbargo`, `runIntelOp`) or opens the site sheet (station, build mode).
+- Forces: the selected type's detail tops with its card (Modernize M, Retire R, Retire all B, Maintenance +10 K / −10 J); retire is orange and confirms. Economy: a sector label opens its line card (Raise K, Lower J, Reset N, Modernize M when aging, orange and confirmed).
+- Keys fire while the card is mounted, never while typing or with a modifier. Tests: `command-card.test.js` +5 (builders and keys; runner routing; jsdom App: F visits, Z confirms orange then sanctions, V opens build; Forces K/J/R; Budget K/N; typing ignored; 1440 and 390 placement inside the viewport with 44px actions).
+
 ## 0.90.0 (2026-10-11) — D6: Trade nation desk
 - UI only, no rule change; parity goldens untouched. Desktop branch behind `useWide()` (>= 1100px); the phone tree is unchanged.
 - New `trade/NationDesk.jsx`: all 26 nations in one sortable table (bloc, relations, tension, embassy, trade, pact, sanction or embargo, influence weight) beside the selected nation's full action sheet (the same `NationSheet` the map opens: visit, aid, trade agreement, pact, embassy, influence, sanctions, embargo, arms, ops). Sanctions work on every nation (ruling 7).

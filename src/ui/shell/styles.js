@@ -206,6 +206,29 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
   .wl-nav button:hover,.wl-seg button:hover,.wl-speed button:hover,.wl-fig:hover,.wl-verb:hover,.wl-lvl:hover:not(:disabled){border-color:${c.accent.command};color:${c.text.primary}}
   .wl-nav button:hover{background:rgba(79,184,255,.08)}
 }
+/* V2d command cards (v2 §4): raised L3 surface, colour bar, 4-column grid, escalatory actions orange. Phone: a block at the
+   top of the sheet or detail; desktop: bottom-center over the map, top of the detail column elsewhere. */
+.wl-cmd{background:${c.bg.raised};border:1px solid ${c.border.strong};border-top:3px solid var(--cmd,${c.accent.command});border-radius:${RADIUS.xxl}px;box-shadow:${ELEVATION.raised};padding:${SPACE[4]}px ${SPACE[5]}px ${SPACE[5]}px;margin-bottom:${SPACE[5]}px}
+.wl-cmd-head{display:flex;align-items:center;gap:${SPACE[4]}px;margin-bottom:${SPACE[4]}px}
+.wl-cmd-head b{display:block;color:${c.text.primary};font-size:${SIZE.lg}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-cmd-head small{display:block;color:${c.text.dim};font-size:${SIZE.caption}px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wl-cmd-x{width:32px;height:32px;border-radius:50%;border:1px solid ${c.border.strong};background:transparent;color:${c.text.muted};font:inherit;font-size:${SIZE.body}px;flex-shrink:0}
+.wl-cmd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:${SPACE[3]}px} /* 4 columns from ~440px; narrower columns wrap to 3 */
+.wl-cmd-btn{position:relative;min-height:${TAP + 20}px;min-width:0;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:2px;padding:${SPACE[3]}px ${SPACE[4]}px;border-radius:${RADIUS.xl}px;border:1px solid ${c.border.strong};background:${c.bg.panel};color:${c.text.secondary};font:inherit;font-size:${SIZE.small}px;text-align:left}
+.wl-cmd-i{font-size:16px;line-height:1}
+.wl-cmd-l{color:${c.text.primary};font-weight:700;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wl-cmd-k{position:absolute;top:${SPACE[2]}px;right:${SPACE[2]}px;font:inherit;font-size:${SIZE.micro}px;color:${c.text.dim};border:1px solid ${c.border.strong};border-radius:3px;padding:0 4px;background:rgba(0,0,0,.3)}
+.wl-cmd-t{color:${c.text.dim};font-size:${SIZE.caption}px;line-height:1.3;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wl-cmd-btn[data-escalate=true]{border-color:${c.accent.alert};color:${c.accent.alert};background:rgba(239,68,68,.08)}
+.wl-cmd-btn[data-escalate=true] .wl-cmd-l,.wl-cmd-btn[data-escalate=true] .wl-cmd-k{color:${c.accent.alert}}
+.wl-cmd-btn[aria-disabled=true]{opacity:.45;cursor:not-allowed}
+.wl-cmd-btn:not([aria-disabled=true]):hover{border-color:var(--cmd,${c.accent.command})}
+.wl-sheet-body .wl-cmd{margin:0 0 ${SPACE[4]}px}
+@media (min-width:${BREAK.tablet}px){
+  .wl-map-card{position:relative}
+  .wl-map-card>.wl-cmd[data-placement=map]{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);width:min(600px,60%);z-index:${Z.outliner + 15};margin:0} /* above the sheet scrim so the keys' targets stay readable; narrow enough to clear the side panel */
+  .wl-cmd-btn{min-height:56px}
+}
 kbd{font:inherit;font-size:${SIZE.micro}px;color:${c.text.dim};border:1px solid ${c.border.strong};border-radius:3px;padding:0 4px}
 .wl-flank{display:flex;flex-direction:column;gap:${SPACE[6]}px;min-width:0}
 .wl-nav-f,.wl-nav kbd{display:none}

@@ -15,6 +15,8 @@ import { baseIsr } from '../../sim/reach.js';
 import { forceView, fleetView } from '../../sim/forces.js';
 import { subsN } from '../../data/sof.js';
 import { f0, f1, f2, tone, WhyV } from '../shell/fmt.jsx';
+import { CommandCard } from '../shell/CommandCard.jsx';
+import { fleetCommands, runCommand } from '../shell/commands.js';
 
 export const FORCES_SUBS = [
   { id: 'manpower', label: 'Manpower' }, { id: 'quality', label: 'Quality' }, { id: 'training', label: 'Training' },
@@ -228,6 +230,7 @@ function lineDetail(l, fl, ask, dispatch) {
   const modernize = () => ask({ title: `${l.n}: block ${l.blk + 1} upgrade`, cost: `$${hc(l.modCost)}M once`, kind: 'warn', label: 'Start upgrade',
     lines: [`${fl.modMo} months in the depot at ${fl.depot}% throughput; ${Math.round(fl.rules.modShare * 100)}% of the fleet is unavailable meanwhile.`, `Then +${Math.round(fl.rules.blkGain * 100)}% effectiveness and +${Math.round(fl.rules.mcBlk * 100)}% MC target.`], run: () => dispatch({ type: 'modernize', payload: { line: l.id } }) });
   return <div className="wl-r wl-r-stack" data-line-detail={l.id} key={`${l.id}-detail`}>
+    <CommandCard id="fleet" placement="column" title={l.n} sub={`${hc(l.count)} ${CLS_N[l.cls]} · keys M R B K J`} color="#60a5fa" actions={fleetCommands(l, fl, step)} onRun={(a) => runCommand(a, { dispatch, ask })} />
     <div className="wl-r-main">
       <small>{hc(l.count)} {CLS_N[l.cls]} (2024: {hc(l.count2024)}{l.lost ? `, ${l.lost} lost` : ''}) · crew ratio {l.crewRatio} x {hc(l.crewSize)}{l.maintainers ? ` + ${l.maintainers} maintainers` : ''} · {hc(l.heads)} people · quality ×{f2(l.quality)}</small>
       <small>Based: {Object.entries(l.at).map(([r, k]) => `${REGIONS[r]?.n || r} ${hc(k)}`).join(' · ') || 'none'}{l.buys.length ? ` · procurement: ${l.buys.join(', ')}` : ''}</small>
