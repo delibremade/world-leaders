@@ -1,12 +1,5 @@
 # Changelog
 
-## 0.92.0 (2026-10-20) — V2b: top bar (wells, tooltip tables, alert chips, speed pips)
-- UI only, no rule change; parity goldens untouched. `Hud.jsx` is the v2 top bar: identity and date, three resource wells (treasury, stability, hegemony) whose tooltips are now tables (`Why.jsx`: title, one-line subtitle, 2-column rows, total row) sourced from the engine's ledger categories, active effects and pillars; colour-coded alert chips per family (situation, brief, lock, timer); pause remembers its speed; speed pips.
-- New `shell/alerts.js` (pure): `buildAlerts(rows, {chokeStatus})` gathers outliner rows by family. Every outliner row now carries a `kind` (situation | brief | lock | timer | build) set at its builder, so chips and rows cannot disagree. A disrupted chokepoint is a lock even without a row.
-- Clicking a chip opens Overview, switches the map mode to the family's lens (situation → tension, brief → intel, lock → energy, timer → sphere), opens the outliner and raises the matching rows to L2 (`data-focus`), scrolling the first into view.
-- `App.jsx`: outliner rows are built once (`outlinerRows`) for the outliner and the chips. Styles are an appended block in `styles.js` and read the alert families from `tokens.js` when V2a is present (same values inline until then).
-- Tests: `topbar.test.js` +2 (family gathering and modes; wells open tables with engine categories, chip click → mode + focused rows, pause/resume keeps 4×).
-
 ## 0.90.0 (2026-10-11) — D6: Trade nation desk
 - UI only, no rule change; parity goldens untouched. Desktop branch behind `useWide()` (>= 1100px); the phone tree is unchanged.
 - New `trade/NationDesk.jsx`: all 26 nations in one sortable table (bloc, relations, tension, embassy, trade, pact, sanction or embargo, influence weight) beside the selected nation's full action sheet (the same `NationSheet` the map opens: visit, aid, trade agreement, pact, embassy, influence, sanctions, embargo, arms, ops). Sanctions work on every nation (ruling 7).
