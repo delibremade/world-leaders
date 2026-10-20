@@ -1,11 +1,5 @@
 # Changelog
 
-## 0.93.0 (2026-10-20) — V2c: 2.5D map (PixiJS)
-- UI only, no rule change; parity goldens untouched; REGION_GEO (Natural Earth) unchanged. `map/pixi-map.js` is the v2 renderer: the surface is a plane tilted by `TILT` (0.72, ~44°); regions are extruded plates (ground shadow, wall, dark `#0b1626` top with a 35% tint of the mode colour, glowing edge: default cyan, the leader's colour in Sphere and Tension); region names lie flat and fade with zoom; value chips, deployed badges, flashpoints (pulsing orange ring, bobbing), chokepoints (raised gold diamonds with the status dot), base markers and base names stand up as billboards with ground shadows; reach rings lie flat; trade lanes flow. `prefers-reduced-motion` stops lane flow, pulses and bobbing.
-- `map/lod.js`: one table for the three zoom levels (Strategic: names + chips; Operational: + base and chokepoint names; Tactical: + reach rings and unit detail). The renderer, the level chip and the tests read the same table.
-- `MapView.jsx`: level chip top-left (`data-map-lod`), zoom in / out / fit top-right (with the Build toggle), legend bottom-left, map-mode dock bottom-right with keys Q W E R T Y (hotkeys ignore typing and modifiers). Phone: dock and legend sit under the stage with 44px chips; from 900px they float over the map. The SVG fallback (jsdom, no WebGL) stays flat and shows Strategic.
-- Tests: `map-lod.test.js` +2 (levels are supersets; scale → level; layers by level or scale; name fade), `map-v2.test.js` +3 (jsdom: dock keys, key presses switch modes, typing is ignored, chip and zoom present; Chromium WebGL: tilt, zoom walks the three levels with the right layers, chip / zoom / legend / dock inside the stage in their corners, hotkey on the live map, ticker runs; reduced motion still renders).
-
 ## 0.90.0 (2026-10-11) — D6: Trade nation desk
 - UI only, no rule change; parity goldens untouched. Desktop branch behind `useWide()` (>= 1100px); the phone tree is unchanged.
 - New `trade/NationDesk.jsx`: all 26 nations in one sortable table (bloc, relations, tension, embassy, trade, pact, sanction or embargo, influence weight) beside the selected nation's full action sheet (the same `NationSheet` the map opens: visit, aid, trade agreement, pact, embassy, influence, sanctions, embargo, arms, ops). Sanctions work on every nation (ruling 7).
