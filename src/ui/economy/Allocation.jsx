@@ -3,7 +3,7 @@
 // the baseline; a "squeezed" alert lists what was cut. The same component is the quick drawer over the map (compact)
 // and the full surface in Economy. Zero game logic: every change dispatches setSectorBudget; costs come from the
 // engine's calcSCost through pool.js.
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SECTOR_LABELS } from '../../data/economy.js';
 import { SECTORS, ALLOC, costOf, poolCost, squeeze, deltas } from './pool.js';
 import { COLOR } from '../tokens.js';
@@ -13,16 +13,29 @@ const signed = (v, unit = '') => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(
 
 export function Allocation({ allocs, maturity = {}, age = {}, treasury = 0, locks, onLock, hold, onHold, baseline = {}, dispatch, compact = false, selected = null, onSelect, children }) {
   const [last, setLast] = useState(null); // the last squeeze: what was cut, for the alert
-  const pool = poolCost(allocs, maturity); const base = poolCost(baseline, maturity); const d = deltas(allocs, baseline, maturity);
-  const move = (sector, value) => {
-    if (!hold) { dispatch({ type: 'setSectorBudget', payload: { sector, value } }); setLast(null); return; }
-    const r = squeeze({ allocs, locks, maturity, sector, value });
-    dispatch({ type: 'setSectorBudget', payload: { sector, value: r.moved.to } });
-    for (const c of r.cuts) dispatch({ type: 'setSectorBudget', payload: { sector: c.sector, value: c.to } });
-    setLast(r);
-  };
+  const [drag, setDrag] = useState(null); // {sector, value} while a slider moves: local until release, so a drag is one action
+  const live = drag ? { ...allocs, [drag.sector]: drag.value } : allocs;
+  const pool = poolCost(live, maturity); const base = poolCost(baseline, maturity); const d = deltas(live, baseline, maturity);
+  const latest = useRef(null); latest.current = { allocs, locks, maturity, hold, dispatch };
+  // Commit on the native change event: it fires once on pointer release (or key release), after the input events of a drag.
+  const root = useRef(null);
+  useEffect(() => {
+    const el = root.current; if (!el) return;
+    const onChange = (e) => {
+      const t = e.target; if (!(t instanceof HTMLInputElement) || t.type !== 'range' || !t.dataset.sector) return;
+      const { allocs, locks, maturity, hold, dispatch } = latest.current; const sector = t.dataset.sector; const value = +t.value;
+      setDrag(null);
+      if (!hold) { dispatch({ type: 'setSectorBudget', payload: { sector, value } }); setLast(null); return; }
+      const r = squeeze({ allocs, locks, maturity, sector, value });
+      dispatch({ type: 'setSectorBudgets', payload: { allocs: r.allocs } }); // one action for the line and everything it squeezed
+      setLast(r);
+    };
+    el.addEventListener('change', onChange); return () => el.removeEventListener('change', onChange);
+  }, []);
+  const move = (sector, value) => setDrag({ sector, value });
   return (
-    <div className={`wl-alloc${compact ? ' wl-alloc-compact' : ''}`} data-allocation={compact ? 'drawer' : 'full'}>
+    <div ref={root} className={`wl-alloc${compact ? ' wl-alloc-compact' : ''}`} data-allocation={compact ? 'drawer' : 'full'} data-dragging={drag?.sector || undefined}>
+      {drag && <div className="wl-alloc-preview" data-drag-preview>{SECTOR_LABELS[drag.sector]} → {drag.value}% · release to commit{hold ? ' (the unlocked lines give way)' : ''}</div>}
       <div className="wl-alloc-head">
         <div className="wl-well wl-alloc-pool" data-pool title="Sum of the five sector lines this month (engine calcSCost)">
           <span className="wl-label">Pool</span><b className="wl-num">{money(pool)}/mo</b>
@@ -36,7 +49,7 @@ export function Allocation({ allocs, maturity = {}, age = {}, treasury = 0, lock
       {last && !last.squeezed && last.fed && <div className="wl-alloc-alert" data-fed role="status"><b>Freed</b> money fed {last.cuts.map((c) => `${SECTOR_LABELS[c.sector]} ${c.from}% → ${c.to}%`).join(' · ')}</div>}
       {last && hold && !last.cuts.length && last.moved.from !== last.moved.to && <div className="wl-alloc-alert" data-unsqueezed role="status"><b>Pool grew</b>: every other line is locked or at its floor, so nothing could give way.</div>}
       {SECTORS.map((sector) => {
-        const alloc = allocs[sector] ?? 100; const cost = costOf(sector, alloc, maturity); const locked = locks.has(sector); const dd = d[sector];
+        const alloc = live[sector] ?? 100; const cost = costOf(sector, alloc, maturity); const locked = locks.has(sector); const dd = d[sector];
         const a = age[sector] || 0; const decaying = a > 480; const nearEnd = a > 360 && a <= 480;
         const tone = alloc > 100 ? COLOR.accent.warn : alloc < 100 ? COLOR.accent.good : COLOR.text.dim;
         return (
@@ -51,7 +64,7 @@ export function Allocation({ allocs, maturity = {}, age = {}, treasury = 0, lock
             </div>
             <div className="wl-alloc-row">
               <span className="wl-num wl-alloc-pct" style={{ color: tone }}>{alloc}%</span>
-              <input className="wl-slider" type="range" min={ALLOC.min} max={ALLOC.max} step={ALLOC.step} value={alloc} aria-label={`${SECTOR_LABELS[sector]} allocation`} onChange={(e) => move(sector, +e.target.value)} />
+              <input className="wl-slider" type="range" min={ALLOC.min} max={ALLOC.max} step={ALLOC.step} value={alloc} data-sector={sector} aria-label={`${SECTOR_LABELS[sector]} allocation`} onChange={(e) => move(sector, +e.target.value)} />
               <span className="wl-alloc-eff">{alloc > 100 ? `+${((alloc - 100) / 100).toFixed(2)}× gains` : alloc < 100 ? `−${((100 - alloc) / 100).toFixed(2)}× decay` : 'Normal'}</span>
             </div>
             {!compact && decaying && <button type="button" className="wl-btn wl-btn-alert" data-modernize-sector={sector} onClick={() => dispatch({ type: 'modernizeSector', payload: { sector } })}>🔄 Great Modernization — costs 30% treasury ({money(treasury * 0.3)})</button>}

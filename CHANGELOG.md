@@ -1,12 +1,5 @@
 # Changelog
 
-## 0.95.0 (2026-10-20) — V2e: one-pool allocation surface and the ALLOCATE drawer
-- UI only, no rule change; parity goldens untouched. The engine keeps five independent sector allocations; the pool is the sum of their monthly costs through the engine's own `calcSCost` (`economy/pool.js`, pure): `squeeze()` moves one line and cuts (or feeds) the unlocked others in proportion to what they spend, snapped to the 5-point step; locks are never touched; `deltas()` reports each line against the baseline (the allocations when the game opened).
-- `economy/Allocation.jsx` replaces the Sector Budgets list in Economy: pool well with change vs baseline, "Pool held / Pool free" switch, per line a lock, a change-vs-baseline chip, cost, slider and effect; a "Squeezed" alert lists what was cut (and "Freed" what was fed, "Pool grew" when nothing could give). The aging Great Modernization button and the legitimacy warning stay.
-- ALLOCATE button in the HUD opens the same surface as a drawer (the Sheet: side panel on desktop, bottom sheet on a phone; it holds the clock) with a jump to the full surface.
-- **Pool free is the default.** With the pool held, one drag dispatches several `setSectorBudget` verbs, which changes the action stream the v57 parity script replays (it drags defense to 130 and expects byte-identical saves). The switch is remembered (`wl_pool_hold`); flip the default once that parity case retires.
-- Tests: `allocation.test.js` +5 (engine formula, inverse snap, proportional cut within rounding, feeding, locks and floors, deltas; jsdom App: free drag moves one line, held drag squeezes the unlocked lines and reports it, lock holds, baseline deltas, ALLOCATE drawer; 1440 and 390 fit with 44px rows).
-
 ## 0.90.0 (2026-10-11) — D6: Trade nation desk
 - UI only, no rule change; parity goldens untouched. Desktop branch behind `useWide()` (>= 1100px); the phone tree is unchanged.
 - New `trade/NationDesk.jsx`: all 26 nations in one sortable table (bloc, relations, tension, embassy, trade, pact, sanction or embargo, influence weight) beside the selected nation's full action sheet (the same `NationSheet` the map opens: visit, aid, trade agreement, pact, embassy, influence, sanctions, embargo, arms, ops). Sanctions work on every nation (ruling 7).

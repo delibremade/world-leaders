@@ -49,7 +49,8 @@ export function clickDriver(g) {
     const el = all('input[type=range]').filter(pred)[nth];
     if (!el) throw new Error('range input not found');
     Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype, 'value').set.call(el, String(value));
-    el.dispatchEvent(new w.Event('input', { bubbles: true })); hits.push('range'); await flush();
+    // A drag: input events while it moves, one change on release (React folds the change into the same value, so v57 sees one onChange).
+    el.dispatchEvent(new w.Event('input', { bubbles: true })); el.dispatchEvent(new w.Event('change', { bubbles: true })); hits.push('range'); await flush();
   };
   const mm = (min, max) => (el) => el.min === String(min) && el.max === String(max);
   // Map region: the <g> whose first label is the region name.
@@ -93,7 +94,9 @@ export const verbScript = (g, shocks) => {
     2: async () => { // doctrine; economy: rate, stance, tax, sector budget, social program, policy action, budget drill +/-
       await clickDiv(/^🛡️Military Superpower/);
       await tab('economy');
-      await range(mm(0, 20), 5.5); await click(/Stimulus/); await range(mm(8, 48), 33); await range(mm(0, 200), 130, 0);
+      await range(mm(0, 20), 5.5); await click(/Stimulus/); await range(mm(8, 48), 33);
+      if (g.w.__wl?.poolHold) { g.w.__wl.poolHold(false); await flush(); await flush(); } // V2e: v57 drags one line; the App replays it with the pool free (held by default for players)
+      await range(mm(0, 200), 130, 0);
       await clickDiv(/National Pension System/); await click(/^Execute$/);
       const bar = [...g.doc.querySelectorAll('div')].find((x) => x.style.cursor === 'pointer' && /^Treasury/.test(x.textContent));
       bar.click(); await d.tryClick(/^\+$/); await d.tryClick(/^−$/); bar.click();

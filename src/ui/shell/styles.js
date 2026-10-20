@@ -212,6 +212,7 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
 .wl-alloc-line .wl-btn-sm{min-width:36px;min-height:36px;padding:0 ${SPACE[3]}px}
 .wl-alloc-line .wl-slider{flex:1;height:36px}
 .wl-alloc-compact .wl-alloc-eff{display:none}
+.wl-alloc-preview{font-size:${SIZE.caption}px;color:${c.accent.commandHi};padding:2px 0}
 .wl-allocate-l{display:none;margin-left:4px} /* the HUD button is icon-only until 1440: the nation block keeps its width */
 @media (min-width:1440px){.wl-allocate-l{display:inline}}
 @media (min-width:${BREAK.desktop}px){.wl-hud:has([data-allocate]) .wl-hud-row>.wl-pause-chip{flex-basis:220px}}

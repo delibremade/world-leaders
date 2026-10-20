@@ -4,6 +4,14 @@ import { SECTORS, ALLOC, poolCost, costOf, allocFor, squeeze, deltas } from '../
 import { calcSCost } from '../src/sim/formulas.js';
 import { mount, BUNDLES, flush } from './util/harness.js';
 import { launch, openGame, settle, stableRect } from './util/browser.js';
+import { applyVerb } from '../src/sim/actions.js';
+
+test('setSectorBudgets: one action sets several lines with the setSectorBudget rule (clamped to 0..200, unknown sectors ignored)', () => {
+  let alloc = { defense: 100, energy: 100, healthcare: 100, education: 100, technology: 100 };
+  const S = { setBudgetAlloc: (f) => { alloc = typeof f === 'function' ? f(alloc) : f; } };
+  applyVerb({}, S, { toast() {} }, { type: 'setSectorBudgets', payload: { allocs: { defense: 150, energy: 60, bogus: 999, healthcare: -5, education: 250 } } });
+  assert.deepEqual(alloc, { defense: 150, energy: 60, healthcare: 0, education: 200, technology: 100 });
+});
 
 // V2e (docs/DESIGN-SYSTEM-V2.md §4): one pool. Dragging one line squeezes the unlocked others proportionally; a
 // lock exempts a line; each line shows its change against the baseline; a squeezed alert lists what was cut. The
@@ -43,7 +51,7 @@ test('pool: locks are never touched; with every other line locked the pool just 
   assert.equal(poolCost(flat(), {}), SECTORS.reduce((s, k) => s + calcSCost(k, 100, {}), 0));
 });
 
-test('App (jsdom): Economy surface drives setSectorBudget; pool held squeezes the unlocked lines and reports it; a lock holds; baseline deltas; ALLOCATE opens the drawer', async () => {
+test('App (jsdom): pool held by default; a drag is local and commits one batched setSectorBudgets on release; free pool commits one setSectorBudget; a lock holds; baseline deltas; ALLOCATE opens the drawer', async () => {
   const origErr = console.error; console.error = () => {};
   const g = await mount(BUNDLES.app, { testHook: true, seed: 3 });
   try {
@@ -54,22 +62,37 @@ test('App (jsdom): Economy surface drives setSectorBudget; pool held squeezes th
     const sl = (k) => q(`[data-alloc-line=${k}] input[type=range]`); const val = (k) => +sl(k).value;
     const set = async (k, v) => { const el = sl(k); const proto = Object.getPrototypeOf(el); Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, String(v)); el.dispatchEvent(new w.Event('input', { bubbles: true })); el.dispatchEvent(new w.Event('change', { bubbles: true })); await flush(); await flush(); };
     assert.equal(qa('[data-allocation=full] [data-alloc-line]').length, 5); assert.equal(qa('[data-allocation=full] input[type=range][max="200"]').length, 5);
-    assert.equal(q('[data-pool-hold]').getAttribute('aria-pressed'), 'false', 'pool free by default (v57 parity: a drag moves one line)');
-    await set('defense', 130);
-    assert.equal(val('defense'), 130); for (const k of ['energy', 'healthcare', 'education', 'technology']) assert.equal(val(k), 100, `${k} untouched with the pool free`);
-    assert.equal(q('[data-squeezed]'), null);
-    assert.match(q('[data-delta=defense]').textContent, /\+30%/, 'change vs baseline');
-    // hold the pool, lock healthcare, raise defense further: the three unlocked lines give way, healthcare does not
+    assert.equal(q('[data-pool-hold]').getAttribute('aria-pressed'), 'true', 'pool held by default (v2: one pool)');
+    // a drag is local until release: five input events move only the slider, the one change event commits exactly one action
+    const inputs = async (k, vs) => { for (const v of vs) { const el = sl(k); Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set.call(el, String(v)); el.dispatchEvent(new w.Event('input', { bubbles: true })); await flush(); } };
+    const n0 = w.__wl.dispatched().length;
+    await inputs('defense', [105, 110, 120, 130, 150]);
+    assert.equal(val('defense'), 150, 'slider follows the drag'); assert.equal(q('[data-allocation=full]').dataset.dragging, 'defense'); assert.ok(q('[data-drag-preview]'), 'preview while dragging');
+    assert.equal(w.__wl.dispatched().length, n0, 'nothing dispatched during the drag'); assert.equal(val('energy'), 100, 'others untouched until release');
+    sl('defense').dispatchEvent(new w.Event('change', { bubbles: true })); await flush(); await flush();
+    assert.deepEqual(Array.from(w.__wl.dispatched().slice(n0)), ['setSectorBudgets'], 'release = one batched action');
+    assert.equal(val('defense'), 150); for (const k of ['energy', 'healthcare', 'education', 'technology']) assert.ok(val(k) < 100, `${k} squeezed to ${val(k)}`);
+    assert.ok(q('[data-squeezed]'), 'squeezed alert'); assert.equal(q('[data-drag-preview]'), null);
+    // pool free: the same drag is one plain setSectorBudget and moves one line (what the v57 parity replay sees)
+    q('[data-pool-hold]').click(); await flush(); assert.equal(q('[data-pool-hold]').getAttribute('aria-pressed'), 'false');
+    const n1 = w.__wl.dispatched().length; await inputs('defense', [140, 130]); sl('defense').dispatchEvent(new w.Event('change', { bubbles: true })); await flush(); await flush();
+    assert.deepEqual(Array.from(w.__wl.dispatched().slice(n1)), ['setSectorBudget'], 'free pool: one plain action'); assert.equal(val('defense'), 130);
+    const others = ['energy', 'healthcare', 'education', 'technology'].map(val);
+    await set('defense', 135); assert.deepEqual(['energy', 'healthcare', 'education', 'technology'].map(val), others, 'free pool never touches the other lines');
+    assert.match(q('[data-delta=defense]').textContent, /\+35%/, 'change vs baseline');
+    // hold again, lock healthcare, raise defense further: the three unlocked lines give way, healthcare does not
     q('[data-pool-hold]').click(); await flush(); assert.equal(q('[data-pool-hold]').getAttribute('aria-pressed'), 'true');
     q('[data-lock=healthcare]').click(); await flush(); assert.equal(q('[data-lock=healthcare]').getAttribute('aria-pressed'), 'true');
+    const hc0 = val('healthcare'); const e0 = val('energy');
     await set('defense', 170);
-    assert.equal(val('defense'), 170); assert.equal(val('healthcare'), 100, 'locked line holds');
-    for (const k of ['energy', 'education', 'technology']) assert.ok(val(k) < 100, `${k} squeezed to ${val(k)}`);
-    const alert = q('[data-squeezed]'); assert.ok(alert, 'squeezed alert'); assert.match(alert.textContent, /Squeezed to pay for 🛡️ Defense 130% → 170%/); assert.match(alert.textContent, /Energy 100% → \d+%/); assert.doesNotMatch(alert.textContent, /Healthcare/);
+    assert.equal(val('defense'), 170); assert.equal(val('healthcare'), hc0, 'locked line holds');
+    for (const k of ['energy', 'education', 'technology']) assert.ok(val(k) < 100, `${k} squeezed to ${val(k)}`); assert.ok(val('energy') < e0, 'energy gave again');
+    const alert = q('[data-squeezed]'); assert.ok(alert, 'squeezed alert'); assert.match(alert.textContent, /Squeezed to pay for 🛡️ Defense 135% → 170%/); assert.match(alert.textContent, /Energy \d+% → \d+%/); assert.doesNotMatch(alert.textContent, /Healthcare/);
     assert.match(q('[data-delta=energy]').textContent, /−\d+%/);
     // the HUD ALLOCATE button opens the drawer with the same surface and live values
     q('[data-allocate]').click(); await flush(); await flush();
     assert.ok(q('[data-sheet] [data-allocation=drawer]'), 'drawer open'); assert.equal(+q('[data-allocation=drawer] [data-alloc-line=defense] input').value, 170);
+    // one action, not one per line: the verb exists and clamps (engine-side check of the batched setter)
     assert.match(q('[data-pause-reason]').textContent, /sheet open/, 'the drawer holds the clock');
     q('[data-allocate-full]').click(); await flush(); await flush(); assert.equal(q('[data-tab=economy]').getAttribute('aria-current'), 'page');
     assert.ok(!g.faulted());
