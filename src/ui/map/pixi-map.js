@@ -141,7 +141,7 @@ export async function createPixiMap(container, { onTap, onSiteTap, onViewChange 
   viewport.on('clicked', (e) => { const sid = siteAt(e.world.x, e.world.y); if (sid) { onSiteTap?.(sid); return; } const rid = regionAt(parsed, e.world.x, e.world.y, 22 / viewport.scaled); if (onTap) onTap(rid, e.world); });
   viewport.on('zoomed', () => { layoutLabels(); onViewChange?.(viewport.scaled); });
   viewport.on('moved', () => onViewChange?.(viewport.scaled));
-  const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => { viewport.resize(sw(), sh(), WORLD.w, WORLD.h); applyClamp(); if (viewport.scaled < minScale()) { viewport.setZoom(coverScale(), true); viewport.moveCenter(WORLD.w / 2, WORLD.h / 2); } layoutLabels(); }) : null;
+  const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => { app.resize(); viewport.resize(sw(), sh(), WORLD.w, WORLD.h); applyClamp(); if (viewport.scaled < minScale()) { viewport.setZoom(coverScale(), true); viewport.moveCenter(WORLD.w / 2, WORLD.h / 2); } layoutLabels(); }) : null;
   ro?.observe(container);
 
   return {
