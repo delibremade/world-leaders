@@ -1,6 +1,8 @@
 // Arsenal > Partnerships (allied access tiers, gates, compliance) and Exports (buyers, willingness, advantage).
 // Gates and prices come from accessView / compliance (one rule with the verbs); buyer maths mirrors the offerArms verb's inputs.
 import { Panel, Row } from '../shell/Panel.jsx';
+import { DataTable } from '../shell/DataTable.jsx';
+import { useWide } from '../shell/useWide.js';
 import { BLACK_PROGRAMS, DV, STAGES } from '../../data/platforms.js';
 import { NATIONS, BUYERS } from '../../data/nations.js';
 import { BLOC_TRADE } from '../../data/trade.js';
@@ -43,12 +45,42 @@ export function Partnerships({ v, dispatch }) {
 }
 
 export function Exports({ v, dispatch, vert, onVert }) {
+  const wide = useWide();
   const { defLevels, globalDef, defExports, demand, nationRelations, sphere, embassies, blocTrade, forces, country, blackPrograms } = v;
   const lev = getDefLeverage(defLevels, globalDef, country?.id || '');
   const movers = Object.entries(demand).filter(([, x]) => Math.abs((x || 1) - 1) >= 0.08).sort((a, b) => Math.abs(b[1] - 1) - Math.abs(a[1] - 1)).slice(0, 4);
   const others = Object.entries(globalDef); const avg = vert && others.length ? others.reduce((s, [, n]) => s + (n[vert] || 0), 0) / others.length : 0;
   const exportable = Object.keys(blackPrograms).filter((b) => blackPrograms[b] > 0);
-  return <>
+  const buyerView = (b) => {
+    const key = vert ? `${b.id}_${vert}` : ''; const has = defExports[key]; const wont = vert && (b.noBuy || []).includes(vert);
+    const rel = nationRelations[b.id] !== undefined ? nationRelations[b.id] : b.rel; const hostile = rel < -30;
+    const can = vert && !wont && !hostile && (defLevels[vert] || 0) >= 1; const adv = Math.max(0, (defLevels[vert] || 0) - Math.floor(avg));
+    const ch = [];
+    if (vert && can && !has) { if ((sphere[b.region]?.player || 0) > 60) ch.push('sphere ×1.18'); if (embassies.has(b.id)) ch.push('attaché ×1.10'); if (blocTrade.eu >= 2 && BLOC_TRADE.eu.members.includes(b.id)) ch.push('EU ×1.15'); if (adv > 0) ch.push(`lead +${adv * 13}%`); if (forces) ch.push(`force quality ×${exportEdge(forces).toFixed(2)}`); }
+    const deals = Object.entries(defExports).filter(([k]) => k.startsWith(b.id)).map(([k, d]) => `✓ ${DV[k.split('_')[1]]?.n} L${d.level} $${d.revenue}M/yr`).join(' ');
+    const label = has ? 'Active' : wont ? 'Domestic producer' : hostile ? 'Hostile' : can ? `Offer L${defLevels[vert] || 0}${adv > 0 ? ' ✦' : ''}` : 'Develop first';
+    return { b, has, wont, rel, hostile, can, adv, ch, deals, label };
+  };
+  const offer = (x, cls = 'wl-btn') => (vert ? <button type="button" className={`${cls} ${x.has ? 'wl-btn-good' : x.can ? 'wl-btn-primary' : ''}`} style={x.wont || x.hostile || !x.can ? { opacity: 0.55 } : undefined} onClick={() => dispatch({ type: 'offerArms', payload: { nation: x.b.id, vertical: vert } })}>{x.label}</button> : undefined);
+  const buyers = BUYERS.filter((b) => b.id !== country?.id).map(buyerView);
+  const buyersPanel = (
+    <Panel id="buyers" title="Buyers · willingness and advantage" figure={buyers.length}>
+      {buyers.map((x) => <Row key={x.b.id} data-buyer={x.b.id} title={`${x.b.flag} ${x.b.n}`} sub={`${x.b.align} · $${x.b.budget}M budget${x.ch.length ? ` · ${x.ch.join(' · ')}` : ''}`} value={x.deals || undefined} tone="good" trailing={offer(x, 'wl-btn')} />)}
+    </Panel>
+  );
+  const buyerTable = (
+    <DataTable id="buyers" label="Buyers" title="Buyers · willingness and advantage" rows={buyers} rowId={(x) => x.b.id} selected={null}
+      columns={[
+        { id: 'n', label: 'Buyer', get: (x) => x.b.n, cell: (x) => `${x.b.flag} ${x.b.n}` },
+        { id: 'align', label: 'Alignment', get: (x) => x.b.align },
+        { id: 'budget', label: 'Budget', num: true, get: (x) => x.b.budget, cell: (x) => `$${x.b.budget}M` },
+        { id: 'rel', label: 'Relations', num: true, get: (x) => x.rel, cell: (x) => x.rel, tone: (x) => (x.hostile ? 'alert' : x.rel > 40 ? 'good' : undefined) },
+        { id: 'edge', label: 'Edge', get: (x) => x.ch.length, cell: (x) => x.ch.join(' · ') || '—' },
+        { id: 'deals', label: 'Deals', get: (x) => x.deals, cell: (x) => x.deals || '—', tone: (x) => (x.deals ? 'good' : undefined) },
+        { id: 'act', label: vert ? 'Offer' : '', get: (x) => x.label, cell: (x) => (vert ? offer(x, 'wl-btn wl-btn-sm') : ''), },
+      ]} />
+  );
+  const market = (
     <Panel id="market" title="Export marketplace" figure={`leverage ×${lev.toFixed(2)}`} tone="good">
       <div className="wl-row" style={{ flexWrap: 'wrap', gap: 6 }}>
         <span className="wl-label">Demand</span>
@@ -61,24 +93,23 @@ export function Exports({ v, dispatch, vert, onVert }) {
       {vert && <Row title={`Offering ${DV[vert]?.n} L${defLevels[vert] || 0}`} sub={`World average ${avg.toFixed(1)}`} />}
       {vert && (defLevels[vert] || 0) >= 1 && <button type="button" className="wl-btn wl-btn-good" style={{ width: '100%' }} onClick={() => dispatch({ type: 'sellAllVertical', payload: { vertical: vert } })}>🤝 Sell {DV[vert]?.n} to All Eligible Buyers</button>}
     </Panel>
-    <Panel id="buyers" title="Buyers · willingness and advantage" figure={BUYERS.filter((b) => b.id !== country?.id).length}>
-      {BUYERS.filter((b) => b.id !== country?.id).map((b) => {
-        const key = vert ? `${b.id}_${vert}` : ''; const has = defExports[key]; const wont = vert && (b.noBuy || []).includes(vert);
-        const rel = nationRelations[b.id] !== undefined ? nationRelations[b.id] : b.rel; const hostile = rel < -30;
-        const can = vert && !wont && !hostile && (defLevels[vert] || 0) >= 1; const adv = Math.max(0, (defLevels[vert] || 0) - Math.floor(avg));
-        const ch = [];
-        if (vert && can && !has) { if ((sphere[b.region]?.player || 0) > 60) ch.push('sphere ×1.18'); if (embassies.has(b.id)) ch.push('attaché ×1.10'); if (blocTrade.eu >= 2 && BLOC_TRADE.eu.members.includes(b.id)) ch.push('EU ×1.15'); if (adv > 0) ch.push(`lead +${adv * 13}%`); if (forces) ch.push(`force quality ×${exportEdge(forces).toFixed(2)}`); }
-        return <Row key={b.id} data-buyer={b.id} title={`${b.flag} ${b.n}`} sub={`${b.align} · $${b.budget}M budget${ch.length ? ` · ${ch.join(' · ')}` : ''}`}
-          value={Object.entries(defExports).filter(([k]) => k.startsWith(b.id)).map(([k, d]) => `✓ ${DV[k.split('_')[1]]?.n} L${d.level} $${d.revenue}M/yr`).join(' ') || undefined} tone="good"
-          trailing={vert ? <button type="button" className={`wl-btn ${has ? 'wl-btn-good' : can ? 'wl-btn-primary' : ''}`} style={wont || hostile || !can ? { opacity: 0.55 } : undefined} onClick={() => dispatch({ type: 'offerArms', payload: { nation: b.id, vertical: vert } })}>{has ? 'Active' : wont ? 'Domestic producer' : hostile ? 'Hostile' : can ? `Offer L${defLevels[vert] || 0}${adv > 0 ? ' ✦' : ''}` : 'Develop first'}</button> : undefined} />;
-      })}
-    </Panel>
+  );
+  const exportablePanel = (
     <Panel id="exportable" title="Your exportable platforms" figure={exportable.length}>
       {exportable.length === 0 && <div className="wl-note">No fielded programs. Verticals above sell your R&D; programs sell to allies through Partnerships.</div>}
       {exportable.map((b) => <Row key={b} title={`${BLACK_PROGRAMS[b].i} ${BLACK_PROGRAMS[b].n}`} sub={BLACK_PROGRAMS[b].exportable ? 'Exportable to allies' : 'Domestic only'} value={BLACK_PROGRAMS[b].exportable ? '✓' : '—'} tone={BLACK_PROGRAMS[b].exportable ? 'good' : undefined} />)}
     </Panel>
-    {Object.keys(defExports).length > 0 && <Panel id="deals" title="Active export deals" figure={Object.keys(defExports).length}>
+  );
+  const dealsPanel = (
+    Object.keys(defExports).length > 0 && <Panel id="deals" title="Active export deals" figure={Object.keys(defExports).length}>
       {Object.entries(defExports).map(([k, d]) => { const [bid, vv] = k.split('_'); const b = BUYERS.find((x) => x.id === bid); return <Row key={k} title={`${b?.flag} ${b?.n} — ${DV[vv]?.n}`} sub={`Relationship ${d.relationship}%`} value={`$${d.revenue}M/yr`} tone="good" trailing={<button type="button" className="wl-btn wl-btn-alert" onClick={() => dispatch({ type: 'cutExportDeal', payload: { deal: k } })}>Cut Off</button>} />; })}
-    </Panel>}
+    </Panel>
+  );
+  if (wide) return <div className="wl-md" data-master-detail="buyers"><div>{market}{buyerTable}</div><div>{exportablePanel}{dealsPanel}</div></div>;
+  return <>
+    {market}
+    {buyersPanel}
+    {exportablePanel}
+    {dealsPanel}
   </>;
 }
