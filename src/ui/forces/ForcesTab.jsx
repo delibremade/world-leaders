@@ -2,6 +2,8 @@
 // Reads state through forceView / crewStatus (the month's own rules) and dispatches actions; no game logic here.
 import { useState } from 'react';
 import { Seg } from '../shell/Seg.jsx';
+import { DataTable } from '../shell/DataTable.jsx';
+import { useWide } from '../shell/useWide.js';
 import { Panel, Row, Bar } from '../shell/Panel.jsx';
 import { ConfirmSheet } from '../shell/Confirm.jsx';
 import { Why } from '../shell/Why.jsx';
@@ -116,7 +118,7 @@ function Training({ fv, v, ask, dispatch }) {
 }
 
 function Equipment({ fv, v, ask, dispatch, toast }) {
-  const fl = fleetView(v); const [selLine, setSelLine] = useState(null);
+  const fl = fleetView(v); const [selLine, setSelLine] = useState(null); const wide = useWide();
   const own = (pid) => (BLACK_PROGRAMS[pid] ? +v.blackPrograms[pid] || 0 : (v.platforms[pid] || 0) + (v.platformsImported[pid] || 0));
   const meta = (pid) => PLATFORMS[pid] || BLACK_PROGRAMS[pid];
   const ids = [...Object.keys(PLATFORMS), ...Object.keys(BLACK_PROGRAMS)].filter((pid) => own(pid) > 0);
@@ -129,9 +131,7 @@ function Equipment({ fv, v, ask, dispatch, toast }) {
     if (!rid) { toast('Pick a region'); return; }
     dispatch({ type: 'deployUnit', payload: { region: rid, unit: pid } });
   };
-  return <>
-    {fl && fleetSummary(fl, dispatch)}
-    {fl && fleetBranches(fl, selLine, setSelLine, ask, dispatch)}
+  const crewsPanel = (
     <Panel id="crews" title="Crews vs airframes and hulls" figure={fv.branches.some((b) => b.gap > 0) ? 'gap' : 'covered'} tone={fv.branches.some((b) => b.gap > 0) ? 'alert' : 'good'} data-forces-crews>
       {fv.branches.map((b) => (
         <Row key={b.id} title={b.n} sub={`${b.crews} crews / ${b.need} needed · ${b.deployed} stationed${b.pipe ? ` · ${b.pipe} training` : ''}`} value={b.gap > 0 ? `gap ${b.gap}` : 'covered'} tone={b.gap > 0 ? 'alert' : 'good'}>
@@ -139,7 +139,9 @@ function Equipment({ fv, v, ask, dispatch, toast }) {
         </Row>))}
       <div className="wl-note">A unit without free crews cannot be stationed. Raise training or pay to close a gap.</div>
     </Panel>
-    {BRANCHES.map(([bid, bn]) => {
+  );
+  const inventory = (
+    <>{BRANCHES.map(([bid, bn]) => {
       const mine = ids.filter((pid) => crewOf(pid).b === bid);
       return <Panel key={bid} id={`inv_${bid}`} title={`${bn} inventory`} figure={mine.reduce((a, pid) => a + own(pid), 0)}>
         {mine.length === 0 && <div className="wl-note">Nothing fielded. Build in the Arsenal tab.</div>}
@@ -155,14 +157,46 @@ function Equipment({ fv, v, ask, dispatch, toast }) {
           </Row>;
         })}
       </Panel>;
-    })}
+    })}</>
+  );
+  const theatersPanel = (
     <Panel id="theaters" title="Theater summary" figure={`${theaters.length} regions`}>
       {theaters.length === 0 && <div className="wl-note">No theater assets stationed.</div>}
       {theaters.map(([rid, us]) => <Row key={rid} title={REGIONS[rid]?.n} sub={us.map(([pid, k]) => `${meta(pid)?.n} ×${k}`).join(' · ')} value={POSTURE_LABELS[v.forcePosture[rid] || 'deter']} />)}
     </Panel>
+  );
+  const maintPanel = (
     <Panel id="maint" title="Maintenance" figure={`$${maint}M/mo`} tone="warn">
       <Row title="Platform upkeep" sub="Per-unit maintenance, charged monthly" value={<WhyV title="Maintenance / month" fmt={(x) => `$${x.toFixed(0)}M`} terms={Object.entries(v.platforms).filter(([, ct]) => ct).map(([pid, ct]) => ({ label: `${PLATFORMS[pid]?.n} ×${ct}`, value: -(PLATFORMS[pid]?.maint || 0) * ct }))} total={-maint}>${maint}M</WhyV>} />
     </Panel>
+  );
+  if (wide && fl) {
+    const cur = fl.lines.find((l) => l.id === selLine) || fl.lines.find((l) => l.count > 0) || fl.lines[0];
+    const cols = [
+      { id: 'n', label: 'Type', get: (l) => l.n },
+      { id: 'b', label: 'Branch', get: (l) => BRANCH_N[l.b] || l.b },
+      { id: 'count', label: 'In service', num: true, get: (l) => l.count, cell: (l) => hc(l.count), tone: (l) => (l.count < l.count2024 ? 'warn' : undefined) },
+      { id: 'ready', label: 'Ready', num: true, get: (l) => l.ready, cell: (l) => hc(l.ready) },
+      { id: 'mc', label: 'MC', num: true, get: (l) => l.mc, cell: (l) => `${Math.round(l.mc)}%`, tone: (l) => tone(l.mc, 40, 60) },
+      { id: 'target', label: 'Target', num: true, get: (l) => l.target, cell: (l) => `${Math.round(l.target)}%` },
+      { id: 'crewless', label: 'Crewless', num: true, get: (l) => l.crewless, cell: (l) => (l.crewless ? hc(l.crewless) : '—'), tone: (l) => (l.crewless ? 'alert' : undefined) },
+      { id: 'mx', label: 'Maint', num: true, get: (l) => l.mx, cell: (l) => `${l.mx}%` },
+    ];
+    return <div className="wl-md" data-master-detail="fleet">
+      <div>
+        <DataTable id="fleet" label="Order of battle" title="Order of battle · by type" columns={cols} rows={fl.lines} rowId={(l) => l.id} selected={cur?.id} onSelect={setSelLine} rowProps={(l) => ({ 'data-line': l.id })} />
+        {inventory}{theatersPanel}
+      </div>
+      <div data-detail="fleet">{fleetSummary(fl, dispatch)}{cur && <Panel key={cur.id} id="line-detail" title="Selected type" figure={cur.n}>{lineDetail(cur, fl, ask, dispatch)}</Panel>}{crewsPanel}{maintPanel}</div>
+    </div>;
+  }
+  return <>
+    {fl && fleetSummary(fl, dispatch)}
+    {fl && fleetBranches(fl, selLine, setSelLine, ask, dispatch)}
+    {crewsPanel}
+    {inventory}
+    {theatersPanel}
+    {maintPanel}
   </>;
 }
 
@@ -272,6 +306,7 @@ function Specialized({ fv, v, ask, dispatch }) {
 }
 
 export function ForcesTab({ sub, onSub, view, dispatch, toast, onJump }) {
+  const wide = useWide();
   const [act, setAct] = useState(null);
   const fv = forceView(view);
   const gaps = fv.branches.filter((b) => b.gap > 0).length;
@@ -282,7 +317,7 @@ export function ForcesTab({ sub, onSub, view, dispatch, toast, onJump }) {
   return (
     <div className="wl-pane-wrap" data-sentinel="forces">
       <Seg id="forces" label="Forces" items={items} active={sub} onSelect={onSub} />
-      <div className="wl-tabroot" data-forces data-forces-sub={sub}>{body}</div>
+      <div className={`wl-tabroot${wide && sub !== 'equipment' ? ' wl-cols' : ''}`} data-forces data-forces-sub={sub}>{body}</div>
       <ConfirmSheet act={act} onClose={() => setAct(null)} />
     </div>
   );
