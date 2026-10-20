@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.91.0 (2026-10-20) — V2a: design tokens v2 (2.5D situation room)
+- UI only, no rule change; parity goldens untouched. `src/ui/tokens.js` now carries docs/DESIGN-SYSTEM-V2.md: elevation L0 to L3 and wells (`SURFACE`, `ELEVATION.L1..L3/well`), one hue per system (`COLOR.system`), alert families (`ALERT.situation/brief/chokepoint/good/signal`), type (Barlow Condensed / Inter / JetBrains Mono stacks, minimum text 12px), controls (`CONTROL.primary/secondary/escalate`, hover 1.15, 6px slider track and 18px thumb).
+- Every v1 key keeps its name with the v2 value (`bg`, `border`, `text`, `accent`, `faction`, `choke`, `ramp`, `SIZE`, `TRACK`, `ELEVATION.panel/raised`), so P3/P4 consumers render v2 without edits. Primitives restyled: `.wl-panel` L1, `.wl-card` L2, new `.wl-l3`, `.wl-well`, `.wl-chip-intel`, `.wl-rise`, `kbd.wl-key`; buttons are the v2 controls (primary gradient with dark text, escalate orange); pressed speed/route segments use the primary control; HUD figures are wells in mono.
+- The v57 inline literals in `App.jsx`, `ForcesTab.jsx`, `styles.js`, `MapView.jsx` and `COMP_COLORS` (rival spheres: Russia #e5484d, China #e8b33a, Germany #e9863f) are value-mapped from the v1 palette to v2 (one commit, pure substitution) so the whole game reads as one system until each vertical is rebuilt on tokens.
+- Fonts are named in the stacks only; nothing is fetched (build rule: no external requests). Installed fonts render; otherwise the system stack.
+- Tests: `tokens.test.js` +1 (levels, wells, system hues, alert family contrast, type minimums, controls and the classes that consume them).
+
 ## 0.90.0 (2026-10-11) — D6: Trade nation desk
 - UI only, no rule change; parity goldens untouched. Desktop branch behind `useWide()` (>= 1100px); the phone tree is unchanged.
 - New `trade/NationDesk.jsx`: all 26 nations in one sortable table (bloc, relations, tension, embassy, trade, pact, sanction or embargo, influence weight) beside the selected nation's full action sheet (the same `NationSheet` the map opens: visit, aid, trade agreement, pact, embassy, influence, sanctions, embargo, arms, ops). Sanctions work on every nation (ruling 7).

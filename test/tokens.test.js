@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { COLOR, SIZE, SPACE, TAP, Z, TOKEN_CSS, TOKEN_VARS, pixiHex } from '../src/ui/tokens.js';
+import { COLOR, SIZE, SPACE, TAP, Z, TOKEN_CSS, TOKEN_VARS, pixiHex, SURFACE, ALERT, CONTROL, ELEVATION, FONT } from '../src/ui/tokens.js';
 import { installTheme, THEME_STYLE_ID } from '../src/ui/theme.js';
 import { VERSION, BUILD_STAMP } from '../src/ui/version.js';
 import { mount, BUNDLES } from './util/harness.js';
@@ -27,7 +27,7 @@ test('tokens: every colour is a 6-digit hex; ramps have 5 stops; scales are asce
   assert.ok(asc(SIZE), 'type scale ascending'); assert.ok(asc(SPACE), 'spacing ascending');
   assert.equal(TAP, 44);
   assert.ok(Z.map < Z.chrome && Z.chrome < Z.sheet && Z.sheet < Z.toast && Z.toast < Z.modal && Z.modal < Z.victory, 'z-order');
-  assert.equal(pixiHex('#3b82f6'), 0x3b82f6);
+  assert.equal(pixiHex('#4fb8ff'), 0x4fb8ff);
 });
 
 test('tokens: text contrast on bg.panel meets WCAG AA (4.5 primary/secondary/muted, 3.0 dim and accents)', () => {
@@ -43,11 +43,34 @@ test('tokens: text contrast on bg.panel meets WCAG AA (4.5 primary/secondary/mut
 test('stylesheet: every token is a --wl-* custom property; primitives and reduced-motion rule present', () => {
   assert.ok(Object.keys(TOKEN_VARS).length > 80);
   for (const k of Object.keys(TOKEN_VARS)) assert.ok(TOKEN_CSS.includes(k + ':'), `missing ${k}`);
-  assert.ok(TOKEN_CSS.includes('--wl-size-body:12px'), 'px units on sizes');
-  for (const cls of ['.wl-panel', '.wl-card', '.wl-chip', '.wl-btn', '.wl-btn-primary', '.wl-label', '.wl-num', '.wl-scrim', '.wl-tap']) assert.ok(TOKEN_CSS.includes(cls + '{'), cls);
+  assert.ok(TOKEN_CSS.includes('--wl-size-small:12px'), 'px units on sizes');
+  for (const cls of ['.wl-panel', '.wl-card', '.wl-chip', '.wl-btn', '.wl-btn-primary', '.wl-label', '.wl-num', '.wl-scrim', '.wl-tap', '.wl-well', '.wl-l3', '.wl-chip-intel', '.wl-rise']) assert.ok(TOKEN_CSS.includes(cls + '{'), cls);
   assert.match(TOKEN_CSS, /\.wl-btn\{min-height:44px/);
   assert.match(TOKEN_CSS, /prefers-reduced-motion/);
   assert.equal((TOKEN_CSS.match(/^(\.|@|:|html|\*|button|input)/gm) || []).length > 20, true);
+});
+
+// v2 (docs/DESIGN-SYSTEM-V2.md): elevation L0-L3 and wells, one hue per system, alert families, type and controls.
+test('tokens v2: elevation levels and wells, system colours, alert families, type stack, controls; v1 aliases still resolve', () => {
+  for (const k of ['L1', 'L2', 'L3', 'well']) { assert.match(SURFACE[k], /^linear-gradient\(180deg,#[0-9a-f]{6},#[0-9a-f]{6}\)$/, `surface ${k}`); assert.match(ELEVATION[k], /rgba\(0,0,0,\.\d+\)/, `shadow ${k}`); }
+  assert.equal(SURFACE.L0, COLOR.bg.canvas); assert.equal(ELEVATION.panel, ELEVATION.L1); assert.equal(ELEVATION.raised, ELEVATION.L3);
+  assert.deepEqual(Object.keys(COLOR.system), ['you', 'economy', 'energy', 'resources', 'trade', 'arsenal', 'forces', 'intel', 'technology', 'alert']);
+  assert.equal(COLOR.system.you, COLOR.accent.command); assert.equal(COLOR.system.alert, COLOR.accent.alert); assert.equal(COLOR.system.energy, COLOR.accent.energy);
+  assert.equal(COLOR.faction.player, COLOR.system.you); assert.equal(COLOR.faction.russia, '#e5484d'); assert.equal(COLOR.faction.china, '#e8b33a');
+  for (const k of ['situation', 'brief', 'chokepoint', 'good', 'signal']) { const f = ALERT[k]; assert.match(f.text, HEX, `${k}.text`); assert.match(f.edge, /^rgba\(/, `${k}.edge`); assert.ok(f.fill.startsWith('linear-gradient') || HEX.test(f.fill), `${k}.fill`); assert.ok(contrast(f.text, COLOR.bg.panel) >= 4.5, `${k}.text on panel`); }
+  assert.equal(ALERT.situation.text, '#ffb08a'); assert.equal(ALERT.chokepoint.text, COLOR.accent.warn); assert.equal(ALERT.good.text, COLOR.accent.good);
+  assert.match(FONT.display, /Barlow Condensed/); assert.match(FONT.sans, /^Inter/); assert.match(FONT.mono, /JetBrains Mono/);
+  assert.ok(SIZE.small >= 12, 'minimum text 12px'); assert.ok(SIZE.micro >= 10 && SIZE.caption <= 11, 'key hints 10 to 11px');
+  assert.match(CONTROL.primary.bg, /^linear-gradient\(180deg,#8fdfff,#4fb8e8\)$/); assert.equal(CONTROL.primary.fg, COLOR.text.onAccent); assert.ok(contrast(CONTROL.primary.fg, '#4fb8e8') >= 4.5, 'dark text on the primary control');
+  assert.match(CONTROL.secondary.bg, /^linear-gradient\(180deg,#22324f,#172338\)$/); assert.equal(CONTROL.escalate.fg, ALERT.situation.text, 'escalate is the orange family');
+  assert.equal(CONTROL.hover, 'brightness(1.15)'); assert.equal(CONTROL.slider.track, 6); assert.ok(CONTROL.slider.thumb >= 18 && CONTROL.slider.thumb <= 20);
+  // the stylesheet consumes them: wells, chips per family, the escalate button, sliders
+  assert.ok(TOKEN_CSS.includes(`.wl-well{background:${SURFACE.well};box-shadow:${ELEVATION.well}`), 'well class');
+  assert.ok(TOKEN_CSS.includes(`.wl-chip-alert{color:${ALERT.situation.text}`) && TOKEN_CSS.includes(`.wl-btn-alert{color:${ALERT.situation.text}`), 'alert chip and button are the situation family');
+  assert.ok(TOKEN_CSS.includes(`.wl-btn-primary{background:${CONTROL.primary.bg}`), 'primary button');
+  assert.ok(TOKEN_CSS.includes(`input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:${CONTROL.slider.thumb}px`), 'slider thumb');
+  assert.ok(TOKEN_CSS.includes('button:hover:not(:disabled){filter:brightness(1.15)}'), 'hover');
+  for (const k of ['--wl-surface-L1', '--wl-alert-situation-text', '--wl-control-primary-bg', '--wl-color-system-forces']) assert.ok(TOKEN_VARS[k], k);
 });
 
 test('version: BUILD_STAMP reads package.json', () => {
@@ -62,7 +85,7 @@ test('App: installs the theme once; title screen stamps the package version inst
   try {
     const styles = g.doc.querySelectorAll('#' + THEME_STYLE_ID);
     assert.equal(styles.length, 1, 'theme style installed once');
-    assert.ok(styles[0].textContent.includes('--wl-color-accent-command:#3b82f6'));
+    assert.ok(styles[0].textContent.includes('--wl-color-accent-command:#4fb8ff'));
     assert.equal(installTheme(g.doc), false, 'second install is a no-op');
     assert.match(g.text(), new RegExp(`COMMAND TERMINAL · BUILD v${VERSION.replace(/\./g, '\\.')} ◂`));
     assert.doesNotMatch(g.text(), /BUILD v57/);
