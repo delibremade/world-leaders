@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { regionCommands, fleetCommands, budgetCommands, runCommand, REGION_KEYS, FLEET_KEYS, BUDGET_KEYS } from '../src/ui/shell/commands.js';
 import { mount, BUNDLES, flush } from './util/harness.js';
-import { launch, openGame, settle } from './util/browser.js';
+import { launch, openGame, settle, stableRect } from './util/browser.js';
 
 // V2d (docs/DESIGN-SYSTEM-V2.md §4): command cards. Region: Deploy A, Station base S, Influence D, State visit F,
 // Sanction Z, Embargo X, Intel op C, Build node V. Escalatory actions are orange and go through the confirm sheet.
@@ -107,6 +107,7 @@ for (const [W, H] of [[1440, 900], [390, 844]]) {
     const { ctx, page, errors } = await openGame(browser, { svg: true, width: W, height: H });
     try {
       await page.evaluate(() => window.__wl.region('WE')); await settle(page, 800);
+      await stableRect(page, '[data-command-card=region]', { within: { W, H } }); await stableRect(page, '.wl-map-card'); // the sheet slides in and the column settles before we measure
       const r = await page.evaluate(() => { const q = (s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, r: b.right, b: b.bottom, w: b.width, h: b.height }; }; return { card: q('[data-command-card=region]'), map: q('.wl-map-card'), sheet: q('[data-sheet]'), placement: document.querySelector('[data-command-card=region]')?.dataset.placement, btns: [...document.querySelectorAll('[data-command-card=region] [data-cmd]')].map((b) => { const x = b.getBoundingClientRect(); return { h: x.height, x: x.x, r: x.right }; }) }; });
       assert.ok(r.card, 'card rendered'); assert.equal(r.btns.length, 8);
       for (const b of r.btns) assert.ok(b.h >= 44 && b.x >= -0.5 && b.r <= W + 0.5, JSON.stringify(b));
