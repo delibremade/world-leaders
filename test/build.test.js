@@ -15,4 +15,10 @@ test('build: pixi is a lazy chunk, index.html first paint excludes it, single-fi
   const lazy = chunks.reduce((s, f) => s + statSync(`dist/chunks/${f}`).size, 0);
   assert.ok(Buffer.byteLength(html) < one * 0.6, `first paint ${Buffer.byteLength(html)} vs single ${one}`);
   assert.ok(lazy > 700 * 1024, `lazy chunks hold pixi (${lazy} bytes)`);
+  // V2a fonts: the Pages build points at its own fonts/ files, the single file embeds them; neither asks the network.
+  const fontsDir = readdirSync('dist/fonts'); assert.ok(fontsDir.length >= 7 && fontsDir.every((f) => f.endsWith('.woff2')), `dist/fonts ${fontsDir}`);
+  for (const f of fontsDir) assert.match(html, new RegExp(`url\\(fonts/${f.replace('.', '\\.')}\\)`), `index.html references ${f}`);
+  const single = readFileSync('dist/world-leaders.html', 'utf8');
+  assert.equal((single.match(/data:font\/woff2;base64,/g) || []).length, fontsDir.length, 'single file embeds every font');
+  assert.doesNotMatch(single, /url\(fonts\//); assert.doesNotMatch(html + single, /fonts\.(googleapis|gstatic)\.com/);
 });

@@ -5,13 +5,14 @@ import { build } from 'esbuild';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { shell } from './shell.js';
+import { fontFaceCss, copyFonts } from './fonts.js';
 
 const common = { entryPoints: ['src/ui/main.jsx'], bundle: true, write: false, minify: true, jsx: 'automatic', define: { 'process.env.NODE_ENV': '"production"' }, target: ['es2020'] };
 const kb = (n) => `${(n / 1024).toFixed(0)} KB`;
 rmSync('dist', { recursive: true, force: true }); mkdirSync('dist/chunks', { recursive: true });
 
 const single = await build({ ...common, format: 'iife' });
-const one = shell(single.outputFiles[0].text);
+const one = shell(single.outputFiles[0].text, { head: fontFaceCss({ inline: true }) }); // fonts inline: the file stays self-contained
 writeFileSync('dist/world-leaders.html', one);
 
 // Split build: ESM entry inlined into index.html; every other output (the pixi chunk, any shared chunk) is a file under chunks/.
@@ -20,7 +21,8 @@ const entry = split.outputFiles.find((f) => f.path.endsWith('/entry.js'));
 const chunks = split.outputFiles.filter((f) => f !== entry);
 for (const f of chunks) writeFileSync(f.path, f.contents);
 // The inline module resolves './chunks/..' against the page URL, so the entry's own imports must be rewritten from entry-relative to page-relative (same dir: no change).
-const html = shell(entry.text).replace('<script>', '<script type="module">');
+const html = shell(entry.text, { head: fontFaceCss() }).replace('<script>', '<script type="module">');
+copyFonts('dist/fonts'); // same-origin files next to index.html, no external requests
 writeFileSync('dist/index.html', html);
 
 // First paint = index.html plus every chunk reachable through static imports (anything only import()ed is lazy).

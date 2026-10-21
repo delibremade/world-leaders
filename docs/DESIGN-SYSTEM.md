@@ -1,5 +1,7 @@
 # Design system: situation-room tactical
 
+> **Superseded by [DESIGN-SYSTEM-V2.md](DESIGN-SYSTEM-V2.md) (2026-10-20).** The token names and consumers below still hold; the values in `src/ui/tokens.js` are the v2 ones (elevation levels and wells, system hues, alert families, Barlow Condensed / Inter / JetBrains Mono, v2 controls). Read this file for how tokens are consumed, v2 for what they are.
+
 Decided by the owner 2026-10-09 (docs/PLAYABLE-PLAN.md, "Visual direction"). Dark, vector, glowing data on a
 command-terminal base. v57's palette is the seed; this document names it, fixes the scales, and sets the rules
 every vertical inherits. Source of truth for values: `src/ui/tokens.js`. This file explains; the module decides.

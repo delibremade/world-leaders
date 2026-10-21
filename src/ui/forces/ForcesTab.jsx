@@ -54,7 +54,7 @@ function Manpower({ fv, v, dispatch }) {
       <div className="wl-note">Pay against civilian wages, stability and the labor market. Payroll ${payroll}M/mo ({units} units + manpower).</div>
     </Panel>
     <Panel id="pay" title="Personnel pay" figure={`${pay}%`} tone={pay < 90 ? 'alert' : pay >= 120 ? 'good' : 'warn'}>
-      <input className="wl-slider" type="range" min="0" max="150" step="5" value={pay} aria-label="Personnel pay" onChange={(e) => dispatch({ type: 'setPersonnelPay', payload: { pay: +e.target.value } })} style={{ accentColor: pay < 90 ? '#ef4444' : pay >= 120 ? '#4ade80' : '#3b82f6' }} />
+      <input className="wl-slider" type="range" min="0" max="150" step="5" value={pay} aria-label="Personnel pay" onChange={(e) => dispatch({ type: 'setPersonnelPay', payload: { pay: +e.target.value } })} style={{ accentColor: pay < 90 ? '#ff7a45' : pay >= 120 ? '#6ee7a8' : '#4fb8ff' }} />
       <div className="wl-note" data-pay-effect>{pay === 0 ? 'Unpaid: no recruits, retention falls to 0, strength drains.' : pay < 90 ? '⚠ Readiness −15%, morale drain (−0.03 stability/mo).' : pay >= 120 ? '✓ Readiness +10%, veteran loyalty (+0.02 stability/mo).' : 'Standard readiness.'} Payroll ${payroll}M/mo · retention → {Math.round(fv.retTarget)}%.</div>
     </Panel>
   </>;
