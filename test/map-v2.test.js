@@ -63,8 +63,9 @@ test('1440px (WebGL): tilted plane renders; zoom walks Strategic -> Operational 
     await page.keyboard.press('w'); await settle(page, 200);
     assert.equal(await page.evaluate(() => document.querySelector('[data-map]').getAttribute('data-map-mode')), 'tension');
     // the ticker keeps running (lanes, pulses) and stops doing work under reduced motion
-    const f0 = await page.evaluate(() => window.__wlMap.frames()); await settle(page, 400); const f1 = await page.evaluate(() => window.__wlMap.frames());
-    assert.ok(f1 > f0, 'frames advance');
+    // the ticker keeps running: a software-GL runner may need seconds per frame, so wait for the count to move rather than sample a window
+    const f0 = await page.evaluate(() => window.__wlMap.frames());
+    await page.waitForFunction((f0) => window.__wlMap.frames() > f0, f0, { timeout: 20000 });
     assert.deepEqual(errors, []);
   } finally { await ctx.close(); }
 });
