@@ -734,7 +734,7 @@ function WorldLeadersInner({resumeSignal}){
   // V2d command cards: one runner for every card (escalatory through the confirm sheet, UI side effects, else the verb).
   const runCmd=(a)=>runCommand(a,{dispatch,ask:setAct,ui:(u)=>{if(u.build!=null)setBuildMode(u.build);if(u.site){setSelNation(null);setSelSite(u.site);}if(u.nation)setSelNation(u.nation);}});
   const cmdView={country,stats,nationRelations,sanctions,embargoes,actionCooldowns,influenceAlloc,platforms,platformsImported,blackPrograms,forceDeployments,resExtraction,bases,intelOps,sphere};
-  const regionCard=selectedRegion&&!selNation&&!selSite?<CommandCard id="region" placement={wide?'map':'sheet'} title={REGIONS[selectedRegion]?.n} sub={`${Math.round(sphere[selectedRegion]?.player||0)}% your sphere · keys A S D F Z X C V`} color={country?.color||'#4ade80'} actions={regionCommands(cmdView,selectedRegion)} onRun={runCmd} onClose={()=>setSelectedRegion(null)}/>:null;
+  const regionCard=selectedRegion&&!selNation&&!selSite?<CommandCard id="region" placement={wide?'map':'sheet'} title={REGIONS[selectedRegion]?.n} sub={`${Math.round(sphere[selectedRegion]?.player||0)}% your sphere · keys A S D F Z X C V`} color={country?.color||'#6ee7a8'} actions={regionCommands(cmdView,selectedRegion)} onRun={runCmd} onClose={()=>setSelectedRegion(null)}/>:null;
   return(
     <ClockGateContext.Provider value={clockGate}><div className="wl-app" style={{backgroundImage:'radial-gradient(1100px 540px at 72% -8%,rgba(79,184,255,.07),transparent 62%),radial-gradient(900px 480px at -4% 108%,rgba(180,156,255,.05),transparent 58%)'}}>
       <style>{SHELL_CSS}</style>
@@ -1116,7 +1116,7 @@ function WorldLeadersInner({resumeSignal}){
                 <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px'}}>Sector Budgets</div>
                 <div style={{fontSize:'11px',color:'#9aa8bf'}}>Total: <span style={{color:'#e6edf7',fontWeight:700}}>${Math.round(Object.entries(budgetAlloc).reduce((s,[sec,a])=>s+rSCost(sec,a),0)).toLocaleString()}M/mo</span></div>
               </div>
-              {selBudget&&<CommandCard id="budget" placement="column" title={SECTOR_LABELS[selBudget]} sub={`${budgetAlloc[selBudget]??100}% · keys K J N M`} color="#f0c040" actions={budgetCommands(selBudget,budgetAlloc[selBudget]??100,{age:sectorAge[selBudget]||0,treasury:stats?.treasury||0})} onRun={runCmd} onClose={()=>setSelBudget(null)}/>}
+              {selBudget&&<CommandCard id="budget" placement="column" title={SECTOR_LABELS[selBudget]} sub={`${budgetAlloc[selBudget]??100}% · keys K J N M`} color="#f5c451" actions={budgetCommands(selBudget,budgetAlloc[selBudget]??100,{age:sectorAge[selBudget]||0,treasury:stats?.treasury||0})} onRun={runCmd} onClose={()=>setSelBudget(null)}/>}
               {Object.entries(SECTOR_LABELS).map(([sector,label])=>{
                 const alloc=budgetAlloc[sector]||100;
                 const md=rMatDisc(sector);const cost=Math.round(rSCost(sector,alloc));
