@@ -41,7 +41,9 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       for (let i = 0; i < nCards; i++) { // cards sit in a snap carousel: each must be fully visible once scrolled to
         await page.evaluate((i) => document.querySelectorAll('[data-event-card]')[i].scrollIntoView({ inline: 'center', block: 'nearest' }), i); await settle(page, 300);
         const c = (await box(page, '[data-event-card]'))[i]; inside(c, W, H, 'event card'); assert.ok(c.y >= hud.b - 0.5 || c.x >= hud.r - 0.5, `card overlaps HUD ${JSON.stringify(c)} vs ${JSON.stringify(hud)}`); }
-      // why popovers: every trigger on the shell, including the rightmost one
+      // why popovers: every trigger on the shell, including the rightmost one. Park the pointer off the HUD first: the chip row
+      // can shift a well under a stationary cursor, and a hover-opened popover would then count beside the clicked one.
+      await page.mouse.move(4, H - 4); await settle(page, 200);
       const n = await page.evaluate(() => document.querySelectorAll('[data-hud] [data-why]').length);
       assert.equal(n, 3);
       for (let i = 0; i < n; i++) {
