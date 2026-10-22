@@ -1,15 +1,16 @@
 // F9 (#57), spec Part 11: bases and nodes. One implementation of placement, host consent, reach and the monthly step, shared by
 // the verbs (actions.js), the month (tick.js), the effects F9c wires into chokepoints, deployed power, ISR, flashpoints and sphere,
-// and the map build layer (F9b). State g.bases: { nodes: [{id, owner, site, type, status, mo, since, lease?, closed?}], ai: {owner: n} }.
+// and the map build layer (F9b). State g.bases: { nodes: [{id, owner, site, type, status, mo, since, tenure, closed?}], ai: {owner: n},
+// agreements: {host: {since}} }. #89: tenure (F15) per node; agreements are the player's basing agreements with host nations (NATIONS[*].host).
 //   status: 'building' (mo months left) | 'active' | 'closed' (host consent lost; `closed` counts months shut)
 //   id = owner:site:type, so one node per owner, site and type (invariant).
 // Every nation's real bases are pre-placed (REAL_BASES); the player's are the ones owned by g.country.id. Ruling 6: AI nodes are keyed
 // by their owner, never by the player; nothing here writes tension against the player.
-import { NODE_TYPES, SITES, SITE_IDS, REAL_BASES, BASE_RULES as R, distanceKm } from '../data/bases.js';
+import { NODE_TYPES, SITES, SITE_IDS, REAL_BASES, BASE_RULES as R, TENURES, distanceKm } from '../data/bases.js';
 import { NATIONS, NATION_BLOC } from '../data/nations.js';
 import { REGIONS, REGION_GEO, SPHERE_INIT } from '../data/regions.js';
 import { CHOKEPOINTS, IMPORT_ROUTES } from '../data/chokepoints.js';
-import { isAllyOf, topHostile } from './formulas.js';
+import { isAllyOf, topHostile, relOf } from './formulas.js';
 import { rng } from './rng.js';
 import { siteLL, chokeLL, chokesCovered, regionsCovered } from './reach.js';
 import { leverCost } from './minerals.js';
@@ -19,8 +20,16 @@ const EPS = 1e-9;
 
 export const nodeId = (owner, site, type) => `${owner}:${site}:${type}`;
 export function newBases() {
-  return { nodes: REAL_BASES.map((b) => ({ id: nodeId(b.owner, b.site, b.type), owner: b.owner, site: b.site, type: b.type, status: 'active', mo: 0, since: 0, ...(b.lease ? { lease: true } : {}) })), ai: {} };
+  return { nodes: REAL_BASES.map((b) => ({ id: nodeId(b.owner, b.site, b.type), owner: b.owner, site: b.site, type: b.type, status: 'active', mo: 0, since: 0, tenure: b.tenure })), ai: {}, agreements: {} };
 }
+// F15 tenure of a node. Saves from before #89 carry `lease: true` or nothing; a pre-placed node reads its REAL_BASES line.
+const REAL_TENURE = Object.fromEntries(REAL_BASES.map((b) => [nodeId(b.owner, b.site, b.type), b.tenure]));
+export const tenureOf = (node) => node.tenure || (node.lease ? 'lease' : REAL_TENURE[node.id] || (SITES[node.site]?.host === node.owner ? 'own' : 'access'));
+export const persists = (node) => !!TENURES[tenureOf(node)]?.persists;
+// #89 host nations: a basing agreement in force, signed with basingAgreement, or implied by a lease or treaty base you already hold there.
+export const isHostNation = (nid) => !!NATIONS[nid]?.host;
+export const hostSites = (nid) => SITE_IDS.filter((sid) => SITES[sid].host === nid);
+export const hasAgreement = (g, h) => !!BS(g).agreements?.[h] || BS(g).nodes.some((n) => n.owner === me(g) && SITES[n.site].host === h && n.status !== 'closed' && persists(n));
 const BS = (g) => g.bases || newBases();
 const me = (g) => g.country?.id;
 // The AI nations that place nodes: the sphere competitors (SPHERE_INIT keys), minus the player.
@@ -44,16 +53,22 @@ export function nodeCost(type, sid, owner) {
 }
 
 // ── Host consent (player's nodes). A registry host consents on relations and pacts; a local host on your sphere in its region.
-// Two thresholds: `open` (build or reopen) and `lost` (the host closes it). Own soil and a treaty lease always consent.
+// Two thresholds: `open` (build or reopen) and `lost` (the host closes it). Own soil, a lease and a treaty always consent (F15: they end only by
+// a specific event, never a relations threshold). A host nation (#89) consents to an ally, a pact partner, or under a basing agreement.
 export function consent(g, sid, node = null) {
   const site = SITES[sid]; const pid = me(g);
-  if (site.host === pid || node?.lease) return { ok: true, lost: false, reason: null };
+  if (site.host === pid || (node && persists(node))) return { ok: true, lost: false, reason: null };
   if (site.host) {
-    const h = site.host; const rel = g.nationRelations?.[h] ?? 0;
+    const h = site.host; const rel = relOf(g, h);
     if (g.sanctions?.has?.(h)) return { ok: false, lost: true, reason: `You sanction ${nationName(h)}` };
     if (g.embargoes?.has?.(h)) return { ok: false, lost: true, reason: `You embargo ${nationName(h)}` };
     if (rel < R.consentLose) return { ok: false, lost: true, reason: `${nationName(h)} relations ${Math.round(rel)} (below ${R.consentLose})` };
-    const ok = rel >= R.consentRel || g.defensePacts?.has?.(h) || isAllyOf(pid, h);
+    const friend = g.defensePacts?.has?.(h) || isAllyOf(pid, h);
+    if (isHostNation(h)) {
+      if (friend || hasAgreement(g, h)) return { ok: true, lost: false, reason: null };
+      return { ok: false, lost: !!node && tenureOf(node) === 'agreement', reason: `No basing agreement with ${nationName(h)} (relations ${Math.round(rel)}; need ${R.consentRel}, a pact or an ally to sign one)` };
+    }
+    const ok = rel >= R.consentRel || friend;
     return { ok, lost: false, reason: ok ? null : `${nationName(h)} relations ${Math.round(rel)} (need ${R.consentRel}, a pact or an ally)` };
   }
   const pv = g.sphere?.[site.region]?.player || 0;
@@ -77,6 +92,22 @@ export function siteView(g, sid) {
   const site = SITES[sid]; if (!site) return null;
   return { id: sid, ...site, hostName: hostName(site), consent: consent(g, sid), nodes: nodesAt(g, sid), options: siteOptions(g, sid), chokes: Object.keys(CHOKEPOINTS).filter((k) => distanceKm(siteLL(sid), chokeLL(k)) <= 1500) };
 }
+// One host nation as its sheet reads it (#89): terms, agreement, candidate sites with the chokepoints each reaches at its longest node reach.
+export function hostView(g, nid) {
+  const H = NATIONS[nid]?.host; if (!H) return null;
+  const sites = hostSites(nid).map((sid) => { const reach = Math.max(...SITES[sid].types.map((t) => NODE_TYPES[t].reach)); return { id: sid, n: SITES[sid].n, types: SITES[sid].types, chokes: Object.keys(CHOKEPOINTS).filter((k) => distanceKm(siteLL(sid), chokeLL(k)) <= reach), mine: nodesAt(g, sid).filter((n) => n.owner === me(g)).length }; });
+  return { id: nid, ...H, agreement: hasAgreement(g, nid), signed: !!BS(g).agreements?.[nid], sign: agreementGate(g, nid), rel: relOf(g, nid), sites, chokes: [...new Set(sites.flatMap((s) => s.chokes))] };
+}
+// Why a basing agreement cannot be signed right now, or null.
+export function agreementGate(g, nid) {
+  const pid = me(g); if (!isHostNation(nid) || nid === pid) return 'Not a host nation';
+  if (g.sanctions?.has?.(nid)) return `You sanction ${nationName(nid)}`;
+  if (g.embargoes?.has?.(nid)) return `You embargo ${nationName(nid)}`;
+  const rel = relOf(g, nid);
+  if (!(rel >= R.consentRel || g.defensePacts?.has?.(nid) || isAllyOf(pid, nid))) return `Relations ${Math.round(rel)}: need ${R.consentRel}, a pact or an ally`;
+  if ((g.stats?.treasury || 0) < R.agreementCost) return `Need $${R.agreementCost}M`;
+  return null;
+}
 // Every node the player holds, with its reach summary and monthly cost.
 export function basesView(g) {
   const pid = me(g); const nodes = BS(g).nodes.map((n) => ({ ...n, siteName: SITES[n.site].n, region: SITES[n.site].region, hostName: hostName(SITES[n.site]), mine: n.owner === pid, cost: nodeCost(n.type, n.site, n.owner), chokes: chokesCovered(n), regions: regionsCovered(n), foreign: isForeign(n), outlook: n.owner === pid && NODE_TYPES[n.type].private && n.status === 'building' ? portOutlook(g, n) : null }));
@@ -84,7 +115,7 @@ export function basesView(g) {
   return { nodes, mine, theirs: nodes.filter((n) => !n.mine), upkeep: active.reduce((s, n) => s + n.cost.upkeep, 0), hostPay: active.reduce((s, n) => s + n.cost.host, 0), building: mine.filter((n) => n.status === 'building'), closed: mine.filter((n) => n.status === 'closed') };
 }
 
-const commit = (g, S, nodes, ai = BS(g).ai) => { const nb = { ...BS(g), nodes, ai }; g.bases = nb; S.setBases(nb); return nb; };
+const commit = (g, S, nodes, ai = BS(g).ai) => { const nb = { ...BS(g), nodes, ai, agreements: BS(g).agreements || {} }; g.bases = nb; S.setBases(nb); return nb; };
 const logLine = (g, S, msg) => S.setLog((p) => [{ msg, yr: g.date.yr, mo: g.date.mo }, ...p.slice(0, 19)]);
 
 // ── Verbs ──────────────────────────────────────────────────────────────────
@@ -96,7 +127,7 @@ function buildNode(g, S, fx, sid, type) {
   if (!opt.ok) { fx.toast('⚠ ' + opt.reason); return false; }
   const t = NODE_TYPES[type]; const site = SITES[sid];
   if (t.private) { // F5 model: the state authorizes for $0; investors build while the margin holds
-    const node = { id: nodeId(pid, sid, type), owner: pid, site: sid, type, status: 'building', mo: opt.mo, since: g.tickCount || 0, prog: 0, levers: [] };
+    const node = { id: nodeId(pid, sid, type), owner: pid, site: sid, type, status: 'building', mo: opt.mo, since: g.tickCount || 0, prog: 0, levers: [], tenure: newTenure(g, sid) };
     commit(g, S, [...BS(g).nodes, node]);
     const o = portOutlook(g, node);
     fx.toast(`${t.i} ${t.n} at ${site.n} authorized, no treasury capex: ${o.profitable ? `private build ~${o.eta} mo` : 'not yet profitable for investors; pull a lever'}`);
@@ -104,10 +135,26 @@ function buildNode(g, S, fx, sid, type) {
     return true;
   }
   S.setStats((p) => ({ ...p, treasury: p.treasury - opt.capex }));
-  const node = { id: nodeId(pid, sid, type), owner: pid, site: sid, type, status: 'building', mo: opt.mo, since: g.tickCount || 0 };
+  const node = { id: nodeId(pid, sid, type), owner: pid, site: sid, type, status: 'building', mo: opt.mo, since: g.tickCount || 0, tenure: newTenure(g, sid) };
   commit(g, S, [...BS(g).nodes, node]);
   fx.toast(`${t.i} ${t.n} at ${site.n}: $${opt.capex}M, online in ${opt.mo} months${opt.host ? `, $${opt.host}M/mo to ${hostName(site)}` : ''}`);
   logLine(g, S, `${t.i} Breaking ground: ${t.n}, ${site.n}`);
+  return true;
+}
+// Tenure of a node you build now: home soil, a host-nation agreement where one is signed, else an access arrangement.
+const newTenure = (g, sid) => { const h = SITES[sid].host; return h === me(g) ? 'own' : h && BS(g).agreements?.[h] ? 'agreement' : 'access'; };
+// #89: sign or end a basing agreement with a host nation. Signing costs a one-off fee and needs relations 20, a pact or an ally; it lets you
+// build at every site the host offers and keeps those nodes open while relations stay above the loss line. Ending it closes them next month.
+function basingAgreement(g, S, fx, nid) {
+  const pid = me(g); if (!pid || !isHostNation(nid) || nid === pid) return false;
+  const ag = { ...(BS(g).agreements || {}) };
+  if (ag[nid]) { delete ag[nid]; const nb = { ...BS(g), agreements: ag }; g.bases = nb; S.setBases(nb); fx.toast(`📝 Basing agreement with ${nationName(nid)} ended`); logLine(g, S, `📝 Basing agreement ended: ${nationName(nid)}`); return true; }
+  const why = agreementGate(g, nid); if (why) { fx.toast('⚠ ' + why); return false; }
+  S.setStats((p) => ({ ...p, treasury: p.treasury - R.agreementCost }));
+  if (g.nationRelations?.[nid] == null) { const nr = { ...g.nationRelations, [nid]: relOf(g, nid) }; g.nationRelations = nr; S.setNationRelations(nr); }
+  ag[nid] = { since: g.tickCount || 0 }; const nb = { ...BS(g), agreements: ag }; g.bases = nb; S.setBases(nb);
+  fx.toast(`📝 Basing agreement with ${nationName(nid)}: $${R.agreementCost}M; build at ${hostSites(nid).map((s) => SITES[s].n).join(', ')}`);
+  logLine(g, S, `📝 Basing agreement signed: ${nationName(nid)}`);
   return true;
 }
 // Decommission one of your nodes. No refund; upkeep and the agreement stop.
@@ -137,6 +184,7 @@ export const BASE_VERBS = {
   buildNode: (g, S, fx, { site, type }) => buildNode(g, S, fx, site, type),
   closeNode: (g, S, fx, { id }) => closeNode(g, S, fx, id),
   nodeLever: (g, S, fx, { id, lever }) => nodeLever(g, S, fx, id, lever),
+  basingAgreement: (g, S, fx, { nation }) => basingAgreement(g, S, fx, nation),
 };
 
 // ── Private capital (F5 #37) for port nodes: investor margin from lane value, host-region sphere and trade ties, saturation across your
@@ -203,6 +251,15 @@ function aiPlace(g, S, fx, nodes, ai) {
 export function stepBases(g, S, fx, cash) {
   const pid = me(g); if (!pid) return;
   let changed = false; const nodes = BS(g).nodes.map((n) => ({ ...n }));
+  // #89: a basing agreement lapses when the host would close a base (relations under the loss line, your sanctions or embargo on it).
+  let agreements = BS(g).agreements || {};
+  for (const h of Object.keys(agreements)) {
+    const why = g.sanctions?.has?.(h) ? `you sanction ${nationName(h)}` : g.embargoes?.has?.(h) ? `you embargo ${nationName(h)}` : relOf(g, h) < R.consentLose ? `relations ${Math.round(relOf(g, h))}` : null;
+    if (!why) continue;
+    agreements = { ...agreements }; delete agreements[h]; changed = true;
+    fx.toast(`📝 ${nationName(h)} suspends your basing agreement: ${why}`); logLine(g, S, `📝 Basing agreement suspended: ${nationName(h)}`);
+  }
+  g.bases = { ...BS(g), agreements };
   for (const n of nodes) {
     if (n.status === 'building' && n.owner === pid && NODE_TYPES[n.type].private) { // F5: investors advance it by its pace while the margin holds
       const o = portOutlook(g, n); if (o.pace <= 0) continue;

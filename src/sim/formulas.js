@@ -13,6 +13,11 @@ import { baseIsr, theaterMult, t1Bonus } from './reach.js';
 export const sumDep=o=>Object.values(o||{}).reduce((a,b)=>a+(b||0),0);
 // Bloc partner (never yourself, never a neutral).
 export const isAllyOf=(pid,cid)=>cid!==pid&&NATION_BLOC[cid]&&NATION_BLOC[cid]!=='neutral'&&NATION_BLOC[cid]===NATION_BLOC[pid];
+// Starting relations by bloc (v57 rule): same bloc +40, either side neutral 0, opposed blocs -20.
+export const startRel=(pid,nid)=>{const b=NATION_BLOC[nid],mb=NATION_BLOC[pid];return mb&&b===mb?40:b==='neutral'||mb==='neutral'?0:-20;};
+// Current relations with a nation. #89: host-only nations (NATIONS[*].host without `dip`) are not seeded into nationRelations at campaign
+// start (the v57 save shape); they read their bloc start until you first act on them.
+export const relOf=(g,nid)=>g.nationRelations?.[nid]??startRel(g.country?.id,nid);
 // Strongest non-allied competitor entry [id, share] in a region's competitors map.
 export const topHostile=(comps,pid)=>Object.entries(comps||{}).filter(([cid])=>!isAllyOf(pid,cid)).sort((a,b)=>b[1]-a[1])[0];
 // Drone wings attach to a host fighter (`attachesTo`): CCA->F-47 (E1, #13), GJ-11->J-20, S-70->Su-57, GCAP adjuncts->GCAP (E3, #15).

@@ -9,7 +9,7 @@ import { NATIONS } from '../data/nations.js';
 import { ALLIED_PROGRAMS, TIERS, ACCESS_RULES } from '../data/alliance.js';
 import { WORLD_EVENTS, DECISIONS } from '../data/world.js';
 import { MINERALS, MINERAL_IDS, MINERAL_RULES as MR } from '../data/minerals.js';
-import { SITES, NODE_TYPES, BASE_RULES } from '../data/bases.js';
+import { SITES, NODE_TYPES, BASE_RULES, TENURES } from '../data/bases.js';
 import { INTEL_OPS } from '../data/intel.js';
 import { PERMANENT } from './effects.js';
 
@@ -122,6 +122,10 @@ export const V57_INVARIANTS = [
   ['private base nodes under construction carry progress in [0, build months) and known, unique levers', (g) => !g.bases || g.bases.nodes.every((n) => n.prog === undefined || (NODE_TYPES[n.type].private && n.status === 'building' && finite(n.prog) && n.prog >= 0 && n.prog < NODE_TYPES[n.type].mo && Array.isArray(n.levers) && n.levers.every((k) => MR.levers[k]) && new Set(n.levers).size === n.levers.length))],
   ['closed base nodes belong to the player (AI nodes never lose consent)', (g) => !g.bases || g.bases.nodes.every((n) => n.status !== 'closed' || n.owner === pid(g))],
   ['AI base placements per nation stay within the cap and are never keyed by the player', (g) => !g.bases || Object.entries(g.bases.ai || {}).every(([n, k]) => n !== pid(g) && Number.isInteger(k) && k >= 0 && k <= BASE_RULES.ai.max)],
+  // Host nations and tenure (#89, F15)
+  ['base node tenure, when stamped, is a known F15 tenure; home soil only where the owner hosts the site', (g) => !g.bases || g.bases.nodes.every((n) => n.tenure === undefined || (TENURES[n.tenure] && (n.tenure === 'own') === (SITES[n.site].host === n.owner)))],
+  ['basing agreements name host nations (never the player) and a since-month >= 0', (g) => !g.bases || Object.entries(g.bases.agreements || {}).every(([h, a]) => NATIONS[h]?.host && h !== pid(g) && Number.isInteger(a?.since) && a.since >= 0)],
+  ['nation relations name real nations and stay in [-100, 100]', (g) => Object.entries(g.nationRelations || {}).every(([k, v]) => NATIONS[k] && Number.isFinite(v) && v >= -100 && v <= 100)],
   // Issues (E9, #23)
   ['issues are live, unique by type, with a positive ttl once ticked', (g) => { const l = g.issues || []; return new Set(l.map((i) => i.type)).size === l.length && l.every((i) => ['unexamined', 'investigating', 'briefed', 'deployed'].includes(i.status) && ((i.status !== 'unexamined' && i.status !== 'briefed') || i.ttl == null || (Number.isInteger(i.ttl) && i.ttl > 0))); }],
 ];

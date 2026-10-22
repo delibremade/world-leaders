@@ -6,6 +6,7 @@ import { ALLIED_PROGRAMS } from '../data/alliance.js';
 import { newMinerals } from './minerals.js';
 import { newForces } from './forces.js';
 import { newBases } from './bases.js';
+import { startRel } from './formulas.js';
 export { newMinerals, newForces, newBases };
 
 // Canonical game state. Plain JSON-serializable data only: no classes, no functions, no Dates.
@@ -83,7 +84,7 @@ export function openingPosition(c){
   const globalDef={};
   Object.entries(GDB).forEach(([k,v])=>{if(k!==c.id)globalDef[k]=v;});
   const defLevels={...(START_DEF[c.id]||{})};
-  const nationRelations={};DIP_TARGETS.forEach(t=>{const b=NATION_BLOC[t.id],mb=NATION_BLOC[c.id];nationRelations[t.id]=mb&&b===mb?40:b==='neutral'||mb==='neutral'?0:-20;});
+  const nationRelations={};DIP_TARGETS.forEach(t=>{nationRelations[t.id]=startRel(c.id,t.id);});
   const prevSectorLevels={defense:Object.values(START_DEF[c.id]||{}).reduce((a,b)=>a+(b||0),0),energy:0,healthcare:Math.floor((c.stats.healthcare||0)/20),education:Math.floor((c.stats.education||0)/20),technology:0};
   return {stats,issues,resources,sphere,globalDef,defLevels,nationRelations,prevSectorLevels};
 }
