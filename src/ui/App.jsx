@@ -47,6 +47,7 @@ import { newEvState } from '../sim/events.js';
 import { whyFor } from '../data/event-why.js';
 import { openEventCards, eventOptions, opOdds } from '../sim/selectors.js';
 import { groupOps } from './shell/ops.js';
+import { groupEffects, clockLabel } from './shell/effects.js';
 import { EventCards } from './shell/EventCards.jsx';
 import { SHELL_CSS } from './shell/styles.js';
 import { Seg } from './shell/Seg.jsx';
@@ -696,7 +697,7 @@ function WorldLeadersInner({resumeSignal}){
       </div>
       {contributing.length>0&&<div style={{marginBottom:'8px'}}>
         <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',marginBottom:'4px'}}>Active Contributors</div>
-        {contributing.map(e=><div key={e.id} style={{fontSize:'11px',color:e.d>0===GOOD.includes(vitalsDrill)?'#6ee7a8':'#ff7a45',marginBottom:'2px'}}>• {e.source}: {e.d>0?'+':''}{e.d.toFixed(2)}/mo ({e.monthsLeft}mo left)</div>)}
+        {groupEffects(contributing).map(x=><div key={x.key} data-contributor={x.key} style={{fontSize:'11px',color:x.d>0===GOOD.includes(vitalsDrill)?'#6ee7a8':'#ff7a45',marginBottom:'2px'}}>• {x.label}{x.count>1?` ×${x.count}`:''}: {x.d>0?'+':''}{x.d.toFixed(2)}/mo ({x.permanent?'permanent':`${x.months}mo left`})</div>)}
         <div style={{fontSize:'11px',color:'#9aa8bf',marginTop:'4px'}}>Net: {netPerMo>0?'+':''}{netPerMo.toFixed(2)}/mo · 12-month projection: {cfg.fmt(Math.max(-999,proj12))}</div>
       </div>}
       {contributing.length===0&&<div style={{fontSize:'11px',color:'#5b6880',marginBottom:'8px'}}>No active investments contributing to this stat.</div>}
@@ -831,8 +832,8 @@ function WorldLeadersInner({resumeSignal}){
           {/* Active effects summary */}
           {activeEffects.length>0&&<div style={{marginTop:'10px',padding:'8px',background:'#0c1424',borderRadius:'6px',border:'1px solid #1c2a42'}}>
             <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',marginBottom:'5px'}}>Active Effects</div>
-            {activeEffects.slice(0,4).map(e=><div key={e.id} style={{fontSize:'10px',color:(GOOD.includes(e.stat)&&e.d>0)||(!GOOD.includes(e.stat)&&e.d<0)?'#6ee7a8':'#ff7a45',marginBottom:'2px'}}>• {SC[e.stat]?.label||e.stat} {e.d>0?'+':''}{e.d.toFixed(2)}/mo ({e.monthsLeft}mo)</div>)}
-            {activeEffects.length>4&&<div style={{fontSize:'10px',color:'#5b6880'}}>+{activeEffects.length-4} more</div>}
+            {(()=>{const gs=groupEffects(activeEffects);return <>{gs.slice(0,6).map(x=><div key={x.key} data-effect-row={x.key} data-count={x.count} style={{fontSize:'10px',color:(GOOD.includes(x.stat)&&x.d>0)||(!GOOD.includes(x.stat)&&x.d<0)?'#6ee7a8':'#ff7a45',marginBottom:'2px'}}>• {x.statLabel} {x.d>0?'+':''}{x.d.toFixed(2)}/mo · {x.label}{x.count>1?` ×${x.count}`:''} · {clockLabel(x)}</div>)}
+            {gs.length>6&&<div style={{fontSize:'10px',color:'#5b6880'}}>+{gs.length-6} more</div>}</>;})()}
           </div>}
         </div>
 

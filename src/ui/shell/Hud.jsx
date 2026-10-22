@@ -7,6 +7,7 @@ import { LineChart, Line } from 'recharts';
 import { Why } from './Why.jsx';
 import { COLOR } from '../tokens.js';
 import { MONTHS, SC } from '../../data/stats.js';
+import { groupEffects, clockLabel } from './effects.js';
 
 export function Spark({ data, k, color, w = 52, h = 20 }) {
   if (!data || data.length < 2) return <svg width={w} height={h} aria-hidden="true" />;
@@ -23,7 +24,7 @@ export function Hud({ version, country, date, stats, ledger = {}, history = [], 
   const net = Object.values(ledger).reduce((s, v) => s + v, 0);
   const income = Object.values(ledger).filter((v) => v > 0).reduce((s, v) => s + v, 0);
   const spend = Object.values(ledger).filter((v) => v < 0).reduce((s, v) => s + v, 0);
-  const stabTerms = activeEffects.filter((e) => e.stat === 'stability').map((e) => ({ key: e.id, label: `${e.name || e.policyName || e.id} (${e.monthsLeft}mo)`, value: e.d }));
+  const stabTerms = groupEffects(activeEffects.filter((e) => e.stat === 'stability')).map((x) => ({ key: x.key, label: `${x.label}${x.count > 1 ? ` ×${x.count}` : ''} (${clockLabel(x)})`, value: x.d })); // FIX 4: one line per source, named
   const stabNet = stabTerms.reduce((s, t) => s + t.value, 0);
   const hegTerms = [['Economic', pillars.e], ['Military', pillars.m], ['Influence', pillars.i], ['Technology', pillars.t]].map(([l, v]) => ({ key: l.toLowerCase(), label: `${l} pillar ÷4`, value: (v || 0) / 4 }));
   const stab = stats?.stability || 0;

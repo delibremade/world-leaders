@@ -1,4 +1,5 @@
 import { NATIONS, BUYERS, DIP_TARGETS, NATION_BLOC, RD_MODS } from '../data/nations.js';
+import { setPermanent, RENEWABLE_DAMPER } from './effects.js';
 import { REGIONS, POSTURE_LABELS } from '../data/regions.js';
 import { DOCTRINES, WORLD_EVENTS, DECISIONS } from '../data/world.js';
 import { PLATFORMS, BLACK_PROGRAMS, DV, DEPLOYABLE } from '../data/platforms.js';
@@ -552,7 +553,7 @@ function setExtraction(g,S,fx,k,v){S.setResExtraction(p=>({...p,[k]:v}));}
 function ggrbPhase2(g,S,fx){authorizeRetort(g,S,fx);}
 function ggrbSurvey(g,S,fx){if((g.stats?.treasury||0)<800){fx.toast('⚠ Insufficient treasury');return;}S.setStats(p=>({...p,treasury:p.treasury-800}));S.setGrrbState({surveying:true,surveyMo:6,unlocked:false});g.grrbState={surveying:true,surveyMo:6,unlocked:false};fx.toast('🏔️ GGRB Geological Survey started — 6 months');}
 function buildRenewable(g,S,fx,k){const lvl=g.resources?.renewable?.[k]||0;
-  if(!g.stats||g.stats.treasury<400){fx.toast('⚠ Insufficient');return;}if(lvl>=5){fx.toast('Max level');return;}S.setStats(p=>({...p,treasury:p.treasury-400}));S.setResources(p=>({...p,renewable:{...p.renewable,[k]:(p.renewable?.[k]||0)+1}}));S.setActiveEffects(p=>[...p,{id:`ren_${k}_${fx.now()}`,source:`renewable_${k}`,stat:'inflation',d:-0.04,monthsLeft:999,totalMonths:999}]);
+  if(!g.stats||g.stats.treasury<400){fx.toast('⚠ Insufficient');return;}if(lvl>=5){fx.toast('Max level');return;}S.setStats(p=>({...p,treasury:p.treasury-400}));S.setResources(p=>({...p,renewable:{...p.renewable,[k]:(p.renewable?.[k]||0)+1}}));S.setActiveEffects(p=>setPermanent(p,{id:`ren_${k}`,source:`renewable_${k}`,stat:'inflation',d:RENEWABLE_DAMPER*(lvl+1)})); // FIX 4: one permanent damper per kind, d = level x -0.04 (was one 999-month row per build)
 }
 
 // Defense tab: arms marketplace, recapitalization, Japan normalization, SAP office and programs, pay, procurement,

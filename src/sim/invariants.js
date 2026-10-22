@@ -11,6 +11,7 @@ import { WORLD_EVENTS, DECISIONS } from '../data/world.js';
 import { MINERALS, MINERAL_IDS, MINERAL_RULES as MR } from '../data/minerals.js';
 import { SITES, NODE_TYPES, BASE_RULES } from '../data/bases.js';
 import { INTEL_OPS } from '../data/intel.js';
+import { PERMANENT } from './effects.js';
 
 const in01 = (v) => Number.isFinite(v) && v >= 0 && v <= 100;
 
@@ -80,6 +81,9 @@ export const V57_INVARIANTS = [
   ['the player is never a member of its own program', (g) => !pid(g) || Object.entries(g.arsenal?.access || {}).every(([p, row]) => ALLIED_PROGRAMS[p].owner !== pid(g) || !(pid(g) in row))],
   // Intel operations (FIX 3): every op the engine holds is stamped; a relaunch without odds resolved as NaN and never succeeded.
   ['intel ops carry an id, a known op, a target and finite odds in [0,1]', (g) => (g.intelOps || []).every((o) => typeof o.id === 'string' && INTEL_OPS.some((x) => x.id === o.opId) && typeof o.targetId === 'string' && Number.isInteger(o.monthsLeft) && o.monthsLeft > 0 && finite(o.successRate) && o.successRate >= 0 && o.successRate <= 1 && finite(o.discoverRate) && o.discoverRate >= 0 && o.discoverRate <= 1)],
+  // Active effects (FIX 4): timed rows count down, permanent rows hold; no two permanent rows share a source and stat.
+  ['active effects carry a string id, source and stat, a finite d and integer months > 0', (g) => (g.activeEffects || []).every((e) => typeof e.id === 'string' && typeof e.source === 'string' && typeof e.stat === 'string' && finite(e.d) && Number.isInteger(e.monthsLeft) && e.monthsLeft > 0 && (!e.permanent || e.monthsLeft === PERMANENT))],
+  ['one permanent effect per source and stat', (g) => { const seen = new Set(); return (g.activeEffects || []).every((e) => { if (!e.permanent) return true; const k = `${e.source}|${e.stat}`; if (seen.has(k)) return false; seen.add(k); return true; }); }],
   ['allied orders are for programs the player is a member of, with integer months > 0', (g) => (g.arsenal?.orders || []).every((o) => g.arsenal?.access?.[o.id]?.[pid(g)] && Number.isInteger(o.mo) && o.mo > 0)],
   ['a program is never both in prototype and owned', (g) => Object.keys(g.arsenal?.dev || {}).every((id) => !((+g.blackPrograms?.[id] || 0) > 0))],
   // Minerals and processing (E4, #16)
