@@ -1,11 +1,15 @@
 // Outliner drawer: live list of operations, builds, research, timers, flashpoints, cooldowns. Swipe up on a
 // phone (use-gesture on the handle), a side column on desktop (CSS). Each row jumps to its context.
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useDrag } from '@use-gesture/react';
 import { GROUPS } from './outliner.js';
 import { COLOR } from '../tokens.js';
 
-export function Outliner({ rows, open, onOpenChange, onJump }) {
+// focus: {ids: [...row ids], family} from a top-bar alert chip; the rows rise to L2 and the first scrolls into view.
+export function Outliner({ rows, open, onOpenChange, onJump, focus = null }) {
+  const focused = new Set(focus?.ids || []);
+  const body = useRef(null);
+  useEffect(() => { if (!focus || !body.current) return; const el = body.current.querySelector('[data-focus=true]'); el?.scrollIntoView?.({ block: 'nearest' }); }, [focus]);
   // Swipes open/close through use-gesture; a plain click toggles (and is ignored right after a swipe, since the
   // browser fires click after a short touch drag too).
   const swiped = useRef(false);
@@ -18,17 +22,17 @@ export function Outliner({ rows, open, onOpenChange, onJump }) {
   const live = rows.length;
   const alerts = rows.filter((r) => r.sev === 'alert').length;
   return (
-    <aside className="wl-outliner" data-outliner data-open={open ? 'true' : 'false'} aria-label="Outliner">
+    <aside className="wl-outliner" data-outliner data-open={open ? 'true' : 'false'} data-focus-family={focus?.family || undefined} aria-label="Outliner">
       <button type="button" className="wl-outliner-handle" {...bind()} onClick={toggle} aria-expanded={open} data-outliner-handle>
         {open ? '▼' : '▲'} Outliner · {live} live{alerts ? ` · ${alerts} urgent` : ''}
       </button>
-      <div className="wl-outliner-body">
+      <div className="wl-outliner-body" ref={body}>
         {live === 0 && <div className="wl-label" style={{ padding: '12px 0' }}>Nothing in motion. Quiet months are for building.</div>}
         {GROUPS.map(([g, label]) => { const rs = rows.filter((r) => r.group === g); if (!rs.length) return null; return (
           <div key={g} data-outliner-group={g}>
             <div className="wl-ol-group">{label} · {rs.length}</div>
             {rs.map((r) => (
-              <button key={r.id} type="button" className="wl-ol-row" onClick={() => onJump(r.jump)} data-outliner-row={r.id}>
+              <button key={r.id} type="button" className="wl-ol-row" onClick={() => onJump(r.jump)} data-outliner-row={r.id} data-kind={r.kind} data-focus={focused.has(r.id) ? 'true' : undefined}>
                 <span aria-hidden="true" style={{ fontSize: 16, width: 22, textAlign: 'center' }}>{r.icon}</span>
                 <span style={{ flex: 1, minWidth: 0 }}><b style={{ color: r.sev === 'alert' ? COLOR.accent.alert : r.sev === 'warn' ? COLOR.accent.warn : undefined }}>{r.title}</b><small>{r.sub}</small>
                   {r.pct != null && <span className="wl-ol-bar"><i style={{ width: `${Math.max(0, Math.min(100, r.pct * 100))}%` }} /></span>}</span>
