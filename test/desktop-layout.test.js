@@ -82,8 +82,10 @@ test('1440px: shortcuts switch verticals, change speed, step a month, and Escape
 test('1440px: hovering a HUD figure opens its breakdown without a click; leaving closes it', async () => {
   const { ctx, page } = await openGame(browser, { svg: true, width: 1440, height: 900 });
   try {
-    await page.hover('[data-why^="Treasury"]'); await settle(page, 500);
-    assert.ok(await page.$('[data-why-content^="Treasury"]'), 'hover opens');
+    await page.hover('[data-why^="Treasury"]');
+    // the breakdown opens 150ms after pointerenter; poll instead of a fixed wait (CI runners are slow), and say what the page saw if it never opens
+    const opened = await page.waitForSelector('[data-why-content^="Treasury"]', { timeout: 4000 }).then(() => true, () => false);
+    if (!opened) { const diag = await page.evaluate(() => { const w = document.querySelector('[data-why^="Treasury"]'); const r = w?.getBoundingClientRect(); return { well: r && { x: r.x, y: r.y, w: r.width, h: r.height }, fine: matchMedia('(hover:hover) and (pointer:fine)').matches, popovers: [...document.querySelectorAll('[data-why-content]')].map((e) => e.getAttribute('data-why-content')), under: (() => { const e = r && document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return e && `${e.tagName.toLowerCase()}.${e.className}`; })() }; }); assert.ok(opened, `hover opens ${JSON.stringify(diag)}`); }
     await page.mouse.move(700, 600); await settle(page, 600);
     assert.equal(await page.$('[data-why-content^="Treasury"]'), null, 'leave closes');
     await page.click('[data-why^="Treasury"]'); await settle(page, 400);
