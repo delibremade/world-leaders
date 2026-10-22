@@ -5,7 +5,7 @@ import { REGIONS } from '../data/regions.js';
 import { DEP_W, DV, NAV_W, BLACK_PROGRAMS, BUY_PREMIUM } from '../data/platforms.js';
 import { BASE_SECTOR } from '../data/economy.js';
 import { FORCE_RULES as FR, SOF_RULES, FLEET_RULES as FL, BRANCH_IDS, crewOf } from '../data/forces.js';
-import { ORBAT, crewHeads } from '../data/orbat.js';
+import { ORBAT, crewHeads, FLEET_AGES, FLEET_LINKS } from '../data/orbat.js';
 import { sofEq } from '../data/sof.js';
 import { baseIsr, theaterMult, t1Bonus } from './reach.js';
 
@@ -120,11 +120,21 @@ export const fleetLines=(f)=>(ORBAT[f?.nid]||[]).filter((l)=>f.fleet?.[l.id]);
 export function fleetFill(f){
   const need=Object.fromEntries(BRANCH_IDS.map((b)=>[b,0]));
   for(const l of fleetLines(f))if(!l.reserve)need[l.b]+=crewHeads(l,f.fleet[l.id].n);
-  const fill=Object.fromEntries(BRANCH_IDS.map((b)=>[b,need[b]>0?Math.min(1,(f.active||0)*(f.crewShare?.[b]||0)/need[b]):1]));
+  // #93: crews converting to a successor type (f.conv) are in training, not on the line, until their course ends.
+  const conv=Object.fromEntries(BRANCH_IDS.map((b)=>[b,(f.conv||[]).filter((c)=>c.b===b).reduce((x,c)=>x+c.n,0)]));
+  const fill=Object.fromEntries(BRANCH_IDS.map((b)=>[b,need[b]>0?Math.min(1,Math.max(0,(f.active||0)*(f.crewShare?.[b]||0)-conv[b])/need[b]):1]));
   fill.reserve=f.base?.reserve?Math.min(1,(f.reserve||0)/f.base.reserve):1;
   return {fill,need};
 }
 export const fillOf=(fill,l)=>l.reserve?fill.reserve:fill[l.b];
+// #93 age curve (one implementation: the MC target, the maintenance ledger and the Equipment screen read it). x = age / service life.
+export const mcAgeF=(x)=>x<=FL.mcKnee?1:x<=1?1-FL.mcSlope*(x-FL.mcKnee):Math.max(FL.mcFloor,1-FL.mcSlope*(1-FL.mcKnee)-FL.mcPast*(x-1));
+export const costAgeF=(x)=>1+FL.costSlope*Math.max(0,x-FL.costKnee)+FL.costPast*Math.max(0,x-1);
+// A line's 2024 [age, life]: FLEET_AGES, else the class and generation default.
+export const ageDefOf=(nid,l)=>{const a=FLEET_AGES[nid]?.[l.id];if(a)return [a[0],a[1]];const d=FL.ageDef[l.cls];const v=Array.isArray(d)?d:d?.[Math.min(6,Math.max(3,l.gen||4))];return v?[v[0],v[1]]:[0,40];};
+// MC and cost factors of a line now, relative to its 2024 state (the 2024 MC rates and costs are the 2024 truth).
+export function ageRel(nid,l,s){const [a0,l0]=ageDefOf(nid,l);const x0=l0>0?a0/l0:0;const x=(s.life||l0)>0?(s.age??a0)/(s.life||l0):0;return {x,x0,mc:mcAgeF(x)/mcAgeF(x0),cost:costAgeF(x)/costAgeF(x0)};}
+export const omXOf=(nid,l)=>FLEET_LINKS[nid]?.[l.id]?.omX??1;
 export const lineAvail=(s)=>1-(s.mod>0?FL.modShare:0);
 export const blkF=(s)=>1+FL.blkGain*(s.blk||0);
 // Ready capability of n platforms of one line (default: the whole line).

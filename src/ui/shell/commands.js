@@ -3,6 +3,7 @@
 // actions.js verb it dispatches. Nothing here computes a rule: gates are quoted from the verbs, which still enforce
 // them. runCommand() is the one place a card's action turns into a dispatch, a UI side effect or a confirm sheet.
 import { NATIONS, DIP_TARGETS, INTEL_TARGETS } from '../../data/nations.js';
+import { retireView, retireLines } from '../../sim/forces.js';
 import { INTEL_OPS } from '../../data/intel.js';
 import { PLATFORMS, BLACK_PROGRAMS, DEPLOYABLE } from '../../data/platforms.js';
 import { SITES, NODE_TYPES } from '../../data/bases.js';
@@ -60,12 +61,13 @@ export function regionCommands(v, rid) {
 }
 
 // The Forces card for one order-of-battle line (fleetView line l, the fleet view fl, the retire step for its class).
-export function fleetCommands(l, fl, step) {
+// v (the game view) prices a retirement with the engine's own plan (#93: maintenance, crews to the successor, salvage, parts).
+export function fleetCommands(l, fl, step, v) {
   const K = FLEET_KEYS; const n = Math.min(l.count, step || 1);
-  const retire = (k) => ({ title: `Retire ${k} ${l.n}`, cost: `saves about $${Math.round(l.cost * k / Math.max(1, l.count))}M/mo maintenance`, label: 'Retire', lines: [`${l.count - k} left in service. Retired units do not come back; procurement adds new ones to this line.`, 'Their crews return to the pool for the rest of the fleet.'] });
+  const retire = (k) => { const rv = v ? retireView(v, l.id, k) : null; return { title: `Retire ${k} ${l.n}`, cost: `saves $${Math.round(rv ? rv.saves : l.cost * k / Math.max(1, l.count))}M/mo maintenance`, label: 'Retire', lines: rv ? retireLines(rv, 'units') : [`${l.count - k} left in service.`] }; };
   return [
     act('modernize', K, '🔧', 'Modernize', { target: `block ${l.blk + 1} · $${l.modCost}M`, hint: l.modWhy || `${fl.modMo} months in the depot`, disabled: !!l.modWhy, reason: l.modWhy || '', dispatch: { type: 'modernize', payload: { line: l.id } },
-      confirm: { title: `${l.n}: block ${l.blk + 1} upgrade`, cost: `$${l.modCost}M once`, label: 'Start upgrade', kind: 'warn', lines: [`${fl.modMo} months in the depot at ${fl.depot}% throughput; ${Math.round(fl.rules.modShare * 100)}% of the fleet is unavailable meanwhile.`, `Then +${Math.round(fl.rules.blkGain * 100)}% effectiveness and +${Math.round(fl.rules.mcBlk * 100)}% MC target.`] } }),
+      confirm: { title: `${l.n}: block ${l.blk + 1} upgrade`, cost: `$${l.modCost}M once`, label: 'Start upgrade', kind: 'warn', lines: [`${fl.modMo} months in the depot at ${fl.depot}% throughput; ${Math.round(fl.rules.modShare * 100)}% of the fleet is unavailable meanwhile.`, `Then +${Math.round(fl.rules.blkGain * 100)}% effectiveness, +${Math.round(fl.rules.mcBlk * 100)}% MC ceiling and service life +${fl.rules.modLife} years.`] } }),
     act('retire', K, '📉', `Retire ${n}`, { escalate: true, target: l.count ? `${l.count - n} left` : 'none in service', hint: 'Retired units do not come back', disabled: !l.count, reason: l.count ? '' : 'None in service', dispatch: { type: 'retire', payload: { line: l.id, n } }, confirm: l.count ? retire(n) : null }),
     act('retireAll', K, '🗑️', `Retire all ${l.count}`, { escalate: true, target: l.n, hint: 'The whole line leaves service', disabled: l.count <= n, reason: l.count <= n ? 'Nothing beyond one step' : '', dispatch: { type: 'retire', payload: { line: l.id, n: l.count } }, confirm: l.count > n ? retire(l.count) : null }),
     act('maintUp', K, '▲', 'Maintenance +10', { target: `${l.mx}% → ${Math.min(150, l.mx + 10)}%`, hint: `MC target ${Math.round(l.target)}%`, disabled: l.mx >= 150, reason: l.mx >= 150 ? 'At the ceiling' : '', dispatch: { type: 'setMaintenance', payload: { line: l.id, pct: Math.min(150, l.mx + 10) } } }),

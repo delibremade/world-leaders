@@ -219,6 +219,29 @@ export const ORBAT = {
   ],
 };
 
+// ── #93 fleet age and service life: [average age in 2024, service life] in years per line, with the basis. Lines not listed read
+// FLEET_RULES.ageDef by class and generation. succ: the type a retired line's crews convert to (else the newest line of the same role).
+// omX: sustainment cost per platform relative to its role weight (cost per flying hour vs the F-35A); 1 when absent.
+const AGE = 'USAF / USN fleet age data FY2024 (Air & Space Forces Almanac; NVR commissioning dates), service-life plans; owner to verify';
+export const FLEET_AGES = {
+  usa: {
+    f22: [17, 30, AGE + '; built 1997-2011, 8,000 h airframe, retirement planned from the 2030s'], f35a: [5, 35, AGE], f35b: [6, 35, AGE], f35c: [4, 35, AGE],
+    fa18ef: [15, 30, AGE + '; SLEP to 10,000 h'], ea18g: [11, 30, AGE], f15e: [32, 45, AGE], f15ex: [1, 40, AGE], f15cd: [38, 40, AGE + '; divesting'], f16: [33, 45, AGE + '; SLEP to 12,000 h'],
+    a10: [43, 45, AGE + '; divesting by 2029'], b1b: [38, 45, AGE], b2a: [30, 60, AGE], b52h: [62, 95, AGE + '; CERP and RMP keep it to the 2050s'], b21: [0, 40, AGE],
+    f47: [0, 35, AGE], faxx: [0, 35, AGE], cca: [0, 15, AGE], kc135: [62, 80, AGE], kc46: [4, 40, AGE], e3: [45, 48, AGE + '; E-7 replacement'], c17: [20, 45, AGE], c5m: [40, 60, AGE],
+    c130: [25, 40, AGE], p8: [9, 30, AGE], mq9: [10, 20, AGE], rq4: [12, 25, AGE],
+    cvn: [30, 50, AGE], ssn: [20, 33, AGE], ssbn: [35, 42, AGE + '; Columbia from 2031'], ssgn: [41, 45, AGE], cg: [32, 35, AGE + '; all decommission by 2027'], ddg: [18, 40, AGE],
+    ddg1000: [6, 30, AGE], ffg: [0, 30, AGE], lcs: [8, 25, AGE], lha_lhd: [22, 40, AGE], lpd: [14, 40, AGE], lsd: [34, 40, AGE],
+    abct: [30, 50, AGE + '; M1 hulls rebuilt to SEPv3'], sbct: [18, 40, AGE], ibct: [15, 40, AGE], arng_bct: [25, 40, AGE], usmc_inf_bn: [15, 40, AGE], ah64: [18, 40, AGE], uh60: [22, 40, AGE],
+    mm3: [54, 65, AGE + '; Sentinel replaces it in the 2030s'],
+  },
+};
+export const FLEET_LINKS = {
+  usa: { f22: { succ: 'f47', omX: 2.3, status_source: 'GAO-18-75 / USAF CPFH FY2021: F-22 ~$85k vs F-35A ~$36k per flying hour; F-47 is the F-22 successor' },
+    b2a: { omX: 3.5, status_source: 'USAF CPFH FY2021: B-2 ~$130k per flying hour' }, f15cd: { succ: 'f15ex' }, a10: { succ: 'f35a' }, f16: { succ: 'f35a' }, fa18ef: { succ: 'faxx' },
+    b1b: { succ: 'b21' }, b52h: { succ: 'b21' }, kc135: { succ: 'kc46' }, cg: { succ: 'ddg' }, lcs: { succ: 'ffg' } },
+};
+
 // ── Recruitable population. Headcounts. pop / cohort (ages 17-24, the recruiting window, cohortYears wide) / milAge (ages 18-49) in people;
 // elig: share of the cohort that meets the standards; active / reserve: 2024 strength; accessions: 2024 annual intake. The engine (F7b)
 // derives propensity = accessions x cohortYears / (cohort x elig) and moves it with pay, unemployment and stability.

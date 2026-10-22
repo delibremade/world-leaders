@@ -42,6 +42,8 @@ const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activ
 // FIX 4 (active effects): a renewable build sets one permanent inflation damper per kind (id `ren_<kind>`, `permanent: true`) instead of
 // pushing a fresh 999-month row per build. The two verb cases build one renewable (parity-clicks step 4), so their pinned hashes are
 // re-baselined citing FIX 4; the three play cases never build one and are untouched (guarded by test/effects.test.js).
+// #93 (fleet age, modernize, retire): fleets age along a curve from month 1 (MC down, maintenance up) and the F-22 and B-2 carry their
+// sustainment premium in the Maintenance line, so all five pinned cases are re-baselined citing #93 (guarded by test/fleet-age.test.js).
 const NEW_KEYS = ['arsenal', 'minerals', 'forces', 'bases'];
 const dropNew = (s) => { if (!NEW_KEYS.some((k) => s.includes(`"${k}"`))) return s; const o = JSON.parse(s); for (const k of NEW_KEYS) delete o[k]; return JSON.stringify(o); };
 const strip = (s) => { const o = JSON.parse(dropNew(s)); delete o.evState; return JSON.stringify(o); };

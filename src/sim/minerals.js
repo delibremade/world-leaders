@@ -214,6 +214,8 @@ export function startTranche(g, S, fx, id) {
   return false;
 }
 const setM = (g, S, v) => { g.minerals = v; S.setMinerals(v); };
+// #93: salvage from retired platforms lands in the refined stockpile (units per mineral).
+export function addStock(g, S, units) { const mm = M(g); const own = { ...mm.own }; for (const [m, u] of Object.entries(units)) if (own[m] && u > 0) own[m] = { ...own[m], stock: own[m].stock + u }; setM(g, S, { ...mm, own }); }
 
 // The month. cash(k,v) is the ledger; ns the month's stats. No rng: deterministic in state alone.
 export function stepMinerals(g, S, fx, cash, ns) {
