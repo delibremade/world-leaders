@@ -8,8 +8,13 @@ import { COMP_COLORS } from '../../data/regions.js';
 import { opOddsTerms, memberGates } from '../../sim/selectors.js';
 import { ALLIED_PROGRAMS, TIERS, TIER_ORDER } from '../../data/alliance.js';
 import { BLACK_PROGRAMS } from '../../data/platforms.js';
+import { agreementGate, hasAgreement, hostSites } from '../../sim/bases.js';
+import { SITES, BASE_RULES } from '../../data/bases.js';
 
 const dip = (v, n) => DIP_TARGETS.some((d) => d.id === n);
+// #89: host nations (NATIONS[*].host) take visits, aid and a basing agreement even when they are not full diplomacy targets.
+const host = (v, n) => !!NATIONS[n]?.host && n !== v.country?.id;
+const dipOrHost = (v, n) => dip(v, n) || host(v, n);
 const intel = (v, n) => INTEL_TARGETS.some((d) => d.id === n);
 const buyer = (v, n) => BUYERS.some((b) => b.id === n);
 export const isRival = (v, n) => n !== v.country?.id && (Object.keys(COMP_COLORS).includes(n) || v.rivalTension?.[n] != null);
@@ -24,8 +29,9 @@ export const NATION_VERBS = [
   // E7 (#19): the owner (USA player) admits and expels program partners. Gates: relations 70, pact or NATO (CCA: NATO only), NATO 2%.
   { type: 'admitPartner', icon: '🤝', label: 'Admit to a program', cost: 'they pay the cost share', fx: 'Export income each month and +5 relations · leak risk, higher for flagged nations', when: (v, n) => admitOpts(v, n).length > 0, options: (v, n) => admitOpts(v, n), payload: (n, o) => ({ nation: n, program: o.split(':')[0], tier: o.split(':')[1] }) },
   { type: 'expelPartner', icon: '✖', label: 'Expel from a program', cost: '', fx: 'Stops their export income · relations −15', kind: 'warn', when: (v, n) => expelOpts(v, n).length > 0, options: (v, n) => expelOpts(v, n), payload: (n, o) => ({ nation: n, program: o }) },
-  { type: 'stateVisit', icon: '🤝', label: 'State visit', cost: '$150M', fx: 'Relations +8 · 6-month cooldown', when: dip, note: (v, n) => cd(v, `visit_${n}`) ? `On cooldown ${cd(v, `visit_${n}`)}mo` : money(v) < 150 ? 'Need $150M' : '' },
-  { type: 'foreignAid', icon: '💵', label: 'Foreign aid package', cost: '$600M', fx: 'Relations +15 · your sphere +5 in their region · 12-month cooldown', when: dip, note: (v, n) => cd(v, `aid_${n}`) ? `On cooldown ${cd(v, `aid_${n}`)}mo` : money(v) < 600 ? 'Need $600M' : '' },
+  { type: 'stateVisit', icon: '🤝', label: 'State visit', cost: '$150M', fx: 'Relations +8 · 6-month cooldown', when: dipOrHost, note: (v, n) => cd(v, `visit_${n}`) ? `On cooldown ${cd(v, `visit_${n}`)}mo` : money(v) < 150 ? 'Need $150M' : '' },
+  { type: 'foreignAid', icon: '💵', label: 'Foreign aid package', cost: '$600M', fx: 'Relations +15 · your sphere +5 in their region · 12-month cooldown', when: dipOrHost, note: (v, n) => cd(v, `aid_${n}`) ? `On cooldown ${cd(v, `aid_${n}`)}mo` : money(v) < 600 ? 'Need $600M' : '' },
+  { type: 'basingAgreement', icon: '📝', label: (v, n) => v.bases?.agreements?.[n] ? 'End basing agreement' : 'Basing agreement', cost: (v, n) => v.bases?.agreements?.[n] ? '' : `$${BASE_RULES.agreementCost}M`, fx: (v, n) => v.bases?.agreements?.[n] ? 'Nodes held under it close next month (leases and treaty sites stay)' : `Build at ${hostSites(n).map((s) => SITES[s].n).join(', ')} · host-agreement tenure: lapses below relations ${BASE_RULES.consentLose}, or under your sanctions or embargo`, when: host, kind: (v, n) => v.bases?.agreements?.[n] ? 'warn' : 'command', note: (v, n) => v.bases?.agreements?.[n] ? '' : hasAgreement(v, n) ? '' : agreementGate(v, n) || '' },
   { type: 'tradeAgreement', icon: '📜', label: (v, n) => v.tradeAgreements?.has(n) ? 'Dissolve trade agreement' : 'Trade agreement', cost: 'free', fx: 'Monthly trade income stream · counts toward bloc tiers', when: dip, kind: (v, n) => v.tradeAgreements?.has(n) ? 'warn' : 'command' },
   { type: 'defensePact', icon: '🛡️', label: (v, n) => v.defensePacts?.has(n) ? 'Dissolve defense pact' : 'Defense pact', cost: '$800M', fx: 'Permanent sphere in their region · shared deterrence · needs embassy and +60 relations', when: dip, kind: (v, n) => v.defensePacts?.has(n) ? 'warn' : 'command', note: (v, n) => v.defensePacts?.has(n) ? '' : !v.embassies?.has(n) ? 'Establish an embassy first' : (v.nationRelations?.[n] || 0) < 60 ? `Need +60 relations (now ${Math.round(v.nationRelations?.[n] || 0)})` : '' },
   { type: 'establishEmbassy', icon: '🏛️', label: 'Establish embassy', cost: '$300M', fx: 'Relations +2/mo · $15M/mo upkeep · unlocks missions and pacts', when: (v, n) => dip(v, n) && !v.embassies?.has(n), note: (v, n) => (v.embassyLocks?.[n] || 0) > 0 ? `Persona non grata ${v.embassyLocks[n]}mo` : money(v) < 300 ? 'Need $300M' : '' },
@@ -49,6 +55,8 @@ export const nationName = (n) => NATIONS[n]?.n || (n ? n.charAt(0).toUpperCase()
 export const verbsFor = (v, n) => NATION_VERBS.filter((r) => r.when(v, n)).map((r) => ({
   ...r,
   label: typeof r.label === 'function' ? r.label(v, n) : r.label,
+  cost: typeof r.cost === 'function' ? r.cost(v, n) : r.cost,
+  fx: typeof r.fx === 'function' ? r.fx(v, n) : r.fx,
   kind: typeof r.kind === 'function' ? r.kind(v, n) : r.kind || 'command',
   note: r.note ? r.note(v, n) : '',
   opts: r.options ? r.options(v, n) : null,

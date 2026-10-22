@@ -4,7 +4,7 @@
 import { NATIONS } from '../../data/nations.js';
 import { REGIONS } from '../../data/regions.js';
 import { CHOKEPOINTS } from '../../data/chokepoints.js';
-import { NODE_TYPES, BASE_RULES as R } from '../../data/bases.js';
+import { NODE_TYPES, TENURES, BASE_RULES as R } from '../../data/bases.js';
 import { MINERAL_RULES as MR } from '../../data/minerals.js';
 import { leverCost } from '../../sim/minerals.js';
 import { chokesCovered, regionsCovered, portOutlook, nodeCost } from '../../sim/bases.js';
@@ -18,19 +18,19 @@ export function buildLines(site, opt, pid) {
   const lines = [NODE_TYPES[opt.type].d, ...reachLine(probe)];
   if (opt.private) lines.push('Private capital builds it; no treasury capex. Pull a lever to speed it up.', `Online: ${money(opt.income || 0)}/mo to the treasury.`);
   else lines.push(`Online in ${opt.mo} months. Upkeep ${money(opt.upkeep)}/mo${opt.host ? `, basing agreement ${money(opt.host)}/mo to ${site.hostName}` : ''}.`);
-  if (site.host !== pid) lines.push(site.host ? `${site.hostName} consents while relations stay above ${R.consentLose} and you neither sanction nor embargo them.` : `${site.hostName} consents while your sphere in ${REGIONS[site.region].n} stays above ${R.localLose}%.`, 'A foreign node draws tension from the top hostile competitor in the theater.');
+  if (site.host !== pid) lines.push(site.host ? `${site.hostName} consents while relations stay above ${R.consentLose} and you neither sanction nor embargo them${NATIONS[site.host]?.host ? ' (host-nation agreement or access tenure; leases and treaty sites persist)' : ''}.` : `${site.hostName} consents while your sphere in ${REGIONS[site.region].n} stays above ${R.localLose}%.`, 'A foreign node draws tension from the top hostile competitor in the theater.');
   return lines;
 }
 
-export function SiteSheet({ g, site, country, dispatch, ask }) {
+export function SiteSheet({ g, site, country, dispatch, ask, onNation }) {
   if (!site) return null;
   const pid = country?.id; const c = site.consent;
-  const chips = [[`${REGIONS[site.region]?.n || site.region}`, ''], [`Host: ${site.hostName}`, site.host === pid ? 'command' : ''],
+  const chips = [[`${REGIONS[site.region]?.n || site.region}`, ''], site.host && site.host !== pid ? null : [`Host: ${site.hostName}`, site.host === pid ? 'command' : ''],
     site.host !== pid ? (c.lost ? ['Consent lost', 'alert'] : c.ok ? ['Consent', 'good'] : ['No consent yet', 'warn']) : null,
     ...site.chokes.map((k) => [`⚓ ${CHOKEPOINTS[k].n}`, 'command'])].filter(Boolean);
   return (
     <div data-site-sheet={site.id}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>{chips.map(([l, k]) => <span key={l} className={`wl-chip${k ? ' wl-chip-' + k : ''}`}>{l}</span>)}</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>{site.host && site.host !== pid && <button type="button" className="wl-chip wl-chip-command" data-host-nation={site.host} title={`Open ${site.hostName}: relations, basing agreement, state visit`} onClick={() => onNation?.(site.host)}>Host: {site.hostName} ›</button>}{chips.map(([l, k]) => <span key={l} className={`wl-chip${k ? ' wl-chip-' + k : ''}`}>{l}</span>)}</div>
       <div className="wl-note" style={{ marginBottom: 8 }}>{site.status_source}</div>
       {site.nodes.length > 0 && <div className="wl-label" style={{ margin: '6px 0 2px' }}>Nodes here</div>}
       {site.nodes.map((n) => {
@@ -39,7 +39,7 @@ export function SiteSheet({ g, site, country, dispatch, ask }) {
         return (
           <div key={n.id} className="wl-r" data-node-row={n.id}>
             <div className="wl-r-main">
-              <b>{t.i} {t.n} · {NATIONS[n.owner]?.flag} {mine ? 'yours' : NATIONS[n.owner]?.n}{n.lease ? ' · lease' : ''}</b>
+              <b>{t.i} {t.n} · {NATIONS[n.owner]?.flag} {mine ? 'yours' : NATIONS[n.owner]?.n}{n.tenure && n.tenure !== 'own' ? ` · ${TENURES[n.tenure].n.toLowerCase()}` : ''}</b>
               <small>{n.status === 'building' ? (t.private ? `Private build · ${n.mo} mo left${o && !o.profitable ? ' · stalled: not profitable' : ''}` : `Building · ${n.mo} mo left`) : n.status === 'closed' ? `Closed by the host · reopens ${Math.max(0, R.reopenMo - (n.closed || 0))} mo after consent returns` : mine ? `${reachLine(n).join(' · ')}${cost.upkeep ? ` · ${money(cost.upkeep)}/mo` : ''}${cost.host ? ` + ${money(cost.host)}/mo agreement` : ''}${t.income && n.status === 'active' ? ` · +${money(t.income)}/mo` : ''}` : reachLine(n).join(' · ')}</small>
               {o && <div className="wl-verb-opts" role="group" aria-label="State levers">{Object.entries(MR.levers).map(([k, L]) => { const on = o.levers.includes(k); return <button key={k} type="button" aria-pressed={on} data-lever={k} title={L.n} onClick={() => !on && dispatch({ type: 'nodeLever', payload: { id: n.id, lever: k } })}>{L.i} {L.s} {on ? '✓' : money(leverCost(o.capex, k))}</button>; })}</div>}
             </div>

@@ -3,23 +3,27 @@
 import { useState } from 'react';
 import { NATIONS, NATION_BLOC } from '../../data/nations.js';
 import { REGIONS } from '../../data/regions.js';
-import { isAllyOf } from '../../sim/formulas.js';
+import { isAllyOf, relOf } from '../../sim/formulas.js';
+import { hostView } from '../../sim/bases.js';
+import { CHOKEPOINTS } from '../../data/chokepoints.js';
 import { influencePool, influenceGain } from '../../sim/selectors.js';
 import { verbsFor, isRival } from './nation-verbs.js';
 import { Why } from './Why.jsx';
 import { COLOR } from '../tokens.js';
 
-export function NationSheet({ nation, view, dispatch }) {
+export function NationSheet({ nation, view, dispatch, onSite }) {
   const n = NATIONS[nation]; const [picked, setPicked] = useState({});
   if (!n) return null;
-  const rel = view.nationRelations?.[nation] || 0; const ten = view.rivalTension?.[nation];
+  const rel = relOf(view, nation); const ten = view.rivalTension?.[nation];
   const ally = isAllyOf(view.country?.id, nation);
   const { infPool, totW } = influencePool(view);
   const inf = influenceGain(view, view.stats?.stability || 0, { id: nation, region: n.region }, infPool, totW);
+  const hv = view.bases ? hostView(view, nation) : null; // #89: host nations list their terms and candidate sites
   const chips = [
     [`${n.flag} ${REGIONS[n.region]?.n || n.region}`, ''], [NATION_BLOC[nation] ? `${NATION_BLOC[nation]} bloc` : 'non-aligned', ''], ally ? ['Ally', 'good'] : null,
     isRival(view, nation) ? [`Tension ${Math.round(ten || 0)}`, (ten || 0) >= 70 ? 'alert' : (ten || 0) >= 40 ? 'warn' : ''] : null,
     view.embassies?.has(nation) ? ['Embassy', 'command'] : null, view.defensePacts?.has(nation) ? ['Pact', 'good'] : null, view.tradeAgreements?.has(nation) ? ['Trade', 'good'] : null,
+    hv ? (hv.agreement ? ['Basing agreement', 'good'] : ['Host nation', '']) : null,
     view.sanctions?.has(nation) ? ['Sanctioned', 'warn'] : null, view.embargoes?.has(nation) ? ['Embargoed', 'alert'] : null,
   ].filter(Boolean);
   const rows = verbsFor(view, nation);
@@ -31,6 +35,11 @@ export function NationSheet({ nation, view, dispatch }) {
           <div><div className="wl-fig-l">Relations</div><div className="wl-fig-v" style={{ color: rel >= 50 ? COLOR.accent.good : rel < 0 ? COLOR.accent.alert : COLOR.text.primary }}>{Math.round(rel)}<span className="wl-fig-d" style={{ color: COLOR.accent.good }}>{inf.gain > 0 ? `+${inf.gain.toFixed(1)}/mo` : ''}</span></div></div>
         </Why>
       </div>
+      {hv && <div data-host-sites={nation} style={{ marginBottom: 10 }}>
+        <div className="wl-label" style={{ margin: '0 0 2px' }}>Basing · {hv.terms}</div>
+        <div className="wl-note" style={{ marginBottom: 4 }}>{hv.status_source}</div>
+        {hv.sites.map((st) => <button key={st.id} type="button" className="wl-nation-row" data-host-site={st.id} onClick={() => onSite?.(st.id)}><span aria-hidden="true" style={{ fontSize: 18 }}>{st.mine ? '◎' : '＋'}</span><b>{st.n}</b><span className="wl-chip">{st.chokes.length ? st.chokes.map((k) => CHOKEPOINTS[k].n).join(', ') : 'no chokepoint in reach'}</span></button>)}
+      </div>}
       {rows.map((r) => {
         const cur = picked[r.type] ?? r.cur ?? r.opts?.[0]?.[0];
         return (
