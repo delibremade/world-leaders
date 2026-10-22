@@ -112,15 +112,16 @@ test('done-when: an unpaid army loses retention and strength; pay is a Personnel
 test('done-when: crewless F-47 wings cannot deploy; the gap is shown; trained crews let them deploy', () => {
   const h = headless('usa'); rich(h.g);
   h.g.blackPrograms = { f47: 2 };
-  setF(h.g, { crews: { ...h.g.forces.crews, air: 0 }, pipe: [] });
+  setF(h.g, { crews: { ...h.g.forces.crews, air: 0 }, pipe: h.g.forces.pipe.filter((p) => p.b !== 'air') }); // #91: no trained air crews, none in training
   assert.ok(DEPLOYABLE.includes('f47'));
   h.run('deployUnit', { region: 'EA', unit: 'f47' });
   assert.equal(h.g.forceDeployments.EA?.f47 || 0, 0, 'not stationed');
   assert.match(h.toasts.at(-1), /crew/i);
   const st = crewStatus(h.g).air; assert.ok(st.gap >= 4 && st.need >= 4, `gap ${st.gap}`);
-  // Standard training trains the gap through the air pipeline.
-  for (let i = 0; i < FORCE_RULES.pipeMo.air + 2; i++) h.month();
-  assert.ok(Math.floor(h.g.forces.crews.air) >= 2);
+  // Funded training rebuilds the air crews through the pipeline (#91: headcounts; capacity grows toward the gap while funded, so a
+  // branch rebuilt from zero crews its first F-47 pair within two pipeline lengths).
+  let mo = 0; while (crewStatus(h.g).air.crews < 2 && mo < 2 * FORCE_RULES.pipeMo.air) { rich(h.g); h.month(); mo++; }
+  assert.ok(crewStatus(h.g).air.crews >= 2 && mo > FORCE_RULES.pipeMo.air, `air crew sets ${crewStatus(h.g).air.crews} after ${mo} months`);
   h.run('deployUnit', { region: 'EA', unit: 'f47' });
   assert.equal(h.g.forceDeployments.EA.f47, 1);
 });
@@ -157,7 +158,8 @@ test('invariants: strength, readiness, quality in 0..100; crews <= trained pool;
   const h = headless('usa');
   const bad = (o, re) => { const g = { ...h.g, forces: { ...h.g.forces, ...o } }; assert.ok(checkV57(g).some((n) => re.test(n)), JSON.stringify(o)); };
   bad({ active: manpowerCap('usa') }, /strength/); // F7 (#55): headcounts within the population bound bad({ quality: -1 }, /quality/); bad({ readiness: { ...h.g.forces.readiness, air: 120 } }, /readiness/);
-  bad({ crews: { ...h.g.forces.crews, sea: 999 } }, /crews/);
+  bad({ crews: { ...h.g.forces.crews, sea: h.g.forces.active * 2 } }, /crews/); // #91: trained + training never exceed active strength
+  bad({ crews: { ...h.g.forces.crews, sea: -1 } }, /crews/); bad({ crewFund: 999 }, /crew funding/);
   assert.ok(checkV57({ ...h.g, personnelPay: -1 }).some((n) => /pay/.test(n)));
 });
 

@@ -67,7 +67,7 @@ test('done-when: a 10% maintenance cut lowers mission-capable rates within 12 mo
 
 test('done-when: crewless airframes sit unready, never vanish', () => {
   const h = headless('usa', 2); const r0 = line(h.g, 'f22').ready; const eq0 = equipF(h.g.forces, 'air');
-  h.g.forces = { ...h.g.forces, active: Math.round(MANPOWER.usa.active * 0.2) };
+  h.g.forces = { ...h.g.forces, crews: { ...h.g.forces.crews, air: h.g.forces.crews.air * 0.2 } }; // #91: trained crews are headcounts
   const v = line(h.g, 'f22');
   assert.equal(v.count, 183, 'airframes stay on the books');
   assert.ok(v.crewless > 0 && v.crewed < 183 && v.ready < r0, `crewed ${v.crewed}, ready ${v.ready} < ${r0}`);
