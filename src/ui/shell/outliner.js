@@ -8,6 +8,7 @@ import { ISSUES } from '../../data/economy.js';
 import { NATIONS } from '../../data/nations.js';
 import { monthsToBriefing } from '../../sim/events.js';
 import { NODE_TYPES, SITES, BASE_RULES } from '../../data/bases.js';
+import { CHOKEPOINTS } from '../../data/chokepoints.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 const nat = (id) => NATIONS[id]?.n || cap(id);
@@ -65,7 +66,40 @@ export function buildOutliner(v) {
     if (!(m > 0) || k.startsWith('issue_')) continue; const [kind, ...rest] = k.split('_'); const who = rest.join('_');
     push({ id: `cd_${k}`, kind: 'timer', group: 'cooldowns', icon: '🧊', title: `${cdLabel[kind] || cap(kind)}${who ? ` · ${nat(who)}` : ''}`, sub: 'Cooldown', months: m, jump: { tab: kind === 'interv' ? 'energy' : kind === 'bc' || kind === 'demo' ? 'intel' : 'trade', nation: NATIONS[who] ? who : undefined } });
   }
-  return rows;
+  return rows.map((r) => decorate(r, v));
+}
+
+// FIX 2: every row acts. `explain` is the row's own account (shown inline for timers and cooldowns, as a tooltip elsewhere);
+// `jump.card` names the dock card to focus, `jump.pan` the region the map pans to, `jump.op` the operation whose detail opens.
+const pct = (x) => `${Math.round((x || 0) * 100)}%`;
+export function decorate(r, v) {
+  const j = { ...r.jump }; let explain = r.sub || '';
+  const id = String(r.id);
+  if (id === 'fp' && v.flashpoint) { const fp = FLASHPOINTS[v.flashpoint.type]; j.card = 'flashpoint'; j.pan = v.flashpoint.rid; explain = `${fp?.n || 'Flashpoint'} in ${REGIONS[v.flashpoint.rid]?.n}: ${v.flashpoint.t} months to respond. ${fp?.d || ''} Ignoring it cedes ground (−5 you, +12 rivals). The card is in the dock; the map pans to the region.`; }
+  else if (id === 'we' && v.worldEvent) { const we = WORLD_EVENTS[v.worldEvent.id]; j.tab = 'overview'; j.card = 'world'; const rid = we?.choke ? CHOKEPOINTS[we.choke]?.region : null; if (rid) j.pan = rid; explain = `${we?.n || v.worldEvent.id}: ${v.worldEvent.mo} months left.${we?.choke ? ` Chokepoint ${CHOKEPOINTS[we.choke]?.n || we.choke}.` : ''} ${typeof we?.d === 'string' ? we.d : ''} Answer it on the card in the dock.`; }
+  else if (id === 'ult') explain = 'A rival has put strategic forces on alert. The clock holds until you answer the ultimatum (stand down, hold the line, or counter-threaten).';
+  else if (id === 'conf') explain = 'A convoy is testing your blockade. The clock holds until you answer (enforce, board, or let it pass).';
+  else if (id.startsWith('bl_')) explain = 'Your blockade: $120M a month, their sphere strangled, arms lanes cut. Lift it from the region card (Overview) when it has done its work.';
+  else if (r.group === 'ops' && r.months != null && !id.startsWith('iss_') && !id.startsWith('inv_') && !id.startsWith('co_')) { const o = (v.intelOps || []).find((x) => x.id === r.id); if (o) { j.op = o.id; j.target = o.targetId; const op = INTEL_OPS.find((x) => x.id === o.opId); explain = `${op?.n || o.opId} against ${nat(o.targetId)}: ${pct(o.successRate)} success, ${pct(o.discoverRate)} exposure, ${o.monthsLeft} months to resolution. Opens the operation on the Intel tab.`; } }
+  else if (id.startsWith('co_')) explain = 'A standing program re-runs this operation every month until you stop it on the Intel tab.';
+  else if (id.startsWith('iss_')) explain = r.sub.startsWith('Unexamined') ? 'An issue the cabinet has not examined. Commission a brief on the Intel tab before the lapse timer runs out.' : 'The brief is ready: deploy one of its policies on the Intel tab before it lapses.';
+  else if (id.startsWith('inv_')) explain = 'An investigation in progress: the brief lands when the months run out.';
+  else if (id.startsWith('dev_') || id === 'sap' || id.startsWith('proto_')) explain = `${r.title}: ${r.months != null ? `${r.months} months to go` : 'in progress'}. Opens the program on the Arsenal tab.`;
+  else if (id.startsWith('node_')) explain = r.group === 'builds' ? `${r.title}: ${r.months} months until the node is online. Opens the site on the map.` : `${r.title}: the host withdrew consent; it reopens in ${r.months} months once consent returns. Opens the site on the map.`;
+  else if (id.startsWith('rd_')) explain = `${r.title}: ${r.months} months of research left. Opens the Technology tab.`;
+  else if (id === 'briefing') explain = `Decisions arrive at the quarterly cabinet briefing (January, April, July, October), one at a time, never within 3 months of a world event. Next briefing in ${r.months} months.`;
+  else if (id === 'grace') explain = `Rivals hold back for ${r.months} more months: no pressure, no demonstrations, no ultimatums. Use it to build.`;
+  else if (id === 'pariah') explain = `Pariah status after a nuclear act: arms buyers close their markets for ${r.months} more months.`;
+  else if (id === 'heg') explain = `Hegemony hold: ${v.hegHold}/24 months above 85%. ${r.months} more months at 85% win the era.`;
+  else if (id === 'embby') explain = `${nat(v.embargoedBy?.by)} embargoes your energy imports for ${r.months} more months: import contracts pay more. A back-channel on the Energy tab can end it early.`;
+  else if (id.startsWith('exp_')) explain = `Their station stays closed for ${r.months} months after the expulsion.`;
+  else if (id.startsWith('lock_')) explain = `Persona non grata: no embassy there for ${r.months} months.`;
+  else if (id.startsWith('bloc_')) explain = `Bloc frozen for ${r.months} months after a sanction on a member: tier progress pauses.`;
+  else if (id.startsWith('conc_')) explain = `Concession ramping up: ${r.months} months to full output.`;
+  else if (id === 'spr') explain = 'The strategic reserve is releasing: lower import cost while it lasts. Stop it on the Energy tab.';
+  else if (id.startsWith('cd_')) explain = `${r.title}: ${r.months} months before you can do this again.`;
+  else if (r.group === 'builds' && v.deployments?.some((d) => d.id === r.id)) explain = `${r.title}: ${r.months} months of the policy deployment left. Opens the issue on the Intel tab.`;
+  return { ...r, jump: j, explain };
 }
 
 export const counts = (rows) => rows.reduce((a, r) => { a[r.group] = (a[r.group] || 0) + 1; return a; }, {});

@@ -7,6 +7,7 @@
 // card carries data-modal=1900 (v57's overlay z-index) so a stalled harness answers it first, as in v57.
 import { DOCTRINES, WORLD_EVENTS } from '../../data/world.js';
 import { REGIONS, FLASHPOINTS } from '../../data/regions.js';
+import { useEffect, useRef } from 'react';
 import { COLOR } from '../tokens.js';
 
 // Inline responses (E2, #14): each is a button wired to the `eventResponse` verb; an unavailable one stays visible and says why.
@@ -25,7 +26,11 @@ function Responses({ kind, opts, dispatch }) {
 // 'Why now' (F2, #33): the state that opened this card. Saves from before the line existed show a neutral stand-in.
 function WhyNow({ text }) { return <div className="wl-why-now" data-why-now>Why now: {text || 'carried over from an earlier save'}</div>; }
 
-export function EventCards({ dock = false, doctrine, activeDecision, decisionDesc, worldEvent, flashpoint, worldOpts = [], fpOpts = [], decisionOpts = null, country = null, dispatch, onOpenRegion, fxBadge, readyBriefs = [], onOpenBrief }) {
+export function EventCards({ dock = false, focus = null, doctrine, activeDecision, decisionDesc, worldEvent, flashpoint, worldOpts = [], fpOpts = [], decisionOpts = null, country = null, dispatch, onOpenRegion, fxBadge, readyBriefs = [], onOpenBrief }) {
+  // FIX 2: focus = {card, at} from an outliner row; the named card rises and scrolls into view.
+  const root = useRef(null);
+  useEffect(() => { if (!focus || !root.current) return; root.current.querySelector('[data-focus=true]')?.scrollIntoView?.({ block: 'nearest', inline: 'center' }); }, [focus]);
+  const fc = (k) => (focus?.card === k ? 'true' : undefined);
   const cards = [];
   if (!doctrine) cards.push(
     <div key="doctrine" className="wl-card-ev" data-event-card="doctrine" data-modal="1900" style={{ '--ev': COLOR.accent.command }}>
@@ -41,7 +46,7 @@ export function EventCards({ dock = false, doctrine, activeDecision, decisionDes
       </div>
     </div>);
   if (activeDecision) cards.push(
-    <div key="decision" className="wl-card-ev" data-event-card="decision" style={{ '--ev': COLOR.accent.warn }}>
+    <div key="decision" className="wl-card-ev" data-event-card="decision" data-focus={fc('decision')} style={{ '--ev': COLOR.accent.warn }}>
       <div className="wl-label">{activeDecision.urgentNow ? '⚡ Urgent decision' : `${activeDecision.icon} Cabinet briefing`}</div>
       <h4>{activeDecision.title}</h4>
       <WhyNow text={activeDecision.why} />
@@ -55,7 +60,7 @@ export function EventCards({ dock = false, doctrine, activeDecision, decisionDes
       </div>
     </div>);
   if (flashpoint) { const fp = FLASHPOINTS[flashpoint.type]; cards.push(
-    <div key="fp" className="wl-card-ev" data-event-card="flashpoint" style={{ '--ev': COLOR.accent.alert }}>
+    <div key="fp" className="wl-card-ev" data-event-card="flashpoint" data-focus={fc('flashpoint')} style={{ '--ev': COLOR.accent.alert }}>
       <div className="wl-label">{fp?.i} Flashpoint · {flashpoint.t}mo to act</div>
       <h4>{fp?.n} · {REGIONS[flashpoint.rid]?.n}</h4>
       <p>{fp?.d} Ignoring cedes ground to rivals (−5 you, +12 them).</p>
@@ -63,7 +68,7 @@ export function EventCards({ dock = false, doctrine, activeDecision, decisionDes
       <button type="button" className="wl-btn" style={{ marginTop: 8 }} onClick={() => onOpenRegion(flashpoint.rid)}>Open {REGIONS[flashpoint.rid]?.n}</button>
     </div>); }
   if (worldEvent) { const we = WORLD_EVENTS[worldEvent.id]; cards.push(
-    <div key="we" className="wl-card-ev" data-event-card="world" style={{ '--ev': COLOR.accent.energy }}>
+    <div key="we" className="wl-card-ev" data-event-card="world" data-focus={fc('world')} style={{ '--ev': COLOR.accent.energy }}>
       <div className="wl-label">{we?.i} World event · {worldEvent.mo}mo left</div>
       <h4>{we?.n || worldEvent.id}</h4>
       <WhyNow text={worldEvent.why} />
@@ -79,9 +84,9 @@ export function EventCards({ dock = false, doctrine, activeDecision, decisionDes
       <button type="button" className="wl-btn" onClick={() => onOpenBrief(b.type)}>Open brief · {b.n} options</button>
     </div>);
   // dock (FIX 1): one reserved slot in the right column; it never grows or moves the map, it scrolls inside. Empty, it says so.
-  if (dock) return <div className="wl-cards wl-dock" data-event-cards data-dock data-dock-count={cards.length}>
+  if (dock) return <div ref={root} className="wl-cards wl-dock" data-event-cards data-dock data-dock-count={cards.length}>
     <div className="wl-dock-head"><span className="wl-label">Cards</span><span className="wl-num">{cards.length}</span></div>
     {cards.length ? cards : <div className="wl-dock-empty" data-dock-empty>No cards. Quiet months are for building.</div>}
   </div>;
-  return <div className="wl-cards" data-event-cards>{cards}</div>;
+  return <div ref={root} className="wl-cards" data-event-cards>{cards}</div>;
 }

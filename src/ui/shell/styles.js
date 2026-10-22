@@ -73,6 +73,9 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
 .wl-ol-row{width:100%;min-height:${TAP}px;display:flex;align-items:center;gap:${SPACE[4]}px;padding:${SPACE[2]}px 0;border:none;border-bottom:1px solid ${c.border.base};background:transparent;color:${c.text.secondary};text-align:left;font:inherit;font-size:${SIZE.small}px}
 .wl-ol-row b{color:${c.text.primary};font-weight:600}
 .wl-ol-row small{color:${c.text.dim};display:block;font-size:${SIZE.caption}px}
+.wl-ol-row .wl-ol-explain{white-space:normal;color:${c.text.secondary};margin-top:2px;line-height:1.35}
+.wl-ol-row[aria-expanded=true]{background:${c.bg.raised}}
+.wl-card-ev[data-focus=true]{border-color:${c.accent.command};box-shadow:0 0 0 2px ${c.accent.command}55}
 .wl-ol-row .wl-ol-t{margin-left:auto;font-weight:700;white-space:nowrap;color:${c.text.muted}}
 .wl-bell{position:relative;min-width:${TAP}px;min-height:${TAP}px;display:inline-flex;align-items:center;justify-content:center;border:1px solid ${c.border.strong};border-radius:${RADIUS.lg}px;background:transparent;color:${c.text.muted};font-size:${SIZE.lg}px;flex-shrink:0}
 .wl-bell-b{position:absolute;top:2px;right:2px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:${c.accent.alert};color:#fff;font-size:${SIZE.micro}px;font-weight:700;line-height:16px;text-align:center}
