@@ -6,10 +6,11 @@ import { WORLD_EVENTS, DECISIONS } from '../data/world.js';
 import { REGIONS } from '../data/regions.js';
 import { WORLD_RULES, FP_RESPONSES, FP_LINGER, EVENT_COOLDOWN, CHAIN_PATIENCE } from '../data/events.js';
 import { whyFor } from '../data/event-why.js';
+import { evidenceFor, recordHist } from '../data/event-evidence.js';
 import { rng } from './rng.js';
 import { responseAt } from './reach.js';
 
-export const newEvState = () => ({ cd: {}, fx: [], q: [], log: [], last: -999 });
+export const newEvState = () => ({ cd: {}, fx: [], q: [], log: [], last: -999, hist: {} }); // hist (FIX 5): last 12 months of the gated metrics, for the trend on the trigger evidence
 export const absMonth = (g) => g.date.yr * 12 + g.date.mo;
 const LOG_CAP = 200;
 const evOf = (g) => g.evState || newEvState();
@@ -33,7 +34,7 @@ export function decisionsDue(g, avail, ctx) {
   return seated.length ? seated : due;
 }
 // Open a decision card: stamps when it opened, whether it jumped the briefing, and the 'Why now' line (kept as a string so a restored save keeps it).
-export const openDecision = (g, d, ctx) => ({ ...d, at: absMonth(g), urgentNow: !isBriefingMonth(g), why: whyFor('decision', d.id, ctx) });
+export const openDecision = (g, d, ctx) => ({ ...d, at: absMonth(g), urgentNow: !isBriefingMonth(g), why: whyFor('decision', d.id, ctx), ev: evidenceFor('decision', d.id, ctx, evOf(g).hist) }); // ev (FIX 5): the trigger evidence the card renders
 export const markWorldEvent = (g, S) => setEv(g, S, { ...evOf(g), last: absMonth(g) });
 
 // Eligible world events (off cooldown, conditions hold, weight > 0) -> weighted pick with roll in [0,1). null = quiet month.
@@ -61,7 +62,7 @@ export function startWorldEvent(g, S, fx, id, viaChain = false) {
     S.setLog((l) => [{ msg: `💡 Breakthrough abroad: ${tgt}`, yr: g.date.yr, mo: g.date.mo }, ...l.slice(0, 19)]);
     return;
   }
-  const we = { id, mo: def.dur, why: viaChain ? 'Follow-up to your earlier response' : whyFor('world', id, { g }) }; g.worldEvent = we; S.setWorldEvent(we);
+  const we = { id, mo: def.dur, why: viaChain ? 'Follow-up to your earlier response' : whyFor('world', id, { g }), ev: evidenceFor('world', id, { g }, ev.hist) }; g.worldEvent = we; S.setWorldEvent(we); // ev (FIX 5): trigger evidence
   fx.toast(`${def.i} WORLD EVENT: ${def.n}`);
   S.setLog((l) => [{ msg: `${def.i} ${def.n}`, yr: g.date.yr, mo: g.date.mo }, ...l.slice(0, 19)]);
 }
@@ -72,7 +73,8 @@ export const stampEvent = (g, S, id) => { const ev = evOf(g); setEv(g, S, { ...e
 export function eventCooldowns(g, S) {
   const ev = evOf(g); const cd = {}; let ch = false;
   for (const [k, v] of Object.entries(ev.cd)) { const n = Math.max(0, v - 1); ch = ch || n !== v; if (n > 0) cd[k] = n; }
-  if (ch || Object.keys(ev.cd).length !== Object.keys(cd).length) setEv(g, S, { ...ev, cd });
+  void ch;
+  setEv(g, S, { ...ev, cd, hist: recordHist(ev.hist, g) }); // FIX 5: the metric history moves every month, so the state is always rewritten
 }
 
 // Queued follow-ups: fire the first that is due when the slot is free and its cooldown has cleared; drop it once it has

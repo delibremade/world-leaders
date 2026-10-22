@@ -45,6 +45,9 @@ const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activ
 // #89 (F15 tenure, host nations): pre-placed bases carry a tenure; leases and treaty/SOFA sites persist through sanctions and a relations collapse.
 // Every pinned case sanctions or sours a host in its first months (play seed 1 sanctions Germany in month 1: Ramstein used to close, now it stays),
 // so all five are re-baselined citing #89 (guarded by test/hosts.test.js and test/bases.test.js).
+// FIX 5 (trigger evidence): evState.hist keeps the last 12 months of the gated metrics (rewritten every month) and every fired event or
+// decision carries `ev`, so all five pinned hashes are re-baselined citing FIX 5. The v57 prefix compare strips evState, so firstDivergence
+// is unchanged; gates, weights and the 60-month cooldown are untouched (guarded by test/event-evidence.test.js).
 const NEW_KEYS = ['arsenal', 'minerals', 'forces', 'bases'];
 const dropNew = (s) => { if (!NEW_KEYS.some((k) => s.includes(`"${k}"`))) return s; const o = JSON.parse(s); for (const k of NEW_KEYS) delete o[k]; return JSON.stringify(o); };
 const strip = (s) => { const o = JSON.parse(dropNew(s)); delete o.evState; return JSON.stringify(o); };
