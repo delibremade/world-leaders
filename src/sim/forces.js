@@ -5,14 +5,17 @@
 // sof {units:{id:{ops, out:[{op, tgt, mo, rec}]}}, pipes:[{u, t, mo, n}]} over src/data/sof.js (F8, #56: named units, operators).
 // F7 (#55, spec Part 9) adds the tangible order of battle: active and reserve become headcounts (base: the 2024 strength they are
 // measured against), nid, q0 (quality at the start), crewShare {branch: share of active that crews its fleet}, depot (throughput %),
-// fleet {line: {n, mc, mx, blk, mod, loss, lost, at:{region:n}}} over src/data/orbat.js, fielded {unit: count already in the fleet}.
+// fleet {line: {n, mc, mx, blk, mod, loss, lost, at:{region:n}, age, life, parts}} over src/data/orbat.js, fielded {unit: count already in the fleet}.
+// #93: age and life in years (age curve in formulas.js), parts a $M credit from retirements; conv [{to, b, mo, n}] crews converting to a successor.
 import { FORCE_RULES as R, FLEET_RULES as FL, TRAINING, SOF_UNITS, BRANCHES, BRANCH_IDS, crewOf } from '../data/forces.js';
 import { SOF_RULES, OP_NAMES, sofOrbat, sofUnit, unitCap, freeSubs, freeOps, sofOps, sofFree, pickUnit, subsN } from '../data/sof.js';
 import { INTEL_OPS } from '../data/intel.js';
-import { ORBAT, MANPOWER, UNIT_PLATFORMS, crewHeads, crewOfLine, manpowerCap } from '../data/orbat.js';
+import { ORBAT, MANPOWER, UNIT_PLATFORMS, crewHeads, crewOfLine, manpowerCap, FLEET_AGES, FLEET_LINKS } from '../data/orbat.js';
+import { inputsOf, addStock } from './minerals.js';
+import { SALVAGE_UNIT } from '../data/forces.js';
 import { NATIONS } from '../data/nations.js';
 import { PLATFORMS, BLACK_PROGRAMS } from '../data/platforms.js';
-import { forceQuality, forceMult, tier1Power, qualityF, manPts, lineW, typeQ, qualMC, fleetFill, fillOf, lineAvail, blkF, lineReady, equipF } from './formulas.js';
+import { forceQuality, forceMult, tier1Power, qualityF, manPts, lineW, typeQ, qualMC, fleetFill, fillOf, lineAvail, blkF, lineReady, equipF, ageRel, ageDefOf, omXOf } from './formulas.js';
 
 const cl = (v, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
 const per = (b) => Object.fromEntries(BRANCH_IDS.map((k) => [k, b(k)]));
@@ -24,19 +27,25 @@ export function newForces(nid, stats) {
 }
 // F7: headcounts from MANPOWER and the 2024 fleet from ORBAT. A pre-F7 force (index strength) converts in place of its index points.
 const home = (nid) => NATIONS[nid]?.region;
-const newLine = (l, nid) => ({ n: l.count, mc: l.mc, mx: 100, blk: 0, mod: 0, loss: 0, lost: 0, at: l.count ? { [home(nid)]: l.count } : {} });
+const newLine = (l, nid) => { const [age, life] = ageDefOf(nid, l); return { n: l.count, mc: l.mc, mx: 100, blk: 0, mod: 0, loss: 0, lost: 0, at: l.count ? { [home(nid)]: l.count } : {}, age: l.count ? age : 0, life, parts: 0 }; };
+// #93: fleets from before ages existed take their 2024 age and life once.
+function withAges(f) {
+  if (!f.fleet || Object.values(f.fleet).every((s) => s.life != null)) return f;
+  const fleet = {}; for (const [id, s] of Object.entries(f.fleet)) { const l = lineOf(f.nid, id); const [age, life] = l ? ageDefOf(f.nid, l) : [0, 40]; fleet[id] = s.life != null ? s : { ...s, age: s.n ? age : 0, life, parts: 0 }; }
+  return { ...f, fleet, conv: f.conv || [] };
+}
 function withFleet(f, nid, fielded, ns) {
   const m = MANPOWER[nid]; if (!m || f.base) return f;
   const ls = ORBAT[nid] || [];
   const need = per((b) => ls.filter((l) => l.b === b && !l.reserve).reduce((a, l) => a + crewHeads(l), 0));
   return { ...f, nid, base: { active: m.active, reserve: m.reserve, labor: recruitLabor(ns || {}), stab: stabProp(ns || {}) }, active: m.active * f.active / R.start.active, reserve: m.reserve * f.reserve / R.start.reserve,
     q0: f.quality, depot: 100, crewShare: per((b) => need[b] / m.active * (1 + FL.crewSlack)), prop: Math.min(1, propensity0(m)),
-    fleet: Object.fromEntries(ls.map((l) => [l.id, newLine(l, nid)])), fielded: { ...fielded } };
+    fleet: Object.fromEntries(ls.map((l) => [l.id, newLine(l, nid)])), fielded: { ...fielded }, conv: [] };
 }
 // F8: every named SOF unit at its 2024 operator strength. A pre-F8 force (abstract t1/t2 counts) converts to the 2024 units.
 export const newSof = (nid) => ({ units: Object.fromEntries(sofOrbat(nid).map((u) => [u.id, { ops: u.ops, out: [] }])), pipes: [] });
 const withSof = (f, nid) => (f.sof?.units ? f : { ...f, nid: f.nid ?? nid, sof: newSof(f.nid ?? nid) });
-const F = (g) => { const f0 = g.forces || newForces(g.country?.id, g.stats); const f = g.country ? withSof(f0, g.country.id) : f0; return f.base || !g.country ? f : withFleet(f, g.country.id, ownedOf(g), g.stats); };
+const F = (g) => { const f0 = g.forces || newForces(g.country?.id, g.stats); const f = g.country ? withSof(f0, g.country.id) : f0; return withAges(f.base || !g.country ? f : withFleet(f, g.country.id, ownedOf(g), g.stats)); };
 export const crewPool = (f, b) => manPts(f).active * R.crewPer[b];
 
 // Units owned (domestic + imported + programs) and deployed, as crew sets needed per branch.
@@ -188,12 +197,16 @@ function takeAt(at, k, rid0) {
   for (const rid of [rid0, ...Object.keys(o).filter((r) => r !== rid0)]) { const d = Math.min(left, o[rid] || 0); if (d) { o[rid] -= d; left -= d; } if (!o[rid]) delete o[rid]; }
   return o;
 }
-const maintCost = (f, pctOf = (s) => s.mx) => Object.entries(f.fleet).reduce((a, [id, s]) => { const l = lineOf(f.nid, id); return a + (l ? s.n * lineW(l) * FL.om * pctOf(s) / 100 : 0); }, 0);
+// Maintenance of one line, $M/mo: platforms x role weight x om x its sustainment premium (omX) x the age curve's cost factor x funding %.
+export const lineCost = (f, l, s, pct = s.mx) => s.n * lineW(l) * FL.om * omXOf(f.nid, l) * ageRel(f.nid, l, s).cost * pct / 100;
+const maintCost = (f, pctOf = (s) => s.mx) => Object.entries(f.fleet).reduce((a, [id, s]) => { const l = lineOf(f.nid, id); return a + (l ? lineCost(f, l, s, pctOf(s)) : 0); }, 0);
+// The parts credit a line draws this month against its maintenance.
+const partsDraw = (f, l, s) => Math.min(s.parts || 0, lineCost(f, l, s) * FL.partsDraw);
 const depotCost = (f) => maintCost(f, () => 100) * FL.depotCost * Math.pow((f.depot ?? 100) / 100, 1.5);
 export function mcTarget(f, l, s) {
   const maint = Math.min(FL.maintCap, Math.pow(s.mx / 100, FL.maintExp));
   const depot = Math.min(1.05, Math.pow((f.depot ?? 100) / 100, FL.depotExp));
-  return cl(l.mc * maint * depot * qualMC(f, l) * (1 + FL.mcBlk * s.blk));
+  return cl(l.mc * maint * depot * qualMC(f, l) * (1 + FL.mcBlk * s.blk) * ageRel(f.nid, l, s).mc);
 }
 function stepFleet(g, f, fx, cash) {
   const nid = f.nid; const rid0 = home(nid); const owned = ownedOf(g);
@@ -203,7 +216,7 @@ function stepFleet(g, f, fx, cash) {
     const d = (owned[u] || 0) - (fielded[u] || 0); if (!d) continue;
     fielded[u] = owned[u] || 0; const l = buyLine(nid, u); if (!l || !UNIT_PLATFORMS[u]) continue;
     const s = fleet[l.id] || newLine({ ...l, count: 0 }, nid); const k = d * UNIT_PLATFORMS[u].per;
-    fleet[l.id] = k > 0 ? { ...s, n: s.n + k, at: addAt(s.at, rid0, k) } : { ...s, n: Math.max(0, s.n + k), at: takeAt(s.at, Math.min(s.n, -k), rid0) };
+    fleet[l.id] = k > 0 ? { ...s, n: s.n + k, at: addAt(s.at, rid0, k), age: (s.n * (s.age || 0)) / (s.n + k) } : { ...s, n: Math.max(0, s.n + k), at: takeAt(s.at, Math.min(s.n, -k), rid0) };
   }
   const rate = Math.min(1, FL.converge * (f.depot ?? 100) / 100);
   for (const [id, s0] of Object.entries(fleet)) {
@@ -213,12 +226,18 @@ function stepFleet(g, f, fx, cash) {
     s.loss += s.n * (FL.lossYr[l.cls] || 0) / 12;
     while (s.loss >= 1 && s.n > 0) { s.loss -= 1; s.n -= 1; s.lost += 1; s.at = takeAt(s.at, 1, rid0); }
     if (s.n === 0) s.loss = 0;
-    if (s.mod > 0) { s.mod -= 1; if (s.mod === 0) { s.blk += 1; fx.toast(`🔧 ${l.n}: block ${s.blk} upgrade complete (+${Math.round(FL.blkGain * 100)}% effectiveness)`); } }
+    if (s.n > 0) s.age = (s.age || 0) + 1 / 12;
+    if (s.mod > 0) { s.mod -= 1; if (s.mod === 0) { s.blk += 1; s.life = (s.life || ageDefOf(nid, l)[1]) + FL.modLife; fx.toast(`🔧 ${l.n}: block ${s.blk} upgrade complete (+${Math.round(FL.blkGain * 100)}% effectiveness, +${Math.round(FL.mcBlk * 100)}% MC ceiling, service life +${FL.modLife} years to ${Math.round(s.life)})`); } }
     s.mc = cl(s.mc + (mcTarget({ ...f, fleet }, l, s) - s.mc) * rate);
     fleet[id] = s;
   }
-  const f1 = { ...f, fleet, fielded };
-  cash('Maintenance', -Math.round(maintCost(f1))); cash('Depot', -Math.round(depotCost(f1)));
+  // Parts recovered from retirements pay part of their line's maintenance first.
+  let parts = 0;
+  for (const [id, s] of Object.entries(fleet)) { const l = lineOf(nid, id); const d = l ? partsDraw({ ...f, fleet }, l, s) : 0; if (d > 0) { fleet[id] = { ...s, parts: s.parts - d }; parts += d; } }
+  // Crews converting to a successor type finish their course.
+  const conv = (f.conv || []).map((c) => ({ ...c, mo: c.mo - 1 })).filter((c) => { if (c.mo > 0) return true; const to = lineOf(nid, c.to); fx.toast(`🧑‍✈️ ${Math.round(c.n).toLocaleString('en-US')} crews converted to ${to?.n || 'the fleet'}`); return false; });
+  const f1 = { ...f, fleet, fielded, conv };
+  cash('Maintenance', -Math.round(maintCost(f1) - parts)); cash('Depot', -Math.round(depotCost(f1)));
   return f1;
 }
 
@@ -305,7 +324,8 @@ function setDepot(g, S, fx, { pct: p }) {
   fx.toast(`🏭 Depot throughput ${f1.depot}% — $${Math.round(depotCost(f1))}M/mo, block upgrades take ${modMonths(f1)} months`);
 }
 export const modMonths = (f) => Math.ceil(FL.modMo * 100 / Math.max(10, f.depot ?? 100));
-export const modCostOf = (l, s) => Math.round(s.n * lineW(l) * FL.modCost);
+export const modUnitCost = (l) => lineW(l) * FL.modCost; // $M per airframe or hull
+export const modCostOf = (l, s) => Math.round(s.n * modUnitCost(l));
 // The reason a block upgrade is refused, or null.
 export function modBlock(g, f, id) {
   const l = lineOf(f.nid, id); const s = f.fleet?.[id];
@@ -323,14 +343,52 @@ function modernize(g, S, fx, { line }) {
   setF(g, S, { ...f, fleet: { ...f.fleet, [line]: { ...s, mod: mo } } });
   fx.toast(`🔧 ${l.n}: block ${s.blk + 1} upgrade — $${cost}M, ${mo} months, ${Math.round(FL.modShare * 100)}% of the fleet in the depot meanwhile`);
 }
+// #93 successor: the line a retired type's crews convert to (FLEET_LINKS succ, else the newest other line of the same role and branch).
+export function successorOf(nid, l) {
+  const id = FLEET_LINKS[nid]?.[l.id]?.succ; if (id) return lineOf(nid, id);
+  return (ORBAT[nid] || []).filter((x) => x.id !== l.id && x.role === l.role && x.b === l.b && (x.gen || 0) >= (l.gen || 0)).sort((a, b) => (b.gen || 0) - (a.gen || 0))[0] || null;
+}
+// Minerals one platform of a line yields at salvage (units), from the inputs of the game unit that stands for its role and generation.
+export function salvageOf(l) {
+  const t = SALVAGE_UNIT[l.role]; const u = t && (t[l.gen] || t[0]); if (!u || !UNIT_PLATFORMS[u]) return {};
+  return Object.fromEntries(Object.entries(inputsOf(u)).map(([m, x]) => [m, x * FL.salvage / UNIT_PLATFORMS[u].per]));
+}
+// What retiring k of a line does, before it happens: the confirm sheet and the verb read the same numbers.
+export function retirePlan(f, id, k0) {
+  const l = lineOf(f.nid, id); const s = f.fleet?.[id]; if (!l || !s || !s.n) return null;
+  const k = Math.min(s.n, Math.max(1, Math.round(+k0 || 1))); const left = s.n - k;
+  const spread = Math.min(s.age || 0, FL.spreadYr); const age = left ? Math.max(0, (s.age || 0) - spread * k / s.n) : 0;
+  const s1 = { ...s, n: left, at: takeAt(s.at, k, home(f.nid)), age, parts: left ? (s.parts || 0) + k * lineW(l) * FL.om * omXOf(f.nid, l) * FL.partsMo : 0 };
+  const succ = successorOf(f.nid, l); const crews = l.reserve ? 0 : crewHeads(l, k);
+  const minerals = Object.fromEntries(Object.entries(salvageOf(l)).map(([m, x]) => [m, x * k]));
+  const saves = lineCost(f, l, s) - lineCost(f, l, s1);
+  return { l, k, left, s1, succ, crews, convMo: FL.convMo[l.b], minerals, parts: left ? s1.parts - (s.parts || 0) : 0, saves, ageBefore: s.age || 0, ageAfter: age };
+}
+// The confirm sheet's numbers for retiring k of a line (Equipment screen and command card).
+export function retireView(g, line, k) {
+  const f = F(g); const p = retirePlan(f, line, k); if (!p) return null;
+  return { k: p.k, left: p.left, saves: p.saves, crews: p.crews, convMo: p.convMo, pipeMo: R.pipeMo[p.l.b], succ: p.succ?.n || null, minerals: p.minerals, parts: p.parts, ageBefore: p.ageBefore, ageAfter: p.ageAfter };
+}
+// Lines for a retire confirm sheet, from retireView. One wording for the Equipment detail and the command card.
+export function retireLines(v, name) {
+  if (!v) return [];
+  const mins = Object.entries(v.minerals).map(([m, x]) => `${x.toFixed(1)} ${m}`).join(', ');
+  return [`${v.left.toLocaleString('en-US')} ${name} left in service; the oldest go first (average age ${v.ageBefore.toFixed(1)} → ${v.ageAfter.toFixed(1)} years).`,
+    `Maintenance falls $${Math.round(v.saves)}M/mo from next month.`,
+    v.crews ? `${Math.round(v.crews).toLocaleString('en-US')} crews convert to ${v.succ || 'the rest of the branch'} in ${v.convMo} months (ab-initio training takes ${v.pipeMo}).` : 'No crews to transfer.',
+    mins ? `Salvage to the stockpile: ${mins}.` : 'Nothing to salvage.',
+    v.parts ? `Parts worth $${Math.round(v.parts)}M cover up to half the remaining fleet's maintenance until used.` : 'Retired units do not come back; procurement adds new ones to this line.'];
+}
 function retire(g, S, fx, { line, n }) {
   const f = F(g); const l = lineOf(f.nid, line); const s = f.fleet?.[line];
   if (!l || !s) { fx.toast('⚠ No such fleet line'); return; }
-  const k = Math.min(s.n, Math.max(1, Math.round(+n || 1)));
   if (!s.n) { fx.toast(`⚠ No ${l.n} left to retire`); return; }
-  const before = maintCost(f); const f1 = { ...f, fleet: { ...f.fleet, [line]: { ...s, n: s.n - k, at: takeAt(s.at, k, home(f.nid)) } } };
-  setF(g, S, f1);
-  fx.toast(`📦 Retired ${k} ${l.n} — ${s.n - k} left, saves $${Math.round(before - maintCost(f1))}M/mo maintenance`);
+  const p = retirePlan(f, line, n);
+  const conv = p.crews > 0 ? [...(f.conv || []), { to: p.succ?.id || null, b: l.b, mo: p.convMo, n: p.crews }] : f.conv || [];
+  setF(g, S, { ...f, fleet: { ...f.fleet, [line]: p.s1 }, conv });
+  if (Object.keys(p.minerals).length) addStock(g, S, p.minerals);
+  const mins = Object.entries(p.minerals).map(([m, x]) => `${x.toFixed(1)} ${m}`).join(', ');
+  fx.toast(`📦 Retired ${p.k} ${l.n} — ${p.left} left, saves $${Math.round(p.saves)}M/mo maintenance${p.crews ? ` · ${Math.round(p.crews).toLocaleString('en-US')} crews convert to ${p.succ?.n || 'the fleet'} in ${p.convMo} mo` : ''}${mins ? ` · salvage ${mins}` : ''}`);
 }
 export const FORCE_VERBS = {
   setMaintenance: (g, S, fx, p) => setMaintenance(g, S, fx, p || {}),
@@ -371,16 +429,18 @@ export function fleetView(g) {
   const f = F(g); if (!f.fleet) return null;
   const { fill, need } = fleetFill(f); const m = MANPOWER[f.nid]; const s0 = g.stats || {}; const pay = Math.max(0, g.personnelPay ?? 100);
   const lines = (ORBAT[f.nid] || []).filter((l) => f.fleet[l.id]).map((l) => {
-    const s = f.fleet[l.id]; const fl = fillOf(fill, l); const crewed = Math.floor(s.n * fl + 1e-9);
+    const s = f.fleet[l.id]; const fl = fillOf(fill, l); const crewed = Math.floor(s.n * fl + 1e-9); const ag = ageRel(f.nid, l, s);
     const ready = Math.floor(crewed * lineAvail(s) * s.mc / 100 + 1e-9); const c = crewOfLine(l);
     return { id: l.id, n: l.n, b: l.b, cls: l.cls, role: l.role, gen: l.gen, reserve: !!l.reserve, count: s.n, count2024: l.count, mc: s.mc, mc2024: l.mc,
       target: mcTarget(f, l, s), mx: s.mx, blk: s.blk, mod: s.mod, lost: s.lost, at: s.at, crewed, ready, unready: s.n - ready, crewless: s.n - crewed,
-      crewRatio: c.sets, crewSize: c.heads, maintainers: c.mx, heads: crewHeads(l, s.n), quality: typeQ(f.quality, l), cost: s.n * lineW(l) * FL.om * s.mx / 100,
-      modCost: modCostOf(l, s), modWhy: modBlock(g, f, l.id), buys: l.buys || [], status_source: l.status_source };
+      crewRatio: c.sets, crewSize: c.heads, maintainers: c.mx, heads: crewHeads(l, s.n), quality: typeQ(f.quality, l), cost: lineCost(f, l, s),
+      modCost: modCostOf(l, s), modUnit: modUnitCost(l), modWhy: modBlock(g, f, l.id), buys: l.buys || [], status_source: l.status_source,
+      age: s.age || 0, life: s.life, ageX: ag.x, mcAge: ag.mc, costAge: ag.cost, omX: omXOf(f.nid, l), parts: s.parts || 0, succ: successorOf(f.nid, l)?.id || null,
+      converting: (f.conv || []).filter((c) => c.to === l.id).reduce((a, c) => a + c.n, 0), ageSource: FLEET_AGES[f.nid]?.[l.id]?.[2] || null };
   });
   const branches = BRANCHES.map(([b, n]) => ({ id: b, n, fill: fill[b], need: need[b], pool: (f.active || 0) * (f.crewShare?.[b] || 0), equip: equipF(f, b),
     count: lines.filter((x) => x.b === b).reduce((a, x) => a + x.count, 0), ready: lines.filter((x) => x.b === b).reduce((a, x) => a + x.ready, 0) }));
-  return { lines, branches, depot: f.depot ?? 100, maintenance: maintCost(f), depotCost: depotCost(f), modMo: modMonths(f), rules: FL,
+  return { lines, branches, depot: f.depot ?? 100, maintenance: maintCost(f), depotCost: depotCost(f), modMo: modMonths(f), rules: FL, conv: f.conv || [],
     manpower: m && { active: f.active, reserve: f.reserve, base: f.base, cap: manpowerCap(f.nid), prop: propensityOf(m, s0, pay, f.base), prop0: propensity0(m),
       intakeMax: intakeMax(m), recruits: f.recruits, attrition: f.attrition, next: manpowerStep(f, s0, pay, f.retention), labor: recruitLabor(s0), stab: stabProp(s0), status_source: m.status_source } };
 }

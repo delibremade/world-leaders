@@ -105,6 +105,8 @@ export const V57_INVARIANTS = [
     && Number.isInteger(s.n) && s.n >= 0 && in01(s.mc) && finite(s.mx) && s.mx >= 0 && s.mx <= FL.pctMax && Number.isInteger(s.blk) && s.blk >= 0 && s.blk <= FL.maxBlk
     && Number.isInteger(s.mod) && s.mod >= 0 && finite(s.loss) && s.loss >= 0 && s.loss < 1 && Object.entries(s.at).every(([r, k]) => REGIONS[r] && Number.isInteger(k) && k > 0)
     && Object.values(s.at).reduce((a, k) => a + k, 0) === s.n))],
+  ['fleet age (#93): every line carries a finite age >= 0 (0 when empty), a service life > 0 and a parts credit >= 0', (g) => !g.forces?.fleet || Object.values(g.forces.fleet).every((s) => s.life == null || (finite(s.age) && s.age >= 0 && (s.n > 0 || s.age === 0) && finite(s.life) && s.life > 0 && finite(s.parts ?? 0) && (s.parts ?? 0) >= 0))],
+  ['crew conversions (#93): known branch, a successor line in the fleet (or none), integer months > 0, finite crews > 0', (g) => !g.forces?.fleet || (g.forces.conv || []).every((c) => BRANCH_IDS.includes(c.b) && (c.to === null || !!g.forces.fleet[c.to]) && Number.isInteger(c.mo) && c.mo > 0 && finite(c.n) && c.n > 0)],
   ['fleet (F7): units already fielded into the fleet are integer counts >= 0', (g) => !g.forces?.fleet || Object.values(g.forces.fielded || {}).every((k) => Number.isInteger(k) && k >= 0)],
   ['crew pipeline: known branch with integer months > 0; training level is known', (g) => !g.forces || (g.forces.pipe.every((p) => BRANCH_IDS.includes(p.b) && Number.isInteger(p.mo) && p.mo > 0) && !!TRAINING[g.forces.train])],
   // F8 (#56): named SOF units

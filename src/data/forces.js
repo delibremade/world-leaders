@@ -55,6 +55,12 @@ export { SOF_RULES };
 export const SOF_UNITS = Object.fromEntries(Object.entries(SOF_ORBAT).map(([nid, us]) => [nid, { t1: us.find((u) => u.tier === 1).n, t2: us.find((u) => u.tier === 2).n,
   status_source: [...new Set(us.map((u) => u.status_source))].join('; ') }]));
 
+// #93 salvage: the game unit whose mineral inputs (src/sim/minerals.js inputsOf, per UNIT_PLATFORMS[unit].per platforms) stand for one
+// platform of a role and airframe generation (0: any).
+export const SALVAGE_UNIT = { fighter: { 6: 'f47', 5: 'f35', 0: 'fighter_wing' }, attack: { 0: 'fighter_wing' }, ew: { 0: 'fighter_wing' }, bomber: { 0: 'b21' },
+  isr: { 0: 'sr72' }, ssn: { 0: 'ssnx' }, ssgn: { 0: 'ssnx' }, ssbn: { 0: 'ssbn_fleet' }, carrier: { 0: 'ford' }, cruiser: { 0: 'zumwalt' }, destroyer: { 0: 'zumwalt' },
+  frigate: { 0: 'frigate' }, lcs: { 0: 'frigate' }, corvette: { 0: 'frigate' }, armor: { 0: 'mech_division' }, stryker: { 0: 'mech_division' }, icbm: { 0: 'icbm_force' } };
+
 // ── F7 (#55), spec Part 9: the tangible order of battle (inventories in src/data/orbat.js). Game rules, tuned for play, on the v57
 // money scale. Manpower is headcounts; `manPts` (formulas.js) maps them back to the 0..100 index above (60 = the nation's 2024 active).
 export const FLEET_RULES = {
@@ -78,6 +84,20 @@ export const FLEET_RULES = {
   lossYr: { airframe: 0.003, hull: 0, formation: 0, launcher: 0 },
   // Crews: each branch's share of active strength that crews and maintains its fleet = 2024 need / 2024 active x (1 + crewSlack).
   crewSlack: 0.1,
+  // #93 age and service life. Each line carries its fleet's average age and service life in years (src/data/orbat.js FLEET_AGES, else
+  // ageDef by class and airframe generation). x = age / life. The age curve, relative to the line's 2024 x so the start is the 2024 truth:
+  //   MC factor   1 to x = mcKnee, then -mcSlope per unit x to x = 1, then -mcPast beyond (floor mcFloor)
+  //   cost factor 1 + costSlope x max(0, x - costKnee) + costPast x max(0, x - 1)
+  // Fleets age 1/12 year a month; deliveries join at age 0 and pull the average down.
+  ageDef: { airframe: { 3: [40, 50], 4: [25, 40], 5: [8, 35], 6: [0, 35] }, hull: [20, 35], formation: [20, 40], launcher: [30, 50] },
+  mcKnee: 0.6, mcSlope: 0.5, mcPast: 1.2, mcFloor: 0.25, costKnee: 0.5, costSlope: 0.8, costPast: 2.5,
+  // Modernize (#93): each block also adds modLife years of service life (SLEP). Cost is per airframe or hull: lineW x modCost $M.
+  modLife: 10,
+  // Retire (#93): the k oldest leave (remaining average age falls by ageSpread x k / n, ageSpread = min(age, spreadYr)); their crews convert
+  // to the successor type in convMo months (ab-initio pipelines take FORCE_RULES.pipeMo); salvage x the type's mineral inputs per platform go to
+  // the refined stockpile; partsMo months of their maintenance become a parts credit the remaining airframes of the type draw first
+  // (at most partsDraw of the line's monthly cost).
+  spreadYr: 6, convMo: { land: 3, air: 4, sea: 6 }, salvage: 0.3, partsMo: 18, partsDraw: 0.5,
   // Equipment factor bounds (ready capability / 2024 capability at reference quality).
   eqMin: 0.3, eqMax: 1.25,
 };
