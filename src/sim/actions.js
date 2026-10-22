@@ -4,7 +4,7 @@ import { DOCTRINES, WORLD_EVENTS, DECISIONS } from '../data/world.js';
 import { PLATFORMS, BLACK_PROGRAMS, DV, DEPLOYABLE } from '../data/platforms.js';
 import { WORLD_RULES, FP_RESPONSES } from '../data/events.js';
 import { worldOptions, decisionReason, fpReason, FP_COST, pushFx, flashpointRow, setEv, stampEvent, absMonth } from './events.js';
-import { PA, ISSUES, SOCIAL_PROGRAMS, SECTOR_LABELS, IP_POLICY_LABELS } from '../data/economy.js';
+import { PA, ISSUES, SOCIAL_PROGRAMS, SECTOR_LABELS, IP_POLICY_LABELS, BASE_SECTOR } from '../data/economy.js';
 import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, INTEL_POSTURE_LABELS } from '../data/intel.js';
 import { BLOC_TRADE, CURRENCY_LABELS } from '../data/trade.js';
 import { RES_META, CONCESSIONS } from '../data/energy.js';
@@ -506,6 +506,8 @@ function setInterestRate(g,S,fx,rate){S.setInterestRate(rate);}
 function setFiscalStance(g,S,fx,mode){S.setSpendingMode(mode);}
 function setTaxRate(g,S,fx,rate){S.setTaxPolicy(rate);}
 function setSectorBudget(g,S,fx,sector,value){S.setBudgetAlloc(p=>({...p,[sector]:value}));}
+// V2e: the allocation surface commits one drag (and the lines it squeezed) as one action. Same per-sector rule, clamped to the slider range.
+function setSectorBudgets(g,S,fx,allocs){S.setBudgetAlloc(p=>{const n={...p};for(const [k,v] of Object.entries(allocs||{}))if(k in BASE_SECTOR)n[k]=Math.max(0,Math.min(200,Math.round(+v||0)));return n;});}
 function setExpertiseLease(g,S,fx,v){S.setExpertiseLease(v);g.expertiseLease=v;fx.toast(v===0?'Expertise missions recalled':`Leasing ${v} specialist corps — +$${v*45}M/mo`);}
 function toggleSocialProgram(g,S,fx,spId){const sp=SOCIAL_PROGRAMS[spId];S.setSocialPrograms(prev=>{const ns2=new Set(prev);if(ns2.has(spId)){ns2.delete(spId);fx.toast(`${sp.i} ${sp.n} discontinued`);}else{ns2.add(spId);fx.toast(`${sp.i} ${sp.n} enacted — $${sp.cost}M/mo`);}g.socialPrograms=ns2;return ns2;});}
 function modernizeSector(g,S,fx,sector){const label=SECTOR_LABELS[sector];
@@ -800,6 +802,7 @@ export const VERBS={
   setFiscalStance:(g,S,fx,{mode})=>setFiscalStance(g,S,fx,mode),
   setTaxRate:(g,S,fx,{rate})=>setTaxRate(g,S,fx,rate),
   setSectorBudget:(g,S,fx,{sector,value})=>setSectorBudget(g,S,fx,sector,value),
+  setSectorBudgets:(g,S,fx,{allocs})=>setSectorBudgets(g,S,fx,allocs),
   setExpertiseLease:(g,S,fx,{level})=>setExpertiseLease(g,S,fx,level),
   toggleSocialProgram:(g,S,fx,{program})=>toggleSocialProgram(g,S,fx,program),
   modernizeSector:(g,S,fx,{sector})=>modernizeSector(g,S,fx,sector),

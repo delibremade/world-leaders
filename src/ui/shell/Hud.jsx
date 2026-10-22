@@ -19,7 +19,7 @@ export function Spark({ data, k, color, w = 52, h = 20 }) {
 
 const money = (v) => `$${Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(1) + 'B' : Math.round(Math.abs(v)) + 'M'}`;
 
-export function Hud({ version, country, date, stats, ledger = {}, history = [], hegScore = 0, pillars = {}, activeEffects = [], hegHold = 0, pauseReason, paused, onPause, onTogglePause, pauseLocked, gameSpeed, onSpeed, lastSaved, onQuit, doctrineLabel, unread = 0, onFeed, canStep = false, onStep, alerts = [], onAlert, alertFocus = null }) {
+export function Hud({ version, country, date, stats, ledger = {}, history = [], hegScore = 0, pillars = {}, activeEffects = [], hegHold = 0, pauseReason, paused, onPause, onTogglePause, pauseLocked, gameSpeed, onSpeed, lastSaved, onQuit, doctrineLabel, unread = 0, onFeed, canStep = false, onStep, alerts = [], onAlert, alertFocus = null, onAllocate }) {
   const net = Object.values(ledger).reduce((s, v) => s + v, 0);
   const income = Object.values(ledger).filter((v) => v > 0).reduce((s, v) => s + v, 0);
   const spend = Object.values(ledger).filter((v) => v < 0).reduce((s, v) => s + v, 0);
@@ -49,6 +49,7 @@ export function Hud({ version, country, date, stats, ledger = {}, history = [], 
             : <button key={v} type="button" title={t} data-pip={v} aria-pressed={!paused && gameSpeed === v} onClick={() => (onPause(false), onSpeed(v))}>{l}</button>)}
           {onStep && <button type="button" data-step title={canStep ? 'Next month (.)' : 'Pause to step one month (.)'} aria-label="Next month" aria-disabled={!canStep || undefined} onClick={() => canStep && onStep()}>⏭</button>}
         </div>
+        {onAllocate && <button type="button" className="wl-btn wl-btn-sm" data-allocate title="Allocate: the five sector lines as one pool (drawer over the map)" onClick={onAllocate} aria-label="Allocate"><span aria-hidden="true">⚖</span><span className="wl-allocate-l">ALLOCATE</span></button>}
         {onFeed && <button type="button" className="wl-bell" data-bell data-unread={unread} title="Notifications" aria-label={`Notifications, ${unread} unread`} onClick={onFeed}>🔔{unread > 0 && <span className="wl-bell-b" data-bell-badge>{unread > 99 ? '99+' : unread}</span>}</button>}
         <button type="button" className="wl-btn wl-btn-sm" title="New nation" aria-label="Quit to nation select" onClick={onQuit} style={{ minWidth: 36 }}>✕</button>
       </div>

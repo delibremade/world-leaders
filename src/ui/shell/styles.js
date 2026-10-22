@@ -192,6 +192,31 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
   .wl-mv-glyphs{flex-basis:auto}
   .wl-mv-hint{display:none}
 }
+/* V2e allocation surface (v2 §4): one pool, lines with lock and change vs baseline; compact in the drawer over the map. */
+.wl-alloc{display:flex;flex-direction:column;gap:${SPACE[3]}px}
+.wl-alloc-head{display:flex;align-items:center;gap:${SPACE[4]}px;flex-wrap:wrap}
+.wl-alloc-pool{display:flex;align-items:baseline;gap:${SPACE[4]}px;flex:1;min-width:0;background:${c.bg.inset};border-radius:${RADIUS.lg}px;padding:${SPACE[3]}px ${SPACE[5]}px}
+.wl-alloc-pool b{font-size:${SIZE.lg}px;color:${c.text.primary}}
+.wl-alloc-pool small{font-size:${SIZE.caption}px;margin-left:auto}
+.wl-alloc-alert{font-size:${SIZE.small}px;color:${c.accent.warn};border:1px solid ${c.accent.warnDeep};background:rgba(240,192,64,.08);border-radius:${RADIUS.md}px;padding:${SPACE[3]}px ${SPACE[4]}px;line-height:1.4}
+.wl-alloc-alert[data-fed]{color:${c.accent.good};border-color:${c.accent.good};background:rgba(74,222,128,.08)}
+.wl-alloc-line{background:${c.bg.panel};border:1px solid ${c.border.base};border-radius:${RADIUS.xl}px;padding:${SPACE[3]}px ${SPACE[4]}px}
+.wl-alloc-line[data-locked=true]{border-color:${c.accent.warnDeep}}
+.wl-alloc-line[aria-selected=true]{border-color:${c.accent.command}}
+.wl-alloc-row{display:flex;align-items:center;gap:${SPACE[3]}px;min-height:32px}
+.wl-alloc-name{background:transparent;border:none;padding:0;color:${c.text.primary};font:inherit;font-size:${SIZE.body}px;font-weight:700;text-align:left;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:${TAP - 12}px}
+.wl-alloc-name[aria-pressed=true]{text-decoration:underline;text-underline-offset:3px}
+.wl-alloc-cost{font-weight:700;white-space:nowrap}
+.wl-alloc-pct{min-width:40px;font-weight:700;font-size:${SIZE.small}px}
+.wl-alloc-eff{font-size:${SIZE.caption}px;color:${c.text.dim};min-width:78px;text-align:right;white-space:nowrap}
+.wl-alloc-line .wl-btn-sm{min-width:36px;min-height:36px;padding:0 ${SPACE[3]}px}
+.wl-alloc-line .wl-slider{flex:1;height:36px}
+.wl-alloc-compact .wl-alloc-eff{display:none}
+.wl-alloc-preview{font-size:${SIZE.caption}px;color:${c.accent.commandHi};padding:2px 0}
+.wl-allocate-l{display:none;margin-left:4px} /* the HUD button is icon-only until 1440: the nation block keeps its width */
+@media (min-width:1440px){.wl-allocate-l{display:inline}}
+@media (min-width:${BREAK.desktop}px){.wl-hud:has([data-allocate]) .wl-hud-row>.wl-pause-chip{flex-basis:220px}}
+@media (min-width:${BREAK.desktop}px){.wl-hud:has(.wl-alerts):has([data-allocate]) .wl-hud-figs{width:clamp(440px,35vw,820px)}} /* chips and ALLOCATE together: the wells give a little so the nation block keeps 120px at 1280 */
 @media (min-width:${BREAK.tablet}px){
   .wl-speed{order:0;flex:0 0 auto}
   .wl-speed button{flex:0 0 auto}
