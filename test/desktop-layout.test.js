@@ -10,6 +10,9 @@ import { PANES, FOLDED, TABS } from './util/harness.js';
 let browser;
 before(async () => { browser = await launch(); });
 after(async () => { await browser?.close(); });
+// Four CI runs died with "runner received a shutdown signal" right after the 1920-wide WebGL tests above, at the next context (three PRs,
+// one changelog-only; local max RSS 1.2 GB). Relaunching Chromium here releases the swiftshader memory those contexts held.
+const relaunch = async () => { await browser?.close(); browser = await launch(); };
 const go = async (page, t) => {
   await page.evaluate((t) => document.querySelector(`[data-tab=${t}]`).click(), FOLDED[t] || t); await settle(page, 250);
   if (FOLDED[t]) { await page.evaluate((t) => document.querySelector(`[data-seg=${t}]`).click(), t); await settle(page, 250); }
@@ -80,6 +83,7 @@ test('1440px: shortcuts switch verticals, change speed, step a month, and Escape
 });
 
 test('1440px: hovering a HUD figure opens its breakdown without a click; leaving closes it', async () => {
+  await relaunch();
   // default (WebGL) renderer like every other desktop test here: the SVG map under a hover popover is where three CI runners died
   // (runner shutdown after this suite's "shortcuts" test, on three different PRs, one changelog-only); the test is about the HUD, not the map.
   const { ctx, page } = await openGame(browser, { width: 1440, height: 900 });
@@ -164,6 +168,7 @@ test('1440px: Arsenal Procurement shows every platform in one table; Exports sho
 // four sub-tabs flow into columns. Every table column is reachable without sideways scrolling at 1440 and 1920.
 for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
   test(`${W}px: Forces Equipment is a type table beside a detail pane; select, sort, retire through confirm`, async () => {
+    if (W === 1280) await relaunch();
     const { ctx, page, errors } = await openGame(browser, { svg: true, width: W, height: H });
     try {
       await page.evaluate(() => { const h = window.__wl; h.field('f47', 2); h.forces({ crews: { land: 6, air: 0, sea: 6 } }); });
