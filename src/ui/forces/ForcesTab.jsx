@@ -81,6 +81,33 @@ function Quality({ fv, onJump }) {
   </>;
 }
 
+// #91: crew pipelines. Per branch: trained crews vs what the fleet needs, trainees in the pipeline, capacity, and a tooltip table of the three
+// limits on this month's starts (training funding, pipeline capacity, recruits), the binding one marked. Funding and capacity are the levers.
+const BIND = { funding: 'Training underfunded', pipeline: 'Pipeline capacity too small', manpower: 'Recruitable population exhausted' };
+const FUNDS = [0, 50, 75, 100, 125, 150];
+function pipesPanel(p, dispatch) {
+  const short = p.branches.filter((b) => b.short);
+  return <Panel id="pipelines" title="Crew pipelines" figure={short.length ? `${short.length} short` : 'crewed'} tone={short.length ? 'alert' : 'good'} data-crew-pipes>
+    <Row title="Crew training funding" sub={`$${Math.round(p.cost)}M/mo · below 100% the pipelines stop growing with the fleet`} value={`${p.fund}%`} tone={p.fund < 100 ? 'warn' : undefined} />
+    <div className="wl-verb-opts" role="group" aria-label="Crew training funding">{FUNDS.map((x) => <button key={x} type="button" aria-pressed={p.fund === x} data-crew-fund={x} onClick={() => dispatch({ type: 'setCrewFunding', payload: { pct: x } })}>{x}%</button>)}</div>
+    {p.branches.map((b) => {
+      const terms = [
+        { key: 'funding', label: `Training funding ${p.fund}%`, value: b.limits.funding, hot: b.binding === 'funding' },
+        { key: 'pipeline', label: `Pipeline capacity (${b.pipeMo} mo course)`, value: b.limits.pipeline, hot: b.binding === 'pipeline' },
+        { key: 'manpower', label: 'Recruits available to train', value: b.limits.manpower, hot: b.binding === 'manpower' },
+        { key: 'want', label: 'Wanted to reach the target', value: b.want },
+      ];
+      const why = <Why title={`${b.n} crew starts`} subtitle={b.binding ? `Binding: ${BIND[b.binding]}` : 'Nothing binding: starts meet the need'} table terms={terms} total={b.starts} totalLabel="Starts this month" fmt={(x) => `${hc(x)}/mo`}
+        note={b.binding === 'funding' ? 'Raise crew training funding to 100% or more.' : b.binding === 'pipeline' ? `Trainees take ${b.pipeMo} months. Expand the pipeline to train more at once.` : b.binding === 'manpower' ? 'Raise pay or lower unemployment pressure to recruit more (Manpower).' : `Funded pipelines grow with the fleet by up to ${Math.round(p.rules.grow * 100)}% a month.`}
+        className="wl-wy" data-crew-why={b.id}>{pc(b.fill)}</Why>;
+      return <Row key={b.id} data-crew-branch={b.id} title={`${b.n}: ${hc(b.trained)} trained / ${hc(b.need)} needed`} sub={`${hc(b.training)} in training · capacity ${hc(b.cap)}/mo${b.binding ? ` · ${BIND[b.binding]}` : ''}`}
+        value={why} tone={b.short ? 'alert' : 'good'}
+        trailing={<button type="button" className="wl-btn wl-btn-sm" disabled={!!b.expandWhy} title={b.expandWhy || `+${Math.round(p.rules.expand * 100)}% capacity`} data-expand-pipe={b.id} onClick={() => dispatch({ type: 'expandPipeline', payload: { branch: b.id } })}>Expand ${hc(b.expandCost)}M</button>}>
+        <Bar pct={b.fill * 100} tone={b.short ? 'alert' : 'good'} /></Row>;
+    })}
+    <div className="wl-note">Crews come from recruits, funded training and school capacity. Buying platforms grows the matching pipeline while training is funded.</div>
+  </Panel>;
+}
 function Training({ fv, v, ask, dispatch }) {
   const fl = fleetView(v);
   const setLevel = (i) => {
@@ -110,12 +137,12 @@ function Training({ fv, v, ask, dispatch }) {
       })}
       <div className="wl-note">Crews are people: pilots per airframe, crew per hull, maintainers per platform. Platforms beyond the crews sit unready.</div>
     </Panel>}
-    <Panel id="pipelines" title="Crew pipelines" figure={`${fv.pipe.length} training`}>
+    {fv.pipes ? pipesPanel(fv.pipes, dispatch) : <Panel id="pipelines" title="Crew pipelines" figure={`${fv.pipe.length} training`}>
       {fv.branches.map((b) => {
         const mine = fv.pipe.filter((p) => p.b === b.id).map((p) => p.mo).sort((x, y) => x - y);
         return <Row key={b.id} title={`${b.n} crews`} sub={mine.length ? `${mine.length} in training, next in ${mine[0]}mo (${R.pipeMo[b.id]}mo pipeline)` : `${R.pipeMo[b.id]}mo pipeline, none in training`} value={`${b.crews} / ${b.need}`} tone={b.gap > 0 ? 'alert' : 'good'} />;
       })}
-    </Panel>
+    </Panel>}
   </>;
 }
 
@@ -136,7 +163,7 @@ function Equipment({ fv, v, ask, dispatch, toast }) {
   const crewsPanel = (
     <Panel id="crews" title="Crews vs airframes and hulls" figure={fv.branches.some((b) => b.gap > 0) ? 'gap' : 'covered'} tone={fv.branches.some((b) => b.gap > 0) ? 'alert' : 'good'} data-forces-crews>
       {fv.branches.map((b) => (
-        <Row key={b.id} title={b.n} sub={`${b.crews} crews / ${b.need} needed · ${b.deployed} stationed${b.pipe ? ` · ${b.pipe} training` : ''}`} value={b.gap > 0 ? `gap ${b.gap}` : 'covered'} tone={b.gap > 0 ? 'alert' : 'good'}>
+        <Row key={b.id} title={b.n} sub={`${b.crews} crews / ${b.need} needed · ${b.deployed} stationed${b.pipe ? ` · ${hc(b.pipe)} in training` : ''}`} value={b.gap > 0 ? `gap ${b.gap}` : 'covered'} tone={b.gap > 0 ? 'alert' : 'good'}>
           <Bar pct={b.need ? (b.crews / b.need) * 100 : 100} tone={b.gap > 0 ? 'alert' : 'good'} />
         </Row>))}
       <div className="wl-note">A unit without free crews cannot be stationed. Raise training or pay to close a gap.</div>

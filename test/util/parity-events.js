@@ -42,6 +42,8 @@ const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activ
 // FIX 4 (active effects): a renewable build sets one permanent inflation damper per kind (id `ren_<kind>`, `permanent: true`) instead of
 // pushing a fresh 999-month row per build. The two verb cases build one renewable (parity-clicks step 4), so their pinned hashes are
 // re-baselined citing FIX 4; the three play cases never build one and are untouched (guarded by test/effects.test.js).
+// #91 (crews scale with funding): trained crews are headcounts fed by funded pipelines and a 'Crew pipeline' ledger line runs from month 1,
+// so all five pinned cases are re-baselined citing #91 (guarded by test/crews.test.js).
 const NEW_KEYS = ['arsenal', 'minerals', 'forces', 'bases'];
 const dropNew = (s) => { if (!NEW_KEYS.some((k) => s.includes(`"${k}"`))) return s; const o = JSON.parse(s); for (const k of NEW_KEYS) delete o[k]; return JSON.stringify(o); };
 const strip = (s) => { const o = JSON.parse(dropNew(s)); delete o.evState; return JSON.stringify(o); };

@@ -6,6 +6,8 @@
 // F7 (#55, spec Part 9) adds the tangible order of battle: active and reserve become headcounts (base: the 2024 strength they are
 // measured against), nid, q0 (quality at the start), crewShare {branch: share of active that crews its fleet}, depot (throughput %),
 // fleet {line: {n, mc, mx, blk, mod, loss, lost, at:{region:n}}} over src/data/orbat.js, fielded {unit: count already in the fleet}.
+// #91: with a fleet, crews {land,air,sea} are trained crew headcounts, pipe [{b,mo,n}] cohorts of n trainees, cap {branch: heads/mo of
+// pipeline throughput}, crewFund (0..150 %), crewWhy {branch: {starts, want, limits:{funding,pipeline,manpower}, binding}} from the month.
 import { FORCE_RULES as R, FLEET_RULES as FL, TRAINING, SOF_UNITS, BRANCHES, BRANCH_IDS, crewOf } from '../data/forces.js';
 import { SOF_RULES, OP_NAMES, sofOrbat, sofUnit, unitCap, freeSubs, freeOps, sofOps, sofFree, pickUnit, subsN } from '../data/sof.js';
 import { INTEL_OPS } from '../data/intel.js';
@@ -16,6 +18,7 @@ import { forceQuality, forceMult, tier1Power, qualityF, manPts, lineW, typeQ, qu
 
 const cl = (v, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
 const per = (b) => Object.fromEntries(BRANCH_IDS.map((k) => [k, b(k)]));
+const CP = FL.crewPipe;
 export function newForces(nid, stats) {
   const s = R.start;
   const f = { nid, active: s.active, reserve: s.reserve, retention: s.retention, recruits: 0, attrition: 0, quality: forceQuality(stats),
@@ -29,14 +32,24 @@ function withFleet(f, nid, fielded, ns) {
   const m = MANPOWER[nid]; if (!m || f.base) return f;
   const ls = ORBAT[nid] || [];
   const need = per((b) => ls.filter((l) => l.b === b && !l.reserve).reduce((a, l) => a + crewHeads(l), 0));
-  return { ...f, nid, base: { active: m.active, reserve: m.reserve, labor: recruitLabor(ns || {}), stab: stabProp(ns || {}) }, active: m.active * f.active / R.start.active, reserve: m.reserve * f.reserve / R.start.reserve,
+  const f1 = { ...f, nid, base: { active: m.active, reserve: m.reserve, labor: recruitLabor(ns || {}), stab: stabProp(ns || {}) }, active: m.active * f.active / R.start.active, reserve: m.reserve * f.reserve / R.start.reserve,
     q0: f.quality, depot: 100, crewShare: per((b) => need[b] / m.active * (1 + FL.crewSlack)), prop: Math.min(1, propensity0(m)),
     fleet: Object.fromEntries(ls.map((l) => [l.id, newLine(l, nid)])), fielded: { ...fielded } };
+  return withPipes(f1);
+}
+// #91: trained crews as headcounts at the 2024 share of active, the pipelines full at their steady state (pipeMo cohorts of one month's
+// replacement each), and capacity capX over replacement. Forces from before #91 (crew sets) convert here once.
+export const turnover0 = (nid) => { const m = MANPOWER[nid]; return m ? m.accessions / m.active / 12 : 0; };
+function withPipes(f) {
+  if (!f.fleet || f.cap) return f;
+  const r = turnover0(f.nid); const need = fleetFill(f).need; const crews = per((b) => crewTarget(need[b], b));
+  const pipe = BRANCH_IDS.flatMap((b) => crews[b] * r > 0 ? Array.from({ length: R.pipeMo[b] }, (_, i) => ({ b, mo: i + 1, n: crews[b] * r })) : []);
+  return { ...f, crews, pipe, cap: per((b) => crews[b] * r * CP.capX), crewFund: f.crewFund ?? 100, crewWhy: {} };
 }
 // F8: every named SOF unit at its 2024 operator strength. A pre-F8 force (abstract t1/t2 counts) converts to the 2024 units.
 export const newSof = (nid) => ({ units: Object.fromEntries(sofOrbat(nid).map((u) => [u.id, { ops: u.ops, out: [] }])), pipes: [] });
 const withSof = (f, nid) => (f.sof?.units ? f : { ...f, nid: f.nid ?? nid, sof: newSof(f.nid ?? nid) });
-const F = (g) => { const f0 = g.forces || newForces(g.country?.id, g.stats); const f = g.country ? withSof(f0, g.country.id) : f0; return f.base || !g.country ? f : withFleet(f, g.country.id, ownedOf(g), g.stats); };
+const F = (g) => { const f0 = g.forces || newForces(g.country?.id, g.stats); const f = g.country ? withSof(f0, g.country.id) : f0; return withPipes(f.base || !g.country ? f : withFleet(f, g.country.id, ownedOf(g), g.stats)); };
 export const crewPool = (f, b) => manPts(f).active * R.crewPer[b];
 
 // Units owned (domestic + imported + programs) and deployed, as crew sets needed per branch.
@@ -51,23 +64,36 @@ const crewSum = (units) => { const by = per(() => 0); for (const [k, n] of Objec
 const deployedUnits = (g) => { const o = {}; for (const dep of Object.values(g.forceDeployments || {})) for (const [k, n] of Object.entries(dep || {})) o[k] = (o[k] || 0) + (n || 0); return o; };
 
 // Per branch: crew sets needed by owned units, held by deployed units, trained, in the pipeline; gap = owned need not covered.
+// #91: with a fleet, crew sets follow the headcount fill (trained heads / heads the fleet needs): a fully crewed branch can station
+// every owned unit plus its spares; a branch at 70% fill, 70% of them.
 export function crewStatus(g) {
   const f = F(g); const need = crewSum(ownedOf(g)); const dep = crewSum(deployedUnits(g));
+  if (f.cap) { const fill = fillNow(g, f); return per((b) => { const crews = Math.floor((need[b] + R.spare[b]) * fill[b] + 1e-9); return { need: need[b], deployed: dep[b], crews, free: crews - dep[b], pool: Math.floor(f.crews[b] || 0), pipe: Math.round(pipeOf(f, b)), gap: Math.max(0, need[b] - crews) }; }); }
   return per((b) => { const crews = Math.floor(f.crews?.[b] || 0); return { need: need[b], deployed: dep[b], crews, free: crews - dep[b], pool: Math.floor(crewPool(f, b)), pipe: (f.pipe || []).filter((p) => p.b === b).length, gap: Math.max(0, need[b] - crews) }; });
 }
+// Fill per branch counting units bought but not yet landed in the fleet (they land on the next month): the gate sees a purchase at once.
+function fillNow(g, f) {
+  const { need } = fleetFill(f); const owned = ownedOf(g); const extra = per(() => 0);
+  for (const [u, n] of Object.entries(owned)) { const d = (n || 0) - (f.fielded?.[u] || 0); const l = d > 0 && UNIT_PLATFORMS[u] ? buyLine(f.nid, u) : null; if (l && !l.reserve) extra[l.b] += crewHeads(l, d * UNIT_PLATFORMS[u].per); }
+  return per((b) => (need[b] + extra[b] > 0 ? Math.min(1, (f.crews[b] || 0) / (need[b] + extra[b])) : 1));
+}
+const pipeOf = (f, b) => (f.pipe || []).filter((p) => p.b === b).reduce((a, p) => a + (p.n ?? 1), 0);
 // Crew gate for stationing one unit: null when crews are free, else the reason (shown, never silent).
 export function crewBlock(g, pid) {
   const c = crewOf(pid); if (!c.n) return null;
   const st = crewStatus(g)[c.b];
   if (st.free >= c.n) return null;
   const nm = (PLATFORMS[pid] || BLACK_PROGRAMS[pid])?.n || pid;
-  return `${nm} has no trained crews — ${c.b} crews ${Math.max(0, st.free)}/${c.n} free (${st.pipe} in training)`;
+  return `${nm} has no trained crews — ${c.b} crews ${Math.max(0, st.free)}/${c.n} free (${st.pipe.toLocaleString('en-US')} in training)`;
 }
 
 export const sofPay = (f) => sofOps(f, 1) * SOF_RULES.pay.t1 + sofOps(f, 2) * SOF_RULES.pay.t2;
 export const payrollOf = (f) => { if (!f) return 0; const p = manPts(f); return p.active * R.payroll.active + p.reserve * R.payroll.reserve + sofPay(f); };
 const classCost = (p) => p.n * (p.t === 1 ? SOF_RULES.costPer.t1 : SOF_RULES.costPer.t2);
 export const trainingCost = (f) => TRAINING[f.train].cost + (f.sof.pipes || []).reduce((a, p) => a + classCost(p), 0);
+// #91: the crew pipelines' running cost and effective funding (zero while the training budget is Unfunded).
+export const crewFundF = (f) => (TRAINING[f.train].crews > 0 ? Math.max(0, Math.min(CP.fundMax, f.crewFund ?? 100)) / 100 : 0);
+export const pipeCost = (f) => (f.cap ? BRANCH_IDS.reduce((a, b) => a + (f.cap[b] || 0) * CP.perHead[b], 0) * crewFundF(f) : 0);
 // Retention target as signed terms (the UI's why-breakdown); the target is their sum, clamped. Same operations in the same order as before.
 export const retentionTerms = (pay, ns) => [
   { key: 'base', label: 'Baseline', value: 40 },
@@ -103,7 +129,15 @@ export function stepForces(g, S, fx, cash, ns) {
     return cl(r < t ? Math.min(t, r + R.riseMo + (ex.has(b) ? R.exercise.rise : 0)) : Math.max(t, r - R.decayMo));
   });
   cash('Training', -trainingCost(f0));
-  // Crews: attrition with retention, pipeline completions, new starts toward owned need + spares, capped by the trained pool.
+  if (f0.cap) {
+    const pc = pipeCost(f0); if (pc) cash('Crew pipeline', -Math.round(pc));
+    const sof = stepSof(f0, quality, fx);
+    // Procurement lands in the fleet first, so this month's starts already train for this month's deliveries.
+    const f1 = stepFleet(g, { ...f0, active, reserve, retention, recruits, attrition, quality, readiness, sof, ...(mp.prop != null ? { prop: mp.prop } : {}) }, fx, cash);
+    setF(g, S, { ...f1, ...stepCrews({ ...f1, active: f0.active }, active, recruits, attrition) });
+    return;
+  }
+  // Crews (pre-F7 index forces): attrition with retention, pipeline completions, new starts toward owned need + spares, capped by the trained pool.
   const crews = per((b) => (f0.crews[b] || 0) * (1 - (1 - retention / 100) * R.crewAttrition));
   const pipe = [];
   for (const p of f0.pipe) { if (p.mo > 1) pipe.push({ ...p, mo: p.mo - 1 }); else crews[p.b] += 1; }
@@ -117,6 +151,43 @@ export function stepForces(g, S, fx, cash, ns) {
   const f1 = { ...f0, active, reserve, retention, recruits, attrition, quality, readiness, crews, pipe, sof, ...(mp.prop != null ? { prop: mp.prop } : {}) };
   setF(g, S, f0.fleet ? stepFleet(g, f1, fx, cash) : f1);
 }
+// #91: one month of the crew pipelines. Returns {crews, pipe, cap, crewWhy}. Deterministic in state alone.
+// Graduations first, then turnover at the active force's rate, then starts = min(want, funding, capacity, recruits), split across branches
+// by want when recruits bind; then capacity grows toward the target while funded. Trained + training never exceed active strength.
+export const crewTarget = (need, b) => (need > 0 ? need + Math.max(FL.crewSlack * need, CP.spare[b]) : 0);
+export function crewWant(f, b, need, r) { const T = crewTarget(need[b], b); return { T, want: Math.max(0, T * (1 + r * R.pipeMo[b]) - (f.crews[b] || 0) - pipeOf(f, b)) }; }
+function stepCrews(f0, active, recruits, attrition) {
+  const r = f0.active > 0 ? attrition / f0.active : 0; const need = fleetFill(f0).need; const fund = crewFundF(f0);
+  const crews = { ...f0.crews }; const pipe = [];
+  for (const p of f0.pipe) { if (p.mo > 1) pipe.push({ ...p, mo: p.mo - 1 }); else crews[p.b] = (crews[p.b] || 0) + p.n; }
+  for (const b of BRANCH_IDS) crews[b] = Math.max(0, crews[b] * (1 - r));
+  const mid = { ...f0, crews, pipe };
+  const wants = per((b) => crewWant(mid, b, need, r)); const totWant = BRANCH_IDS.reduce((a, b) => a + wants[b].want, 0);
+  const avail = Math.max(0, recruits) * CP.intake;
+  const cap = { ...f0.cap }; const crewWhy = {};
+  for (const b of BRANCH_IDS) {
+    const { T, want } = wants[b];
+    const limits = { funding: (f0.cap[b] || 0) * fund, pipeline: (f0.cap[b] || 0) * Math.max(1, fund), manpower: totWant > 0 ? avail * want / totWant : avail };
+    const starts = Math.max(0, Math.min(want, limits.funding, limits.pipeline, limits.manpower));
+    const lim = Math.min(limits.funding, limits.pipeline, limits.manpower);
+    // The binding constraint: the smallest limit when it cut the starts; with nothing cutting them, a branch still short is waiting on
+    // trainees already in its pipeline (pipeline: capacity was too small to have trained them ahead of the deliveries).
+    const binding = want > lim + 1e-6 ? (limits.manpower <= Math.min(limits.funding, limits.pipeline) ? 'manpower' : limits.pipeline <= limits.funding ? 'pipeline' : 'funding')
+      : (crews[b] || 0) < need[b] - 1e-6 ? 'pipeline' : null;
+    if (starts > 1e-9) pipe.push({ b, mo: R.pipeMo[b], n: starts });
+    crewWhy[b] = { starts, want, target: T, limits, binding };
+    // Capacity follows the target while training is funded: one month's replacement x capX plus clearing what is still wanted over one pipeline.
+    const desired = T * r * CP.capX + Math.max(0, want - starts) / R.pipeMo[b];
+    const c0 = cap[b] || 0;
+    if (fund >= 1 - 1e-9 && desired > c0) cap[b] = Math.min(desired, c0 * (1 + CP.grow) + 1);
+    else if (desired * 1.5 < c0) cap[b] = Math.max(desired * 1.5, c0 * (1 - CP.shrink));
+  }
+  // Trained and training are serving members: they never exceed active strength.
+  const held = BRANCH_IDS.reduce((a, b) => a + crews[b], 0) + pipe.reduce((a, p) => a + p.n, 0);
+  if (held > active && held > 0) { const k = active / held; for (const b of BRANCH_IDS) crews[b] *= k; for (const p of pipe) p.n *= k; }
+  return { crews, pipe: pipe.filter((p) => p.n > 1e-9), cap, crewWhy };
+}
+
 // ── F8 SOF month: turnover, the standing pipeline, surge classes graduating, committed sub-units counting down to rotation.
 // Turnover takes turnYr a year; the standing pipeline replaces it at the 2024 rate x quality (capped at 1) and closes refill of any gap
 // below the 2024 strength a month, never above it. Tier 1 replacements come t2Share from Tier 2. Surge classes can lift a unit to its cap.
@@ -332,7 +403,28 @@ function retire(g, S, fx, { line, n }) {
   setF(g, S, f1);
   fx.toast(`📦 Retired ${k} ${l.n} — ${s.n - k} left, saves $${Math.round(before - maintCost(f1))}M/mo maintenance`);
 }
+// #91 verbs: crew pipeline funding (0..150 %) and buying pipeline capacity for one branch (expand x cap at once).
+function setCrewFunding(g, S, fx, { pct: p }) {
+  const f = F(g); if (!f.cap || !Number.isFinite(+p)) return;
+  const v = Math.max(0, Math.min(CP.fundMax, Math.round(+p))); const f1 = { ...f, crewFund: v }; setF(g, S, f1);
+  fx.toast(`🎓 Crew training funding ${v}% — $${Math.round(pipeCost(f1))}M/mo${v < 100 ? ', pipelines stop growing with the fleet' : ''}`);
+}
+export const expandCost = (f, b) => Math.round((f.cap?.[b] || 0) * CP.expand * CP.perHead[b] * CP.expandMo);
+export function expandBlock(g, f, b) {
+  if (!f.cap || !BRANCH_IDS.includes(b)) return 'No crew pipeline';
+  if ((g.stats?.treasury || 0) < expandCost(f, b)) return `Need $${expandCost(f, b)}M`;
+  return null;
+}
+function expandPipeline(g, S, fx, { branch: b }) {
+  const f = F(g); const why = expandBlock(g, f, b); if (why) { fx.toast(`⚠ ${why}`); return; }
+  const cost = expandCost(f, b); const cap = { ...f.cap, [b]: f.cap[b] * (1 + CP.expand) };
+  S.setStats((p) => ({ ...p, treasury: p.treasury - cost }));
+  setF(g, S, { ...f, cap });
+  fx.toast(`🏫 ${b[0].toUpperCase() + b.slice(1)} crew pipeline +${Math.round(CP.expand * 100)}%: ${Math.round(cap[b]).toLocaleString('en-US')} trainees/mo for $${cost}M`);
+}
 export const FORCE_VERBS = {
+  setCrewFunding: (g, S, fx, p) => setCrewFunding(g, S, fx, p || {}),
+  expandPipeline: (g, S, fx, p) => expandPipeline(g, S, fx, p || {}),
   setMaintenance: (g, S, fx, p) => setMaintenance(g, S, fx, p || {}),
   setDepot: (g, S, fx, p) => setDepot(g, S, fx, p || {}),
   modernize: (g, S, fx, p) => modernize(g, S, fx, p || {}),
@@ -356,7 +448,19 @@ export function forceView(g) {
   return { ...f, idx: manPts(f), pay, retTarget: retentionTarget(pay, s), qTarget: forceQuality(s), qMult: qualityF(f.quality), drivers, levels: TRAINING, branches,
     retTerms: retentionTerms(pay, s), labor: recruitLabor(s), payroll: payrollOf(f) * pay / 100, training: trainingCost(f), units: SOF_UNITS[g.country?.id] || {}, tier1: tier1Power(f),
     selectionMo: selectionMo(f.quality), sofRules: SOF_RULES, sofUnits: sofView(g, f), sofFree: { t1: sofFree(f, 1), t2: sofFree(f, 2) }, sofOps: { t1: sofOps(f, 1), t2: sofOps(f, 2) },
-    sofPay: sofPay(f) * pay / 100, classWhy: { t1: classBlock(g, 1), t2: classBlock(g, 2) }, classUnit: { t1: classUnit(f, 1)?.id, t2: classUnit(f, 2)?.id }, plan: tier1Plan(g) };
+    sofPay: sofPay(f) * pay / 100, classWhy: { t1: classBlock(g, 1), t2: classBlock(g, 2) }, classUnit: { t1: classUnit(f, 1)?.id, t2: classUnit(f, 2)?.id }, plan: tier1Plan(g), pipes: pipesView(g, f) };
+}
+// #91: the crew pipelines per branch as the Training screen reads them: trained vs needed, in training, capacity, funding, and which of
+// funding, pipeline capacity and manpower bound last month's starts (crewWhy; before the first month, this month's projection).
+function pipesView(g, f) {
+  if (!f.cap) return null;
+  const { fill, need } = fleetFill(f); const fund = crewFundF(f); const r = turnover0(f.nid);
+  const branches = BRANCH_IDS.map((b) => {
+    const w = f.crewWhy?.[b] || (() => { const x = crewWant(f, b, need, r); const avail = (f.recruits || MANPOWER[f.nid]?.accessions / 12 || 0) * CP.intake; return { ...x, target: x.T, starts: Math.min(x.want, f.cap[b] * fund), limits: { funding: f.cap[b] * fund, pipeline: f.cap[b] * Math.max(1, fund), manpower: avail }, binding: null }; })();
+    return { id: b, n: BRANCHES.find(([k]) => k === b)[1], trained: f.crews[b] || 0, need: need[b], target: w.target, fill: fill[b], training: pipeOf(f, b), cap: f.cap[b], pipeMo: R.pipeMo[b],
+      starts: w.starts, want: w.want, limits: w.limits, binding: w.binding, short: fill[b] < 1 - 1e-9, expandCost: expandCost(f, b), expandWhy: expandBlock(g, f, b), cost: (f.cap[b] || 0) * CP.perHead[b] * fund };
+  });
+  return { branches, fund: f.crewFund ?? 100, fundF: fund, cost: pipeCost(f), rules: CP };
 }
 
 // ── F7 views. Capability per theater = platforms present x MC x crews x quality x block x basing.
@@ -378,7 +482,7 @@ export function fleetView(g) {
       crewRatio: c.sets, crewSize: c.heads, maintainers: c.mx, heads: crewHeads(l, s.n), quality: typeQ(f.quality, l), cost: s.n * lineW(l) * FL.om * s.mx / 100,
       modCost: modCostOf(l, s), modWhy: modBlock(g, f, l.id), buys: l.buys || [], status_source: l.status_source };
   });
-  const branches = BRANCHES.map(([b, n]) => ({ id: b, n, fill: fill[b], need: need[b], pool: (f.active || 0) * (f.crewShare?.[b] || 0), equip: equipF(f, b),
+  const branches = BRANCHES.map(([b, n]) => ({ id: b, n, fill: fill[b], need: need[b], pool: f.cap ? f.crews[b] || 0 : (f.active || 0) * (f.crewShare?.[b] || 0), equip: equipF(f, b),
     count: lines.filter((x) => x.b === b).reduce((a, x) => a + x.count, 0), ready: lines.filter((x) => x.b === b).reduce((a, x) => a + x.ready, 0) }));
   return { lines, branches, depot: f.depot ?? 100, maintenance: maintCost(f), depotCost: depotCost(f), modMo: modMonths(f), rules: FL,
     manpower: m && { active: f.active, reserve: f.reserve, base: f.base, cap: manpowerCap(f.nid), prop: propensityOf(m, s0, pay, f.base), prop0: propensity0(m),

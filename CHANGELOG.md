@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.92.0 (2026-10-22) — #91: Crews scale with funding
+- Rule change (spec Parts 7, 9). Found: crew fill was `active x crewShare` frozen at the 2024 need x 1.1, so any fleet growth past +10% went crewless whatever the budget; the E8 deploy gate trained 1-3 crew sets a branch a month.
+- Trained crews are now headcounts per branch fed by pipelines (6/12/15-month courses). Monthly starts = min(want, capacity x crew funding, capacity, 80% of recruits). Target = need + max(10%, one squadron or frigate company) trained ahead.
+- Funded pipelines (crew funding >= 100%) grow up to 15% a month toward what the fleet needs; below 100% they stop growing. New verbs `setCrewFunding` (0..150%) and `expandPipeline` (+50% capacity for 12 months of its running cost). New ledger line `Crew pipeline` (US ~$35M/mo at 100%); zero while Training is Unfunded.
+- Deploy gate follows the headcount fill (units bought this month count at once). Forces > Training: Crew pipelines panel per branch with a tooltip table of the three limits (funding, pipeline capacity, recruits) and the binding one named.
+- Invariants: trained + training <= active; capacity finite >= 0; cohorts > 0; crew funding within 0..150.
+- Tests: `crews.test.js` +8 (US 60 wings + carriers + SSNs over 15 years, Norway and China: no shortage; 50% cut: US short at month 31, binding funding; zero recruits: short within 18 months, binding manpower; capacity surge 20 vs 17 months with expansion; ledger; view; jsdom tooltip). `forces`, `fleet`, `actions` tests updated for headcount crews. Parity: all five pinned cases re-baselined citing #91 (firstDivergence unchanged).
+
 ## Unreleased — FIX 3: Operations list
 - Engine fix (rule-visible, no design ruling touched). A standing program's monthly relaunch carried no id and no odds, so it resolved as `rng() < NaN`: never a success, never discovered, and the row rendered `(undefined || 0)` = 0% success / 0% exposure. Relaunches are stamped like hand launches (`id`, `successRate`, `discoverRate`, `type`) through the one `opOddsTerms` implementation; an unstamped op from an old save resolves on today's odds (`opOdds`, shared by the resolver and the UI). Parity: the pinned event-system hashes for the two verb cases (seed 10, 11, which toggle a standing program) are re-baselined citing this fix; the three play cases are untouched.
 - Invariant: every intel op carries an id, a known op, a target, integer months and finite odds in [0,1].

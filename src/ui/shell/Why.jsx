@@ -11,10 +11,11 @@ const fmtNum = (v) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}B` : Math.
 // Hover opens only on a device whose primary pointer hovers (desktop); touch and emulated phones keep tap-to-toggle.
 const finePointer = () => typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(hover:hover) and (pointer:fine)').matches;
 
-export function Why({ title, subtitle, terms = [], total, totalLabel = 'Net', fmt = fmtNum, mult = false, note, children, className = 'wl-fig', ...rest }) {
-  const rows = terms.filter((t) => mult ? t.value !== 1 : t.value !== 0).sort((a, b) => Math.abs(mult ? Math.log(b.value) : b.value) - Math.abs(mult ? Math.log(a.value) : a.value));
+// table=true keeps the terms in the given order, zero rows included, unsigned (a constraint table: every limit shows, the binding one marked).
+export function Why({ title, subtitle, terms = [], total, totalLabel = 'Net', fmt = fmtNum, mult = false, table = false, note, children, className = 'wl-fig', ...rest }) {
+  const rows = table ? terms : terms.filter((t) => mult ? t.value !== 1 : t.value !== 0).sort((a, b) => Math.abs(mult ? Math.log(b.value) : b.value) - Math.abs(mult ? Math.log(a.value) : a.value));
   const sign = (v) => (mult ? (v > 1 ? COLOR.accent.good : v < 1 ? COLOR.accent.alert : COLOR.text.muted) : v > 0 ? COLOR.accent.good : v < 0 ? COLOR.accent.alert : COLOR.text.muted);
-  const show = (v) => (mult ? `×${v.toFixed(2)}` : `${v > 0 ? '+' : v < 0 ? '−' : ''}${fmt(Math.abs(v))}`);
+  const show = (v) => (table ? fmt(v) : mult ? `×${v.toFixed(2)}` : `${v > 0 ? '+' : v < 0 ? '−' : ''}${fmt(Math.abs(v))}`);
   // Desktop: a mouse hover opens the breakdown (and keeps it open while the pointer is on it); touch and click toggle as before.
   const [open, setOpen] = useState(false); const hovered = useRef(false); const timer = useRef(0);
   const hover = (on) => (e) => { if (e.pointerType !== 'mouse' || !finePointer()) return; clearTimeout(timer.current); timer.current = setTimeout(() => { hovered.current = on; setOpen(on); }, on ? 150 : 200); };
@@ -28,9 +29,9 @@ export function Why({ title, subtitle, terms = [], total, totalLabel = 'Net', fm
           <table className="wl-why-tbl" data-tooltip-table={title}>
             <tbody>
               {rows.length === 0 && <tr className="wl-why-row"><td colSpan={2} style={{ color: COLOR.text.dim }}>No contributing terms this month</td></tr>}
-              {rows.map((t, i) => <tr key={t.key || i} className="wl-why-row" data-term={t.key || t.label}><td>{t.label}</td><td className="wl-num" style={{ color: sign(t.value) }}>{show(t.value)}</td></tr>)}
+              {rows.map((t, i) => <tr key={t.key || i} className="wl-why-row" data-term={t.key || t.label}><td>{t.label}</td><td className="wl-num" style={{ color: table ? (t.hot ? COLOR.accent.alert : COLOR.text.muted) : sign(t.value) }}>{show(t.value)}</td></tr>)}
             </tbody>
-            {total != null && <tfoot><tr className="wl-why-total" data-total><td>{totalLabel}</td><td className="wl-num" style={{ color: sign(total) }}>{mult ? `×${total.toFixed(2)}` : show(total)}</td></tr></tfoot>}
+            {total != null && <tfoot><tr className="wl-why-total" data-total><td>{totalLabel}</td><td className="wl-num" style={{ color: table ? COLOR.text.primary : sign(total) }}>{mult ? `×${total.toFixed(2)}` : show(total)}</td></tr></tfoot>}
           </table>
           {note && <div className="wl-why-note">{note}</div>}
           <Popover.Arrow className="wl-why-arrow" width={12} height={6} />

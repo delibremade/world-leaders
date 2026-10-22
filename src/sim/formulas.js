@@ -120,7 +120,8 @@ export const fleetLines=(f)=>(ORBAT[f?.nid]||[]).filter((l)=>f.fleet?.[l.id]);
 export function fleetFill(f){
   const need=Object.fromEntries(BRANCH_IDS.map((b)=>[b,0]));
   for(const l of fleetLines(f))if(!l.reserve)need[l.b]+=crewHeads(l,f.fleet[l.id].n);
-  const fill=Object.fromEntries(BRANCH_IDS.map((b)=>[b,need[b]>0?Math.min(1,(f.active||0)*(f.crewShare?.[b]||0)/need[b]):1]));
+  // #91: forces with crew pipelines (f.cap) read trained crew heads; older forces the fixed share of active strength.
+  const fill=Object.fromEntries(BRANCH_IDS.map((b)=>[b,need[b]>0?Math.min(1,(f.cap?(f.crews?.[b]||0):(f.active||0)*(f.crewShare?.[b]||0))/need[b]):1]));
   fill.reserve=f.base?.reserve?Math.min(1,(f.reserve||0)/f.base.reserve):1;
   return {fill,need};
 }
