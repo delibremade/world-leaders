@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.93.0 (2026-10-22) — #93: Modernize and retire as real gameplay
+- Rule change (spec Part 9). Every fleet type carries an age and service life (US lines sourced in `FLEET_AGES`; others by class and generation). The age curve, relative to 2024, lowers the MC target and raises maintenance past half of service life, steeply past its end.
+- Example: an untouched F-22 fleet over 15 years goes from MC target 40% to 29%, and costs x1.54 per airframe.
+- Modernize: $8M per F-35-equivalent airframe (F-22: $1,464M), 15% of the fleet in depot for 24 months. Then block +1, +8% capability, +4% MC ceiling, +10 years service life. Twelve years on, the F-22 sits at MC target 39% vs 33% and ready capability 86.8 vs 68.0.
+- Retire: the oldest go first; maintenance falls from next month. Crews convert to the successor in 4/6/3 months (air/sea/land) vs 12/15/6 ab initio. 30% of the type's mineral inputs go to the stockpile, plus 18 months of its maintenance as a parts credit for the rest of the type.
+- F-22 to F-47: retiring 183 F-22 frees $4.2M/mo (sustainment x2.3 per airframe) and converts 2,425 crews to F-47 in 4 months. It also yields 9.2 rare earth, 4.6 gallium and 11.4 titanium units, one F-47 tranche's worth of all but tungsten.
+- Equipment screen: age and service life row with an age-curve tooltip table; the retire confirm (detail and command card) prices crews, successor, salvage and parts from the engine's `retirePlan`.
+- Invariants: line age/life/parts finite and bounded; crew conversions name a fleet line, integer months, crews > 0.
+- Tests: `fleet-age.test.js` +8 (one per effect with numbers, 240-month x 8-nation fuzz, jsdom). Parity: all five pinned cases re-baselined citing #93 (firstDivergence unchanged).
+
 ## Unreleased — FIX 3: Operations list
 - Engine fix (rule-visible, no design ruling touched). A standing program's monthly relaunch carried no id and no odds, so it resolved as `rng() < NaN`: never a success, never discovered, and the row rendered `(undefined || 0)` = 0% success / 0% exposure. Relaunches are stamped like hand launches (`id`, `successRate`, `discoverRate`, `type`) through the one `opOddsTerms` implementation; an unstamped op from an old save resolves on today's odds (`opOdds`, shared by the resolver and the UI). Parity: the pinned event-system hashes for the two verb cases (seed 10, 11, which toggle a standing program) are re-baselined citing this fix; the three play cases are untouched.
 - Invariant: every intel op carries an id, a known op, a target, integer months and finite odds in [0,1].
