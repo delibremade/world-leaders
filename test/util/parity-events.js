@@ -39,6 +39,9 @@ const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activ
 // FIX 3 (operations list): a standing program's relaunch is stamped with an id and odds (it carried neither, resolved as rng() < NaN and never
 // succeeded). The two verb cases toggle a standing program (parity-clicks step 7), so their pinned hashes are re-baselined citing FIX 3; the
 // three play cases never relaunch an op and are untouched (guarded by test/intel-ops.test.js).
+// FIX 4 (active effects): a renewable build sets one permanent inflation damper per kind (id `ren_<kind>`, `permanent: true`) instead of
+// pushing a fresh 999-month row per build. The two verb cases build one renewable (parity-clicks step 4), so their pinned hashes are
+// re-baselined citing FIX 4; the three play cases never build one and are untouched (guarded by test/effects.test.js).
 const NEW_KEYS = ['arsenal', 'minerals', 'forces', 'bases'];
 const dropNew = (s) => { if (!NEW_KEYS.some((k) => s.includes(`"${k}"`))) return s; const o = JSON.parse(s); for (const k of NEW_KEYS) delete o[k]; return JSON.stringify(o); };
 const strip = (s) => { const o = JSON.parse(dropNew(s)); delete o.evState; return JSON.stringify(o); };

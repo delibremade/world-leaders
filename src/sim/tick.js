@@ -22,6 +22,7 @@ import { pickWorldEvent, startWorldEvent, eventCooldowns, fireChain, eventEffect
 import { stepMinerals, rivalSupplyFactor } from './minerals.js';
 import { stepBases } from './bases.js';
 import { chokeWeight, responseAt, shieldAt, sphereGains, laneCut } from './reach.js';
+import { migrateEffects, ageEffect, liveEffect } from './effects.js';
 
 // ── v57 monthly tick, extracted (P2). Zero rule changes: test/parity-app.test.js proves the App's autosaves are
 // byte-identical to v57 under a seeded stream. Phases run in v57 execution order; see reports/inventory-v57.md §5.
@@ -242,16 +243,17 @@ function economy(g,S,fx,m){
   // Active effects (tech/trade/health investments)
   const newAE=[];
   const doc=g.doctrine;
+  g.activeEffects=migrateEffects(g.activeEffects); // FIX 4: folds a pre-fix save's stacked renewable rows into one permanent row per kind
   g.activeEffects.forEach(e=>{
-    if(e.monthsLeft>0&&e.stat in ns){
+    if(liveEffect(e)&&e.stat in ns){
       let d=e.d;
       if(doc==='hegemon'&&e.source?.startsWith('tr'))d*=1.25;
       if(doc==='vanguard'&&e.source?.startsWith('t')&&!e.source?.startsWith('tr'))d*=1.4;
       if(d>0&&['stability','healthcare','education','foodSecurity','military'].includes(e.stat))d*=Math.max(0.15,1-(ns[e.stat]||0)/115);
-      ns[e.stat]+=d;newAE.push({...e,monthsLeft:e.monthsLeft-1});
+      ns[e.stat]+=d;newAE.push(ageEffect(e));
     }
   });
-  S.setActiveEffects(newAE.filter(e=>e.monthsLeft>0));
+  S.setActiveEffects(newAE.filter(liveEffect));
 
   // Deployments (policy briefs)
   g.deployments.forEach(d=>{if(d.status!=='active')return;const f=1/d.timeMonths;(d.effects||[]).forEach(e=>{ns[e.s]=(ns[e.s]||0)+e.d*f;});});
