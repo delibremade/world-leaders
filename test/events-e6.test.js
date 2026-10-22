@@ -297,7 +297,7 @@ function policy(h, m, nid) {
   if (m % 96 >= 26 && m % 96 < 40) { g.nationRelations = { ...g.nationRelations, china: 60 }; g.blocTrade = { ...g.blocTrade, cn: 2 }; } // hook: a China bloc tier that holds
   if (m === 14) g.platforms = { ...g.platforms, f35: 60, ford: 6 };                                                   // hook: platforms
   if (m === 16) g.stats = { ...g.stats, education: 8, healthcare: 22, foodSecurity: 30, stability: 40 };              // hook: stats
-  if (m % 12 === 8 && m >= 20) g.intelOps = [{ id: 'op_e6', opId: 'tech_acq', targetId: me === 'china' ? 'usa' : 'china', monthsLeft: 4 }]; // hook: a standing op
+  if (m % 12 === 8 && m >= 20) g.intelOps = [{ id: 'op_e6', opId: 'tech_acq', targetId: me === 'china' ? 'usa' : 'china', monthsLeft: 4, successRate: 0.7, discoverRate: 0.2, type: 'covert' }]; // hook: a standing op (stamped, FIX 3)
   if (m === 30) { const mm = strongest(g); if (mm && !g.minerals.controls.includes(mm)) h.run('toggleExportControl', { mineral: mm }); }
   if (m === 40) g.minerals = { ...g.minerals, controls: [] };
   if (m === 44 && me === 'usa') { h.run('admitPartner', { program: 'f47', nation: 'japan', tier: 'buyer' }); }

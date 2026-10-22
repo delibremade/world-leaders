@@ -1,5 +1,5 @@
 import { applyAction } from './actions.js';
-import { renewableTotal, oilPriceTerms, influencePool, influenceGain, compliance, variantEff } from './selectors.js';
+import { renewableTotal, oilPriceTerms, influencePool, influenceGain, compliance, variantEff, opOdds, opOddsTerms } from './selectors.js';
 import { ALLIED_PROGRAMS, TIERS, ACCESS_RULES, MEMBER_INCOME, LEAK } from '../data/alliance.js';
 import { MONTHLY_SYSTEMS } from './systems.js';
 import { assertInvariants } from './invariants.js';
@@ -605,8 +605,9 @@ function intelOps(g,S,fx,m){
   g.intelOps.forEach(op=>{
     if(op.monthsLeft<=1){
       const tRg=NATIONS[op.targetId]?.region;const misB=(g.embassyMissions[op.targetId]==='intel'?0.12:0)+((tRg&&g.forcePosture[tRg]==='isr'&&sumDep(g.forceDeployments?.[tRg])>0)?0.25:0);
-      const success=rng()<Math.min(0.95,op.successRate+misB);
-      const discovered=rng()<op.discoverRate;
+      const odds=opOdds(g,op); // FIX 3: one odds implementation; a rate-less op from an old save resolves on today's terms instead of NaN
+      const success=rng()<Math.min(0.95,odds.successRate+misB);
+      const discovered=rng()<odds.discoverRate;
       if(success&&op.opId==='tech_acq'){
         // Find the vertical where target leads and player is most behind
         const tLvls=g.globalDef[op.targetId]||{};const pLvls=g.defLevels;
@@ -872,7 +873,8 @@ function counterIntel(g,S,fx,m){
         const monthlyCost=Math.round((op.cost/Math.max(1,op.mo))*1.6); // ~1.6x premium for standing posture
         if((ns.treasury)>=monthlyCost){
           cash('Intel operations',-monthlyCost);
-          S.setIntelOps(p=>[...p,{opId,targetId,monthsLeft:op.mo,totalMonths:op.mo,continuous:true}]);
+          const {successRate,discoverRate}=opOddsTerms(g,opId); // FIX 3: a relaunch is stamped like a hand launch (id, odds, type); unstamped it resolved as NaN and never succeeded
+          S.setIntelOps(p=>[...p,{id:`${opId}_${targetId}_c${g.tickCount}`,opId,targetId,monthsLeft:op.mo,totalMonths:op.mo,successRate,discoverRate,type:op.type,continuous:true}]);
         }
       }
     });

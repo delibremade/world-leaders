@@ -52,6 +52,12 @@ export function oilPriceTerms(g,{renTot,hormuzHit}){
 }
 
 // Intel op odds. No side effects: runIntelOp spends absorbBonus after reading these.
+// FIX 3: the odds an operation resolves with. Ops launched by hand carry the odds they were stamped with; a save from before
+// continuous relaunches were stamped (they carried no rates and resolved as NaN, never succeeding) gets today's odds.
+export function opOdds(g,o){
+  if(Number.isFinite(o.successRate)&&Number.isFinite(o.discoverRate))return {successRate:o.successRate,discoverRate:o.discoverRate};
+  const t=opOddsTerms(g,o.opId);return {successRate:t?.successRate??0,discoverRate:t?.discoverRate??0};
+}
 export function opOddsTerms(g,opId){
   const op=INTEL_OPS.find(o=>o.id===opId);if(!op)return null;
   const cyberLvl=g.defLevels.cyber||0;

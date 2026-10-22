@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — FIX 3: Operations list
+- Engine fix (rule-visible, no design ruling touched). A standing program's monthly relaunch carried no id and no odds, so it resolved as `rng() < NaN`: never a success, never discovered, and the row rendered `(undefined || 0)` = 0% success / 0% exposure. Relaunches are stamped like hand launches (`id`, `successRate`, `discoverRate`, `type`) through the one `opOddsTerms` implementation; an unstamped op from an old save resolves on today's odds (`opOdds`, shared by the resolver and the UI). Parity: the pinned event-system hashes for the two verb cases (seed 10, 11, which toggle a standing program) are re-baselined citing this fix; the three play cases are untouched.
+- Invariant: every intel op carries an id, a known op, a target, integer months and finite odds in [0,1].
+- Intel tab: Operations in Progress is grouped by op type then target with counts (`shell/ops.js groupOps`); each row shows months, success and exposure; standing relaunches carry ♻️.
+- Tests: `intel-ops.test.js` +4 (relaunch stamped and invariant holds; resolution follows the stamp, an unstamped op wins 10+/30 seeded months instead of 0; grouping order and counts; jsdom Intel list grouped with non-zero odds on every row).
+
 ## 0.90.0 (2026-10-11) — D6: Trade nation desk
 - UI only, no rule change; parity goldens untouched. Desktop branch behind `useWide()` (>= 1100px); the phone tree is unchanged.
 - New `trade/NationDesk.jsx`: all 26 nations in one sortable table (bloc, relations, tension, embassy, trade, pact, sanction or embargo, influence weight) beside the selected nation's full action sheet (the same `NationSheet` the map opens: visit, aid, trade agreement, pact, embassy, influence, sanctions, embargo, arms, ops). Sanctions work on every nation (ruling 7).
