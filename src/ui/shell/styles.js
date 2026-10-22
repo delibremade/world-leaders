@@ -257,7 +257,7 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
 .wl-sheet-body .wl-cmd{margin:0 0 ${SPACE[4]}px}
 @media (min-width:${BREAK.tablet}px){
   .wl-map-card{position:relative}
-  .wl-map-card>.wl-cmd[data-placement=map]{position:absolute;left:50%;bottom:72px;transform:translateX(-50%);width:min(600px,60%);z-index:${Z.outliner + 15};margin:0} /* above the sheet scrim so the keys' targets stay readable; narrow enough to clear the side panel */
+  .wl-map-card>.wl-cmd[data-placement=map]{position:absolute;left:50%;bottom:72px;translate:-50% 0;width:min(600px,60%);z-index:${Z.outliner + 15};margin:0} /* above the sheet scrim so the keys' targets stay readable; narrow enough to clear the side panel */
   .wl-cmd-btn{min-height:56px}
 }
 kbd{font:inherit;font-size:${SIZE.micro}px;color:${c.text.dim};border:1px solid ${c.border.strong};border-radius:3px;padding:0 4px}
