@@ -10,6 +10,7 @@ import { ALLIED_PROGRAMS, TIERS, ACCESS_RULES } from '../data/alliance.js';
 import { WORLD_EVENTS, DECISIONS } from '../data/world.js';
 import { MINERALS, MINERAL_IDS, MINERAL_RULES as MR } from '../data/minerals.js';
 import { SITES, NODE_TYPES, BASE_RULES } from '../data/bases.js';
+import { INTEL_OPS } from '../data/intel.js';
 
 const in01 = (v) => Number.isFinite(v) && v >= 0 && v <= 100;
 
@@ -77,6 +78,8 @@ export const V57_INVARIANTS = [
   // Allied access (E7, #19)
   ['access records name real programs and nations with a known tier, status and a 0..12 suspension clock', (g) => Object.entries(g.arsenal?.access || {}).every(([pid, row]) => ALLIED_PROGRAMS[pid] && Object.entries(row).every(([n, a]) => NATIONS[n] && TIERS[a.tier] && (a.status === 'active' || a.status === 'suspended') && Number.isInteger(a.susp) && a.susp >= 0 && a.susp <= ACCESS_RULES.suspendMo))],
   ['the player is never a member of its own program', (g) => !pid(g) || Object.entries(g.arsenal?.access || {}).every(([p, row]) => ALLIED_PROGRAMS[p].owner !== pid(g) || !(pid(g) in row))],
+  // Intel operations (FIX 3): every op the engine holds is stamped; a relaunch without odds resolved as NaN and never succeeded.
+  ['intel ops carry an id, a known op, a target and finite odds in [0,1]', (g) => (g.intelOps || []).every((o) => typeof o.id === 'string' && INTEL_OPS.some((x) => x.id === o.opId) && typeof o.targetId === 'string' && Number.isInteger(o.monthsLeft) && o.monthsLeft > 0 && finite(o.successRate) && o.successRate >= 0 && o.successRate <= 1 && finite(o.discoverRate) && o.discoverRate >= 0 && o.discoverRate <= 1)],
   ['allied orders are for programs the player is a member of, with integer months > 0', (g) => (g.arsenal?.orders || []).every((o) => g.arsenal?.access?.[o.id]?.[pid(g)] && Number.isInteger(o.mo) && o.mo > 0)],
   ['a program is never both in prototype and owned', (g) => Object.keys(g.arsenal?.dev || {}).every((id) => !((+g.blackPrograms?.[id] || 0) > 0))],
   // Minerals and processing (E4, #16)

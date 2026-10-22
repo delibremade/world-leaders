@@ -36,6 +36,9 @@ const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activ
 // #56 (F8): Tier 1 / Tier 2 are named units with operator counts; the SOF pay premium is per operator (was per abstract unit), so the
 // Personnel line moves from month 1 and all five pinned cases are re-baselined citing #56 (only hashes moved; firstDivergence unchanged;
 // guarded by test/sof.test.js).
+// FIX 3 (operations list): a standing program's relaunch is stamped with an id and odds (it carried neither, resolved as rng() < NaN and never
+// succeeded). The two verb cases toggle a standing program (parity-clicks step 7), so their pinned hashes are re-baselined citing FIX 3; the
+// three play cases never relaunch an op and are untouched (guarded by test/intel-ops.test.js).
 const NEW_KEYS = ['arsenal', 'minerals', 'forces', 'bases'];
 const dropNew = (s) => { if (!NEW_KEYS.some((k) => s.includes(`"${k}"`))) return s; const o = JSON.parse(s); for (const k of NEW_KEYS) delete o[k]; return JSON.stringify(o); };
 const strip = (s) => { const o = JSON.parse(dropNew(s)); delete o.evState; return JSON.stringify(o); };

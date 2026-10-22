@@ -45,7 +45,8 @@ import { buildAlerts } from './shell/alerts.js';
 import { Allocation } from './economy/Allocation.jsx';
 import { newEvState } from '../sim/events.js';
 import { whyFor } from '../data/event-why.js';
-import { openEventCards, eventOptions } from '../sim/selectors.js';
+import { openEventCards, eventOptions, opOdds } from '../sim/selectors.js';
+import { groupOps } from './shell/ops.js';
 import { EventCards } from './shell/EventCards.jsx';
 import { SHELL_CSS } from './shell/styles.js';
 import { Seg } from './shell/Seg.jsx';
@@ -1571,8 +1572,14 @@ function WorldLeadersInner({resumeSignal}){
 
             {/* Active exports summary */}
           {intelOps.length>0&&<div>
-            <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'7px'}}>Operations in Progress</div>
-            {intelOps.map(o=>{const op=INTEL_OPS.find(x=>x.id===o.opId);return <div key={o.id} style={{display:'flex',justifyContent:'space-between',padding:'8px 10px',background:'#0c1424',border:'1px solid rgba(180,156,255,.3)',borderRadius:'6px',marginBottom:'5px'}}><span style={{fontSize:'11px',color:'#e6edf7'}}>{op?.i} {op?.n} → {o.targetId}</span><span style={{fontSize:'11px',color:'#b49cff',fontWeight:700}}>{o.monthsLeft}mo · {Math.round((o.successRate||0)*100)}% success</span></div>;})}
+            <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'7px'}} data-ops-head>Operations in Progress · {intelOps.length}</div>
+            {groupOps(intelOps).map(grp=><div key={grp.type} data-ops-type={grp.type} data-count={grp.count} style={{marginBottom:'8px'}}>
+              <div style={{fontSize:'10px',color:'#b49cff',fontWeight:700,margin:'4px 0'}}>{grp.label} · {grp.count}</div>
+              {grp.targets.map(t=><div key={t.targetId} data-ops-target={t.targetId} data-count={t.count} style={{marginLeft:'8px',marginBottom:'5px'}}>
+                <div style={{fontSize:'10px',color:'#9aa8bf',margin:'2px 0'}}>{NATIONS[t.targetId]?.flag||''} {t.name} · {t.count}</div>
+                {t.ops.map((o,i)=>{const op=INTEL_OPS.find(x=>x.id===o.opId);const odds=opOdds(liveState(),o);return <div key={o.id||`${o.opId}_${i}`} data-op-row={o.id} style={{display:'flex',justifyContent:'space-between',padding:'8px 10px',background:'#0c1424',border:'1px solid rgba(180,156,255,.3)',borderRadius:'6px',marginBottom:'5px'}}><span style={{fontSize:'11px',color:'#e6edf7'}}>{op?.i} {op?.n}{o.continuous?' ♻️':''}</span><span style={{fontSize:'11px',color:'#b49cff',fontWeight:700}} data-op-odds>{o.monthsLeft}mo · {Math.round(odds.successRate*100)}% success · {Math.round(odds.discoverRate*100)}% exposure</span></div>;})}
+              </div>)}
+            </div>)}
           </div>}
         </div>}
 
