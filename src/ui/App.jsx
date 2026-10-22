@@ -175,6 +175,7 @@ function WorldLeadersInner({resumeSignal}){
   const [alertFocus,setAlertFocus]=useState(null); // V2b: {family, ids} from a top-bar alert chip; rows rise to L2 in the outliner
   // V2e allocation surface: UI-only state. locks never squeeze; hold = one pool (persisted as a setting); baseline = the allocations when this game opened.
   const [budgetLocks,setBudgetLocks]=useState(()=>new Set());const [poolHold,setPoolHold]=useState(true);const [allocOpen,setAllocOpen]=useState(false);const baselineR=useRef(null);
+  useEffect(()=>{if(selectedRegion||selNation||selSite)setFeedOpen(false);},[selectedRegion,selNation,selSite]); // one overlay at a time (FIX 1)
   const [history,setHistory]=useState([]);            // 24-month HUD sparklines (presentation, not saved)
   const [interestRate,setInterestRate]=useState(4.0);
   const [taxPolicy,setTaxPolicy]=useState(28);
@@ -750,6 +751,76 @@ function WorldLeadersInner({resumeSignal}){
   const outlinerRows=buildOutliner({bases,country,issues,evState,arsenal,flashpoint,worldEvent,ultimatum,confrontation,blockades,intelOps,continuousOps,investigations,platformDev,blackResearch,deployments,defResearch,defLevels,gracePeriod,pariah,hegHold,embargoedBy,expelled:expelR.current,embassyLocks:embLockR.current,blocLock,concessions,sprRelease,actionCooldowns});
   const alerts=buildAlerts(outlinerRows,{chokeStatus});
   const onAlert=(a)=>{setMapMode(a.mode);setActiveTab('overview');setVitalsDrill(null);setAlertFocus({family:a.family,ids:a.rowIds,at:Date.now()});setOutlinerOpen(true);};
+  // FIX 1 (Overview frame): the situation cards (Hegemony Race, Situation Room, Risk Signals, Active Issues, vitals drill) render under the map on a phone and on the Situation segment at desktop, so the map owns the whole column.
+  const flankEl=(
+            <div className="wl-flank">
+            {/* Vitals drill-down */}
+            {vitalsDrill&&<VitalsDrillPanel/>}
+            {(()=>{const n=(flashpoint?1:0)+Object.values(rivalHolds||{}).filter(m=>m>0).length+Object.keys(blockades).length+Object.values(chokeStatus).filter(s=>s==='disrupted').length+Object.entries(rivalTension).filter(([cid,t])=>t>=70&&cid!==country?.id&&!isAllyOf(country?.id,cid)).length;return <button onClick={()=>setActiveTab('sitroom')} style={{width:'100%',background:n>0?'rgba(255,122,69,.08)':'#0c1424',border:`1px solid ${n>0?'#3a1c12':'#1c2a42'}`,color:n>0?'#ff7a45':'#7c8aa3',padding:'8px',borderRadius:'8px',fontSize:'11px',fontWeight:700,textAlign:'left'}}>🎖️ Situation Room · {n>0?`${n} live situation${n>1?'s':''} — open`:'quiet — open'}</button>;})()}
+
+            {/* ── COMMAND DECK ── */}
+
+
+
+            {/* Intel Crisis */}
+            {/* (handled by modal above) */}
+
+
+            {/* ── HEGEMONY RACE ─────────────────────────────────── */}
+            <div style={{background:'#0c1424',border:'1px solid #1c2a42',borderRadius:'10px',padding:'12px'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'9px'}}>
+                <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px'}}>Hegemony Race · hold 85% for 24mo to win</div>
+                <div style={{display:'flex',alignItems:'center',gap:'7px'}}>
+                  {hegHold>0&&<span style={{fontSize:'10px',color:'#6ee7a8',padding:'2px 7px',background:'rgba(110,231,168,.1)',border:'1px solid #6ee7a8',borderRadius:'4px',animation:'pulse 2s infinite'}}>⏳ Holding {hegHold}/24mo</span>}
+                  {victory&&<span style={{fontSize:'10px',color:'#f5c451'}}>🏆 HEGEMON</span>}
+                  <span style={{fontSize:'15px',fontWeight:800,color:hegScore>=85?'#6ee7a8':hegScore>=60?'#f5c451':'#9aa8bf'}}>👑 {hegScore.toFixed(1)}%</span>
+                </div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'7px',marginBottom:'10px'}}>
+                {[['💰 Economic',pillarE,'#f5c451'],['🛡️ Military',pillarM,'#ff7a45'],['🌍 Influence',pillarI,'#4fb8ff'],['🔬 Technology',pillarT,'#b49cff']].map(([l,v,c])=>(
+                  <div key={l} style={{background:'#111a2c',borderRadius:'6px',padding:'7px'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:'4px'}}><span style={{fontSize:'10px',color:'#9aa8bf'}}>{l}</span><span style={{fontSize:'11px',fontWeight:700,color:c}}>{v.toFixed(0)}</span></div>
+                    <div style={{height:'3px',background:'#17233a',borderRadius:'2px'}}><div style={{height:'100%',width:`${Math.min(100,v)}%`,background:c,borderRadius:'2px',transition:'width .5s'}}/></div>
+                  </div>))}
+              </div>
+              {rivalScores.slice(0,2).map(r=>(<div key={r.cid} style={{marginBottom:'4px'}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:'2px'}}><span style={{fontSize:'10px',color:'#7c8aa3'}}>Rival: {r.cid.charAt(0).toUpperCase()+r.cid.slice(1)} {r.score>hegScore?'— AHEAD OF YOU':''}{(rivalHolds[r.cid]||0)>0&&<span style={{color:'#ff7a45',fontWeight:700}}> ⚠ holding {rivalHolds[r.cid]}/24mo — knock their sphere down to reset</span>}</span><span style={{fontSize:'10px',color:r.score>hegScore?'#ff7a45':'#9aa8bf',fontWeight:700}}>{r.score.toFixed(1)}% / 85%</span></div>
+                <div style={{height:'3px',background:'#17233a',borderRadius:'2px'}}><div style={{height:'100%',width:`${Math.min(100,r.score/85*100)}%`,background:(rivalHolds[r.cid]||0)>0?'#ff7a45':r.score>hegScore?'#f5c451':'#7c8aa3',borderRadius:'2px'}}/></div>
+              </div>))}
+            </div>
+            {/* Risk signals: moved out of the right column so the map owns the main column on desktop */}
+              {stats&&<div style={{background:'#0c1424',border:'1px solid #1c2a42',borderRadius:'10px',padding:'12px'}}>
+                <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',marginBottom:'8px'}}>Risk Signals</div>
+                {[[stats.gdpGrowth<0,'gdpGrowth','⚠ Negative GDP — debt and unemployment compounding'],[stats.debtGdp>120,'debtGdp',`⚠ Debt ${stats.debtGdp.toFixed(0)}% — credit access at risk`],[stats.debtGdp>85&&stats.debtGdp<=120,'debtGdp',`⚠ Debt ${stats.debtGdp.toFixed(0)}% — fiscal space constrained`],[stats.inflation>10,'inflation',`⚠ Inflation ${stats.inflation.toFixed(1)}% — wages eroding`],[stats.inequality>78,'inequality','⚠ Inequality near destabilization'],[stats.stability<35,'stability',`⚠ Stability ${stats.stability.toFixed(0)} — act immediately`]].filter(([c])=>c).map(([,k,msg],i)=><div key={i} style={{fontSize:'11px',color:'#9aa8bf',lineHeight:'1.4',marginBottom:'6px',padding:'6px 8px',background:'#0c1424',borderRadius:'5px',borderLeft:`3px solid ${sc(ss(k,stats[k]))}`}}>{msg}</div>)}
+                {![stats.gdpGrowth<0,stats.debtGdp>85,stats.inflation>7,stats.inequality>78,stats.stability<35].some(Boolean)&&<div style={{fontSize:'11px',color:'#6ee7a8'}}>✓ No critical signals</div>}
+              </div>}
+            {/* Active Issues */}
+            <div>
+              <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'}}>Active Issues</div>
+              {activeIssues.length===0&&<div style={{background:'#0c1424',border:'1px solid #1c2a42',borderRadius:'7px',padding:'12px',fontSize:'12px',color:'#5b6880',textAlign:'center'}}>No active issues.</div>}
+              {activeIssues.map(issue=>{
+                const def=ISSUES[issue.type];if(!def)return null;
+                const isSel=selIssue===issue.type;
+                const sColor={unexamined:'#ff7a45',investigating:'#f5c451',briefed:'#4fb8ff',deployed:'#6ee7a8'}[issue.status]||'#7c8aa3';
+                const sLabel={unexamined:'UNEXAMINED',investigating:'INVESTIGATING',briefed:'BRIEF READY',deployed:'DEPLOYED'}[issue.status]||issue.status.toUpperCase();
+                return(<div key={issue.id} style={{background:isSel?'#17233a':'#0c1424',border:`1px solid ${isSel?def.color+'66':'#1c2a42'}`,borderRadius:'7px',padding:'12px',marginBottom:'7px',cursor:'pointer',transition:'all .15s'}} onClick={()=>{setSelIssue(issue.type);setSelOption(null);setRightMode(issue.status==='briefed'||issue.status==='deployed'?'brief':'issue');}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'4px'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:'8px'}}><span style={{fontSize:'18px'}}>{def.icon}</span><div><div style={{fontSize:'12px',fontWeight:700,color:'#e6edf7'}}>{def.title}</div><div style={{fontSize:'10px',color:'#7c8aa3',marginTop:'1px'}}>Detected {MONTHS[issue.mo]} {issue.yr||date.yr}</div></div></div>
+                    <span style={{fontSize:'9px',border:`1px solid ${sColor}`,color:sColor,padding:'2px 7px',borderRadius:'3px',letterSpacing:'1px',flexShrink:0,marginLeft:'6px',animation:issue.status==='unexamined'?'pulse 1.8s infinite':'none'}}>{sLabel}{issue.status==='investigating'?` · ${investigations[issue.type]||0}mo`:''}{(issue.status==='unexamined'||issue.status==='briefed')&&issue.ttl>0?` · ${issue.ttl}mo left`:''}</span>
+                  </div>
+                  <div style={{fontSize:'11px',color:'#9aa8bf',lineHeight:'1.4'}}>{def.brief?.(stats||{},country)?.rc?.slice(0,120)||''}...</div>
+                </div>);
+              })}
+            </div>
+
+            {activeDeploys.length>0&&<div>
+              <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'}}>Active Deployments</div>
+              {activeDeploys.map(d=>{const pct=Math.round((d.monthsElapsed/d.timeMonths)*100);return(<div key={d.id} style={{background:'#0c1424',border:'1px solid #0f2a1f',borderRadius:'7px',padding:'11px',marginBottom:'7px'}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:'4px'}}><div><div style={{fontSize:'12px',fontWeight:700,color:'#e6edf7'}}>{d.policyName}</div><div style={{fontSize:'10px',color:'#7c8aa3'}}>{ISSUES[d.issueType]?.title}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:'12px',color:'#6ee7a8',fontWeight:700}}>{pct}%</div><div style={{fontSize:'10px',color:'#7c8aa3'}}>{d.timeMonths-d.monthsElapsed}mo</div></div></div><div style={{height:'3px',background:'#17233a',borderRadius:'2px'}}><div style={{height:'100%',width:`${pct}%`,background:'#6ee7a8',borderRadius:'2px',transition:'width .5s'}}/></div>{deployFx(d)}</div>);})}
+            </div>}
+
+            <div><div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'5px'}}>Log</div>{log.slice(0,6).map((e,i)=><div key={i} style={{fontSize:'11px',color:i===0?'#c3cddc':'#5b6880',padding:'3px 0',borderBottom:'1px solid #0c1424',lineHeight:'1.4'}}><span style={{color:'#2e3f5c',marginRight:'6px'}}>{MONTHS[e.mo]} {e.yr||''}</span>{e.msg}</div>)}</div>
+            </div>
+  );
   return(
     <ClockGateContext.Provider value={clockGate}><div className="wl-app" style={{backgroundImage:'radial-gradient(1100px 540px at 72% -8%,rgba(79,184,255,.07),transparent 62%),radial-gradient(900px 480px at -4% 108%,rgba(180,156,255,.05),transparent 58%)'}}>
       <style>{SHELL_CSS}</style>
@@ -821,8 +892,8 @@ function WorldLeadersInner({resumeSignal}){
 
       <Hud version={VERSION} country={country} date={date} stats={stats} ledger={ledger} history={history} hegScore={hegScore} pillars={{e:pillarE,m:pillarM,i:pillarI,t:pillarT}} activeEffects={activeEffects} onAllocate={()=>setAllocOpen(true)}
         pauseReason={plan.reason} hegHold={hegHold} alerts={alerts} onAlert={onAlert} alertFocus={alertFocus?.family||null}
-        unread={unreadCount(feed)} onFeed={()=>setFeedOpen(true)} canStep={plan.canStep&&!plan.running} onStep={stepMonth} paused={paused} onPause={v=>{setPaused(v);if(!v)setPauseWhy(null);}} onTogglePause={togglePause} pauseLocked={hardGate&&!paused} gameSpeed={gameSpeed} onSpeed={setGameSpeed} lastSaved={lastSaved} onQuit={()=>{setPhase('select');setGameOver(null);}} doctrineLabel={doctrine?`${DOCTRINES[doctrine].i} ${DOCTRINES[doctrine].n}`:null}/>
-      <EventCards doctrine={doctrine} activeDecision={activeDecision} decisionDesc={activeDecision?(typeof activeDecision.desc==='function'?activeDecision.desc({ten:rivalTension,bt:blocTrade,ns:stats||{},country}):activeDecision.desc):''} worldEvent={evOpen.world} flashpoint={evOpen.flashpoint} worldOpts={eventOptions(evView,'world')} decisionOpts={activeDecision?eventOptions(evView,'decision'):null} country={country} fpOpts={eventOptions(evView,'flashpoint')} dispatch={dispatch} fxBadge={fxBadge} readyBriefs={issues.filter(i=>i.status==='briefed'&&briefs[i.type]).map(i=>({type:i.type,ttl:i.ttl,title:ISSUES[i.type]?.title,icon:ISSUES[i.type]?.icon,rc:briefs[i.type].rc,n:(briefs[i.type].opts||[]).length}))} onOpenBrief={t=>{setActiveTab('intel');setIntelIssue(t);}} onOpenRegion={rid=>{setActiveTab('overview');setSelNation(null);setSelectedRegion(rid);}}/>
+        unread={unreadCount(feed)} onFeed={()=>{setFeedOpen(true);setSelectedRegion(null);setSelNation(null);setSelSite(null);}} canStep={plan.canStep&&!plan.running} onStep={stepMonth} paused={paused} onPause={v=>{setPaused(v);if(!v)setPauseWhy(null);}} onTogglePause={togglePause} pauseLocked={hardGate&&!paused} gameSpeed={gameSpeed} onSpeed={setGameSpeed} lastSaved={lastSaved} onQuit={()=>{setPhase('select');setGameOver(null);}} doctrineLabel={doctrine?`${DOCTRINES[doctrine].i} ${DOCTRINES[doctrine].n}`:null}/>
+      <EventCards dock={wide} doctrine={doctrine} activeDecision={activeDecision} decisionDesc={activeDecision?(typeof activeDecision.desc==='function'?activeDecision.desc({ten:rivalTension,bt:blocTrade,ns:stats||{},country}):activeDecision.desc):''} worldEvent={evOpen.world} flashpoint={evOpen.flashpoint} worldOpts={eventOptions(evView,'world')} decisionOpts={activeDecision?eventOptions(evView,'decision'):null} country={country} fpOpts={eventOptions(evView,'flashpoint')} dispatch={dispatch} fxBadge={fxBadge} readyBriefs={issues.filter(i=>i.status==='briefed'&&briefs[i.type]).map(i=>({type:i.type,ttl:i.ttl,title:ISSUES[i.type]?.title,icon:ISSUES[i.type]?.icon,rc:briefs[i.type].rc,n:(briefs[i.type].opts||[]).length}))} onOpenBrief={t=>{setActiveTab('intel');setIntelIssue(t);}} onOpenRegion={rid=>{setActiveTab('overview');setSelNation(null);setSelectedRegion(rid);}}/>
 
       <div className="wl-body" data-vertical={PARENT[activeTab]||activeTab} style={{flex:1,display:'flex',overflow:'hidden'}}>
         {/* Left vitals — always visible, clickable */}
@@ -849,73 +920,7 @@ function WorldLeadersInner({resumeSignal}){
 
             </div>
 
-            <div className="wl-flank">
-            {/* Vitals drill-down */}
-            {vitalsDrill&&<VitalsDrillPanel/>}
-            {(()=>{const n=(flashpoint?1:0)+Object.values(rivalHolds||{}).filter(m=>m>0).length+Object.keys(blockades).length+Object.values(chokeStatus).filter(s=>s==='disrupted').length+Object.entries(rivalTension).filter(([cid,t])=>t>=70&&cid!==country?.id&&!isAllyOf(country?.id,cid)).length;return <button onClick={()=>setActiveTab('sitroom')} style={{width:'100%',background:n>0?'rgba(255,122,69,.08)':'#0c1424',border:`1px solid ${n>0?'#3a1c12':'#1c2a42'}`,color:n>0?'#ff7a45':'#7c8aa3',padding:'8px',borderRadius:'8px',fontSize:'11px',fontWeight:700,textAlign:'left'}}>🎖️ Situation Room · {n>0?`${n} live situation${n>1?'s':''} — open`:'quiet — open'}</button>;})()}
-
-            {/* ── COMMAND DECK ── */}
-
-
-
-            {/* Intel Crisis */}
-            {/* (handled by modal above) */}
-
-
-            {/* ── HEGEMONY RACE ─────────────────────────────────── */}
-            <div style={{background:'#0c1424',border:'1px solid #1c2a42',borderRadius:'10px',padding:'12px'}}>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'9px'}}>
-                <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px'}}>Hegemony Race · hold 85% for 24mo to win</div>
-                <div style={{display:'flex',alignItems:'center',gap:'7px'}}>
-                  {hegHold>0&&<span style={{fontSize:'10px',color:'#6ee7a8',padding:'2px 7px',background:'rgba(110,231,168,.1)',border:'1px solid #6ee7a8',borderRadius:'4px',animation:'pulse 2s infinite'}}>⏳ Holding {hegHold}/24mo</span>}
-                  {victory&&<span style={{fontSize:'10px',color:'#f5c451'}}>🏆 HEGEMON</span>}
-                  <span style={{fontSize:'15px',fontWeight:800,color:hegScore>=85?'#6ee7a8':hegScore>=60?'#f5c451':'#9aa8bf'}}>👑 {hegScore.toFixed(1)}%</span>
-                </div>
-              </div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:'7px',marginBottom:'10px'}}>
-                {[['💰 Economic',pillarE,'#f5c451'],['🛡️ Military',pillarM,'#ff7a45'],['🌍 Influence',pillarI,'#4fb8ff'],['🔬 Technology',pillarT,'#b49cff']].map(([l,v,c])=>(
-                  <div key={l} style={{background:'#111a2c',borderRadius:'6px',padding:'7px'}}>
-                    <div style={{display:'flex',justifyContent:'space-between',marginBottom:'4px'}}><span style={{fontSize:'10px',color:'#9aa8bf'}}>{l}</span><span style={{fontSize:'11px',fontWeight:700,color:c}}>{v.toFixed(0)}</span></div>
-                    <div style={{height:'3px',background:'#17233a',borderRadius:'2px'}}><div style={{height:'100%',width:`${Math.min(100,v)}%`,background:c,borderRadius:'2px',transition:'width .5s'}}/></div>
-                  </div>))}
-              </div>
-              {rivalScores.slice(0,2).map(r=>(<div key={r.cid} style={{marginBottom:'4px'}}>
-                <div style={{display:'flex',justifyContent:'space-between',marginBottom:'2px'}}><span style={{fontSize:'10px',color:'#7c8aa3'}}>Rival: {r.cid.charAt(0).toUpperCase()+r.cid.slice(1)} {r.score>hegScore?'— AHEAD OF YOU':''}{(rivalHolds[r.cid]||0)>0&&<span style={{color:'#ff7a45',fontWeight:700}}> ⚠ holding {rivalHolds[r.cid]}/24mo — knock their sphere down to reset</span>}</span><span style={{fontSize:'10px',color:r.score>hegScore?'#ff7a45':'#9aa8bf',fontWeight:700}}>{r.score.toFixed(1)}% / 85%</span></div>
-                <div style={{height:'3px',background:'#17233a',borderRadius:'2px'}}><div style={{height:'100%',width:`${Math.min(100,r.score/85*100)}%`,background:(rivalHolds[r.cid]||0)>0?'#ff7a45':r.score>hegScore?'#f5c451':'#7c8aa3',borderRadius:'2px'}}/></div>
-              </div>))}
-            </div>
-            {/* Risk signals: moved out of the right column so the map owns the main column on desktop */}
-              {stats&&<div style={{background:'#0c1424',border:'1px solid #1c2a42',borderRadius:'10px',padding:'12px'}}>
-                <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',marginBottom:'8px'}}>Risk Signals</div>
-                {[[stats.gdpGrowth<0,'gdpGrowth','⚠ Negative GDP — debt and unemployment compounding'],[stats.debtGdp>120,'debtGdp',`⚠ Debt ${stats.debtGdp.toFixed(0)}% — credit access at risk`],[stats.debtGdp>85&&stats.debtGdp<=120,'debtGdp',`⚠ Debt ${stats.debtGdp.toFixed(0)}% — fiscal space constrained`],[stats.inflation>10,'inflation',`⚠ Inflation ${stats.inflation.toFixed(1)}% — wages eroding`],[stats.inequality>78,'inequality','⚠ Inequality near destabilization'],[stats.stability<35,'stability',`⚠ Stability ${stats.stability.toFixed(0)} — act immediately`]].filter(([c])=>c).map(([,k,msg],i)=><div key={i} style={{fontSize:'11px',color:'#9aa8bf',lineHeight:'1.4',marginBottom:'6px',padding:'6px 8px',background:'#0c1424',borderRadius:'5px',borderLeft:`3px solid ${sc(ss(k,stats[k]))}`}}>{msg}</div>)}
-                {![stats.gdpGrowth<0,stats.debtGdp>85,stats.inflation>7,stats.inequality>78,stats.stability<35].some(Boolean)&&<div style={{fontSize:'11px',color:'#6ee7a8'}}>✓ No critical signals</div>}
-              </div>}
-            {/* Active Issues */}
-            <div>
-              <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'}}>Active Issues</div>
-              {activeIssues.length===0&&<div style={{background:'#0c1424',border:'1px solid #1c2a42',borderRadius:'7px',padding:'12px',fontSize:'12px',color:'#5b6880',textAlign:'center'}}>No active issues.</div>}
-              {activeIssues.map(issue=>{
-                const def=ISSUES[issue.type];if(!def)return null;
-                const isSel=selIssue===issue.type;
-                const sColor={unexamined:'#ff7a45',investigating:'#f5c451',briefed:'#4fb8ff',deployed:'#6ee7a8'}[issue.status]||'#7c8aa3';
-                const sLabel={unexamined:'UNEXAMINED',investigating:'INVESTIGATING',briefed:'BRIEF READY',deployed:'DEPLOYED'}[issue.status]||issue.status.toUpperCase();
-                return(<div key={issue.id} style={{background:isSel?'#17233a':'#0c1424',border:`1px solid ${isSel?def.color+'66':'#1c2a42'}`,borderRadius:'7px',padding:'12px',marginBottom:'7px',cursor:'pointer',transition:'all .15s'}} onClick={()=>{setSelIssue(issue.type);setSelOption(null);setRightMode(issue.status==='briefed'||issue.status==='deployed'?'brief':'issue');}}>
-                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:'4px'}}>
-                    <div style={{display:'flex',alignItems:'center',gap:'8px'}}><span style={{fontSize:'18px'}}>{def.icon}</span><div><div style={{fontSize:'12px',fontWeight:700,color:'#e6edf7'}}>{def.title}</div><div style={{fontSize:'10px',color:'#7c8aa3',marginTop:'1px'}}>Detected {MONTHS[issue.mo]} {issue.yr||date.yr}</div></div></div>
-                    <span style={{fontSize:'9px',border:`1px solid ${sColor}`,color:sColor,padding:'2px 7px',borderRadius:'3px',letterSpacing:'1px',flexShrink:0,marginLeft:'6px',animation:issue.status==='unexamined'?'pulse 1.8s infinite':'none'}}>{sLabel}{issue.status==='investigating'?` · ${investigations[issue.type]||0}mo`:''}{(issue.status==='unexamined'||issue.status==='briefed')&&issue.ttl>0?` · ${issue.ttl}mo left`:''}</span>
-                  </div>
-                  <div style={{fontSize:'11px',color:'#9aa8bf',lineHeight:'1.4'}}>{def.brief?.(stats||{},country)?.rc?.slice(0,120)||''}...</div>
-                </div>);
-              })}
-            </div>
-
-            {activeDeploys.length>0&&<div>
-              <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'8px'}}>Active Deployments</div>
-              {activeDeploys.map(d=>{const pct=Math.round((d.monthsElapsed/d.timeMonths)*100);return(<div key={d.id} style={{background:'#0c1424',border:'1px solid #0f2a1f',borderRadius:'7px',padding:'11px',marginBottom:'7px'}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:'4px'}}><div><div style={{fontSize:'12px',fontWeight:700,color:'#e6edf7'}}>{d.policyName}</div><div style={{fontSize:'10px',color:'#7c8aa3'}}>{ISSUES[d.issueType]?.title}</div></div><div style={{textAlign:'right'}}><div style={{fontSize:'12px',color:'#6ee7a8',fontWeight:700}}>{pct}%</div><div style={{fontSize:'10px',color:'#7c8aa3'}}>{d.timeMonths-d.monthsElapsed}mo</div></div></div><div style={{height:'3px',background:'#17233a',borderRadius:'2px'}}><div style={{height:'100%',width:`${pct}%`,background:'#6ee7a8',borderRadius:'2px',transition:'width .5s'}}/></div>{deployFx(d)}</div>);})}
-            </div>}
-
-            <div><div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'5px'}}>Log</div>{log.slice(0,6).map((e,i)=><div key={i} style={{fontSize:'11px',color:i===0?'#c3cddc':'#5b6880',padding:'3px 0',borderBottom:'1px solid #0c1424',lineHeight:'1.4'}}><span style={{color:'#2e3f5c',marginRight:'6px'}}>{MONTHS[e.mo]} {e.yr||''}</span>{e.msg}</div>)}</div>
-            </div>
+            {!wide&&flankEl}
           </div>
 
           {/* Right intel panel */}
@@ -956,6 +961,7 @@ function WorldLeadersInner({resumeSignal}){
 
         {/* ECONOMY TAB */}
         {activeTab==='sitroom'&&<div className="wl-pane-wrap" data-sentinel="sitroom">{segOverview}<div style={{flex:1,overflowY:'auto',padding:'12px',display:'flex',flexDirection:'column',gap:'10px'}}>
+            {wide&&flankEl}
             {panelBox('paths','🏁 Paths to Victory · each held 24 months','#17233a',(()=>{const totRDv=Object.values(defLevels).reduce((a,b)=>a+(b||0),0);const ledNet=Object.values(ledger).reduce((a,b)=>a+b,0);const sv=Object.values(sphere).map(s=>s?.player||0);const avgS=sv.length?sv.reduce((a,b)=>a+b,0)/sv.length:0;const hegemonyScore=((Math.min(100,(Math.max(0,stats?.treasury||0)/20000)*50+Math.max(0,stats?.gdpGrowth||0)*6))+(stats?.military||0)+avgS+Math.min(100,(stats?.education||0)*0.4+(totRDv/70)*100*0.6))/4;
                 const rows=[
                   ['👑 Hegemony',`Composite ≥85 (now ${Math.round(hegemonyScore||0)})`,hegHold,'#b49cff'],

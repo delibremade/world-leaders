@@ -25,7 +25,7 @@ function Responses({ kind, opts, dispatch }) {
 // 'Why now' (F2, #33): the state that opened this card. Saves from before the line existed show a neutral stand-in.
 function WhyNow({ text }) { return <div className="wl-why-now" data-why-now>Why now: {text || 'carried over from an earlier save'}</div>; }
 
-export function EventCards({ doctrine, activeDecision, decisionDesc, worldEvent, flashpoint, worldOpts = [], fpOpts = [], decisionOpts = null, country = null, dispatch, onOpenRegion, fxBadge, readyBriefs = [], onOpenBrief }) {
+export function EventCards({ dock = false, doctrine, activeDecision, decisionDesc, worldEvent, flashpoint, worldOpts = [], fpOpts = [], decisionOpts = null, country = null, dispatch, onOpenRegion, fxBadge, readyBriefs = [], onOpenBrief }) {
   const cards = [];
   if (!doctrine) cards.push(
     <div key="doctrine" className="wl-card-ev" data-event-card="doctrine" data-modal="1900" style={{ '--ev': COLOR.accent.command }}>
@@ -78,5 +78,10 @@ export function EventCards({ doctrine, activeDecision, decisionDesc, worldEvent,
       <p>{b.rc}</p>
       <button type="button" className="wl-btn" onClick={() => onOpenBrief(b.type)}>Open brief · {b.n} options</button>
     </div>);
+  // dock (FIX 1): one reserved slot in the right column; it never grows or moves the map, it scrolls inside. Empty, it says so.
+  if (dock) return <div className="wl-cards wl-dock" data-event-cards data-dock data-dock-count={cards.length}>
+    <div className="wl-dock-head"><span className="wl-label">Cards</span><span className="wl-num">{cards.length}</span></div>
+    {cards.length ? cards : <div className="wl-dock-empty" data-dock-empty>No cards. Quiet months are for building.</div>}
+  </div>;
   return <div className="wl-cards" data-event-cards>{cards}</div>;
 }
