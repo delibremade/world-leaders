@@ -80,7 +80,9 @@ test('1440px: shortcuts switch verticals, change speed, step a month, and Escape
 });
 
 test('1440px: hovering a HUD figure opens its breakdown without a click; leaving closes it', async () => {
-  const { ctx, page } = await openGame(browser, { svg: true, width: 1440, height: 900 });
+  // default (WebGL) renderer like every other desktop test here: the SVG map under a hover popover is where three CI runners died
+  // (runner shutdown after this suite's "shortcuts" test, on three different PRs, one changelog-only); the test is about the HUD, not the map.
+  const { ctx, page } = await openGame(browser, { width: 1440, height: 900 });
   try {
     await page.hover('[data-why^="Treasury"]');
     // the breakdown opens 150ms after pointerenter; poll instead of a fixed wait (CI runners are slow), and say what the page saw if it never opens
