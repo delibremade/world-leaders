@@ -12,7 +12,7 @@ import { REGIONS, POSTURE_LABELS } from '../../data/regions.js';
 import { BRANCHES, crewOf, FORCE_RULES } from '../../data/forces.js';
 import { isrOf, triadLegs } from '../../sim/formulas.js';
 import { baseIsr } from '../../sim/reach.js';
-import { forceView, fleetView } from '../../sim/forces.js';
+import { forceView, fleetView, retireView, retireLines } from '../../sim/forces.js';
 import { subsN } from '../../data/sof.js';
 import { f0, f1, f2, tone, WhyV } from '../shell/fmt.jsx';
 import { CommandCard } from '../shell/CommandCard.jsx';
@@ -189,12 +189,12 @@ function Equipment({ fv, v, ask, dispatch, toast }) {
         <DataTable id="fleet" label="Order of battle" title="Order of battle · by type" columns={cols} rows={fl.lines} rowId={(l) => l.id} selected={cur?.id} onSelect={setSelLine} rowProps={(l) => ({ 'data-line': l.id })} />
         {inventory}{theatersPanel}
       </div>
-      <div data-detail="fleet">{fleetSummary(fl, dispatch)}{cur && <Panel key={cur.id} id="line-detail" title="Selected type" figure={cur.n}>{lineDetail(cur, fl, ask, dispatch)}</Panel>}{crewsPanel}{maintPanel}</div>
+      <div data-detail="fleet">{fleetSummary(fl, dispatch)}{cur && <Panel key={cur.id} id="line-detail" title="Selected type" figure={cur.n}>{lineDetail(cur, fl, ask, dispatch, v)}</Panel>}{crewsPanel}{maintPanel}</div>
     </div>;
   }
   return <>
     {fl && fleetSummary(fl, dispatch)}
-    {fl && fleetBranches(fl, selLine, setSelLine, ask, dispatch)}
+    {fl && fleetBranches(fl, selLine, setSelLine, ask, dispatch, v)}
     {crewsPanel}
     {inventory}
     {theatersPanel}
@@ -223,34 +223,38 @@ function lineRow(l, sel, onSel) {
     sub={`${hc(l.ready)} ready · MC ${Math.round(l.mc)}% → ${Math.round(l.target)}%${l.crewless ? ` · ${hc(l.crewless)} crewless` : ''}${l.blk ? ` · block ${l.blk}` : ''}${l.mod ? ` · depot ${l.mod}mo` : ''}${l.mx !== 100 ? ` · maint ${l.mx}%` : ''}`}
     value={hc(l.count)} tone={l.crewless ? 'alert' : l.count < l.count2024 ? 'warn' : undefined}><Bar pct={l.mc} tone={tone(l.mc, 40, 60)} marker={l.target} /></Row>;
 }
-function lineDetail(l, fl, ask, dispatch) {
+function lineDetail(l, fl, ask, dispatch, v) {
   const step = Math.min(l.count, RETIRE_STEP[l.cls] || 1);
-  const retire = (n) => ask({ title: `Retire ${hc(n)} ${l.n}`, cost: `saves about $${Math.round(l.cost * n / Math.max(1, l.count))}M/mo maintenance`, kind: 'alert', label: 'Retire',
-    lines: [`${hc(l.count - n)} left in service. Retired ${CLS_N[l.cls]} do not come back; procurement adds new ones to this line.`, 'Their crews return to the pool for the rest of the fleet.'], run: () => dispatch({ type: 'retire', payload: { line: l.id, n } }) });
-  const modernize = () => ask({ title: `${l.n}: block ${l.blk + 1} upgrade`, cost: `$${hc(l.modCost)}M once`, kind: 'warn', label: 'Start upgrade',
-    lines: [`${fl.modMo} months in the depot at ${fl.depot}% throughput; ${Math.round(fl.rules.modShare * 100)}% of the fleet is unavailable meanwhile.`, `Then +${Math.round(fl.rules.blkGain * 100)}% effectiveness and +${Math.round(fl.rules.mcBlk * 100)}% MC target.`], run: () => dispatch({ type: 'modernize', payload: { line: l.id } }) });
+  const retire = (n) => { const rv = retireView(v, l.id, n); ask({ title: `Retire ${hc(n)} ${l.n}`, cost: `saves $${Math.round(rv?.saves || 0)}M/mo maintenance`, kind: 'alert', label: 'Retire',
+    lines: retireLines(rv, CLS_N[l.cls]), run: () => dispatch({ type: 'retire', payload: { line: l.id, n } }) }); };
+  const modernize = () => ask({ title: `${l.n}: block ${l.blk + 1} upgrade`, cost: `$${hc(l.modCost)}M once ($${f1(l.modUnit)}M per ${CLS_N[l.cls].replace(/s$/, '')})`, kind: 'warn', label: 'Start upgrade',
+    lines: [`${fl.modMo} months in the depot at ${fl.depot}% throughput; ${Math.round(fl.rules.modShare * 100)}% of the fleet is unavailable meanwhile.`, `Then +${Math.round(fl.rules.blkGain * 100)}% effectiveness, +${Math.round(fl.rules.mcBlk * 100)}% MC ceiling and service life +${fl.rules.modLife} years (${Math.round(l.life)} → ${Math.round(l.life + fl.rules.modLife)}).`], run: () => dispatch({ type: 'modernize', payload: { line: l.id } }) });
+  const ageTerms = [{ label: `Age ${f1(l.age)} of ${Math.round(l.life)} years (${pc(l.ageX)} of service life)`, value: l.ageX }, { label: 'MC factor vs 2024', value: l.mcAge }, { label: 'Maintenance cost factor vs 2024', value: l.costAge }];
   return <div className="wl-r wl-r-stack" data-line-detail={l.id} key={`${l.id}-detail`}>
-    <CommandCard id="fleet" placement="column" title={l.n} sub={`${hc(l.count)} ${CLS_N[l.cls]} · keys M R B K J`} color="#60a5fa" actions={fleetCommands(l, fl, step)} onRun={(a) => runCommand(a, { dispatch, ask })} />
+    <CommandCard id="fleet" placement="column" title={l.n} sub={`${hc(l.count)} ${CLS_N[l.cls]} · keys M R B K J`} color="#60a5fa" actions={fleetCommands(l, fl, step, v)} onRun={(a) => runCommand(a, { dispatch, ask })} />
     <div className="wl-r-main">
       <small>{hc(l.count)} {CLS_N[l.cls]} (2024: {hc(l.count2024)}{l.lost ? `, ${l.lost} lost` : ''}) · crew ratio {l.crewRatio} x {hc(l.crewSize)}{l.maintainers ? ` + ${l.maintainers} maintainers` : ''} · {hc(l.heads)} people · quality ×{f2(l.quality)}</small>
       <small>Based: {Object.entries(l.at).map(([r, k]) => `${REGIONS[r]?.n || r} ${hc(k)}`).join(' · ') || 'none'}{l.buys.length ? ` · procurement: ${l.buys.join(', ')}` : ''}</small>
       <small>Source: {l.status_source}</small>
+      <Row title="Age and service life" sub={`MC ×${f2(l.mcAge)} · cost ×${f2(l.costAge)} vs 2024${l.omX !== 1 ? ` · sustainment ×${f1(l.omX)}` : ''}${l.parts ? ` · parts $${Math.round(l.parts)}M` : ''}${l.converting ? ` · ${hc(l.converting)} crews converting in` : ''}`}
+        value={<Why title={`${l.n}: age curve`} table terms={ageTerms} fmt={(x) => x.toFixed(2)} note={`MC holds to ${pc(fl.rules.mcKnee)} of service life, then falls; cost rises past ${pc(fl.rules.costKnee)} and steeply beyond it. Modernize adds ${fl.rules.modLife} years.${l.ageSource ? ` Source: ${l.ageSource}` : ''}`} className="wl-wy" data-age-why={l.id}>{f0(l.age)} / {f0(l.life)} yr</Why>}
+        tone={l.ageX > 1 ? 'alert' : l.ageX > 0.8 ? 'warn' : undefined}><Bar pct={Math.min(100, l.ageX * 100)} tone={l.ageX > 1 ? 'alert' : l.ageX > 0.8 ? 'warn' : 'good'} /></Row>
       <Row title="Maintenance" sub={`$${Math.round(l.cost)}M/mo · MC target ${Math.round(l.target)}%`} value={`${l.mx}%`}>
         <input className="wl-slider" type="range" min="0" max="150" step="5" value={l.mx} aria-label={`Maintenance ${l.n}`} onChange={(e) => dispatch({ type: 'setMaintenance', payload: { line: l.id, pct: +e.target.value } })} />
       </Row>
       <div className="wl-grid2">
-        <button type="button" className="wl-lvl" disabled={!!l.modWhy} data-modernize={l.id} onClick={modernize}>Modernize<small>{l.modWhy || `$${hc(l.modCost)}M · ${fl.modMo}mo · block ${l.blk + 1}`}</small></button>
-        <button type="button" className="wl-lvl" disabled={!l.count} data-retire={l.id} onClick={() => retire(step)}>Retire {hc(step)}<small>{l.count ? `${hc(l.count - step)} left` : 'none in service'}</small></button>
+        <button type="button" className="wl-lvl" disabled={!!l.modWhy} data-modernize={l.id} onClick={modernize}>Modernize<small>{l.modWhy || `$${hc(l.modCost)}M · ${fl.modMo}mo · +${fl.rules.modLife} yr`}</small></button>
+        <button type="button" className="wl-lvl" disabled={!l.count} data-retire={l.id} onClick={() => retire(step)}>Retire {hc(step)}<small>{l.count ? `${hc(l.count - step)} left${l.succ ? ` · crews → ${fl.lines.find((x) => x.id === l.succ)?.n || l.succ}` : ''}` : 'none in service'}</small></button>
       </div>
       {l.count > step && <button type="button" className="wl-btn wl-btn-alert" data-retire-all={l.id} onClick={() => retire(l.count)}>Retire all {hc(l.count)}</button>}
     </div>
   </div>;
 }
-function fleetBranches(fl, selId, setSel, ask, dispatch) {
+function fleetBranches(fl, selId, setSel, ask, dispatch, v) {
   return BRANCHES.map(([bid, bn]) => {
     const ls = fl.lines.filter((l) => l.b === bid); const b = fl.branches.find((x) => x.id === bid);
     return <Panel key={bid} id={`fleet_${bid}`} title={`${bn} order of battle`} figure={`${hc(b.ready)} / ${hc(b.count)}`} tone={b.fill < 1 ? 'alert' : undefined} data-fleet-panel={bid}>
-      {ls.map((l) => [lineRow(l, selId === l.id, () => setSel(selId === l.id ? null : l.id)), selId === l.id ? lineDetail(l, fl, ask, dispatch) : null])}
+      {ls.map((l) => [lineRow(l, selId === l.id, () => setSel(selId === l.id ? null : l.id)), selId === l.id ? lineDetail(l, fl, ask, dispatch, v) : null])}
       <div className="wl-note">Tap a type to set its maintenance, modernize or retire it. Bar: MC now, marker: target.</div>
     </Panel>;
   });
