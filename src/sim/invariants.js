@@ -100,7 +100,11 @@ export const V57_INVARIANTS = [
     : ['active', 'reserve'].every((k) => in01(g.forces[k]))))],
   ['force quality in [0,100]', (g) => !g.forces || in01(g.forces.quality)],
   ['readiness per branch in [0,100]', (g) => !g.forces || BRANCH_IDS.every((b) => in01(g.forces.readiness?.[b]))],
-  ['crews non-negative and <= the trained pool (active x crewPer)', (g) => !g.forces || BRANCH_IDS.every((b) => { const c = g.forces.crews?.[b]; return finite(c) && c >= 0 && c <= manPts(g.forces).active * FORCE_RULES.crewPer[b] + 1e-9; })],
+  ['crews non-negative and <= the trained pool (active x crewPer; #91 headcount crews: trained + training <= active)', (g) => !g.forces || (g.forces.cap
+    ? BRANCH_IDS.every((b) => finite(g.forces.crews?.[b]) && g.forces.crews[b] >= 0) && BRANCH_IDS.reduce((a, b) => a + g.forces.crews[b], 0) + g.forces.pipe.reduce((a, p) => a + p.n, 0) <= (g.forces.active || 0) * (1 + 1e-9) + 1e-6
+    : BRANCH_IDS.every((b) => { const c = g.forces.crews?.[b]; return finite(c) && c >= 0 && c <= manPts(g.forces).active * FORCE_RULES.crewPer[b] + 1e-9; }))],
+  ['crew pipelines (#91): capacity finite >= 0 per branch, cohorts carry finite trainees > 0, crew funding within 0..fundMax', (g) => !g.forces?.cap || (BRANCH_IDS.every((b) => finite(g.forces.cap[b]) && g.forces.cap[b] >= 0)
+    && g.forces.pipe.every((p) => finite(p.n) && p.n > 0) && finite(g.forces.crewFund) && g.forces.crewFund >= 0 && g.forces.crewFund <= FL.crewPipe.fundMax)],
   ['fleet (F7): lines from the nation\'s order of battle; integer counts >= 0 placed in known theaters summing to the count; MC in [0,100]; maintenance in [0,200]; blocks and depot months integers in range; depot throughput in [0,200]', (g) => !g.forces?.fleet || (in01(g.forces.depot / 2) && Object.entries(g.forces.fleet).every(([id, s]) => (ORBAT[g.forces.nid] || []).some((l) => l.id === id)
     && Number.isInteger(s.n) && s.n >= 0 && in01(s.mc) && finite(s.mx) && s.mx >= 0 && s.mx <= FL.pctMax && Number.isInteger(s.blk) && s.blk >= 0 && s.blk <= FL.maxBlk
     && Number.isInteger(s.mod) && s.mod >= 0 && finite(s.loss) && s.loss >= 0 && s.loss < 1 && Object.entries(s.at).every(([r, k]) => REGIONS[r] && Number.isInteger(k) && k > 0)

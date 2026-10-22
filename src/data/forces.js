@@ -77,7 +77,19 @@ export const FLEET_RULES = {
   // Peacetime attrition (mishaps), share of airframes per year; hulls and formations 0.
   lossYr: { airframe: 0.003, hull: 0, formation: 0, launcher: 0 },
   // Crews: each branch's share of active strength that crews and maintains its fleet = 2024 need / 2024 active x (1 + crewSlack).
+  // #91: crewShare only seeds the start; trained crews are then headcounts that grow with the fleet (CREW_PIPE below).
   crewSlack: 0.1,
+  // #91 crew pipelines (headcounts, per branch). Trained crews = manpower x training funding x pipeline capacity:
+  //   starts/mo = min(want, cap x fund, recruits x intake share): want refills the target (need x (1 + crewSlack)) plus the pipeline's
+  //   own pipeMo months of replacement; cap is the schools' throughput (heads/mo); fund = crew funding % (0..fundMax) / 100, zero when the
+  //   training budget is Unfunded; recruits are this month's accessions (population x propensity), of which `intake` may enter crew pipelines.
+  //   Graduates join after FORCE_RULES.pipeMo months; trained crews leave at the active force's turnover.
+  // cap starts at capX x replacement. While fund >= 1 it grows by up to `grow` of itself a month toward what the target needs (procurement
+  // grows the matching pipeline); it shrinks `shrink` a month only above 1.5x that. expandPipeline buys `expand` x cap at once for
+  // expandMo months of its running cost. Running cost: 'Crew pipeline' = sum cap x perHead x fund ($M per head-month of throughput).
+  // spare: the trained-ahead floor per branch, heads: one fighter squadron's crews and maintainers (24 x 13.25 = 318) and one frigate's company (200), each +10%, so a
+  // small force can take delivery of one unit without waiting a pipeline length. The target is need + max(crewSlack x need, spare).
+  crewPipe: { spare: { land: 0, air: 350, sea: 220 }, intake: 0.8, capX: 1.25, grow: 0.15, shrink: 0.02, fundMax: 150, expand: 0.5, expandMo: 12, perHead: { land: 0.001, air: 0.02, sea: 0.008 } },
   // Equipment factor bounds (ready capability / 2024 capability at reference quality).
   eqMin: 0.3, eqMax: 1.25,
 };
