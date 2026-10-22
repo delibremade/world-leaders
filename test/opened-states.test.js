@@ -35,12 +35,13 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       // event cards (world + flashpoint) clear the HUD and stay in the viewport
       await page.evaluate(() => { const h = window.__wl; h.fund(20000); h.event('hormuz_closure', 6); h.flashpoint('ME', 'coup', 5); });
       await settle(page, 600);
+      const hudNow = (await box(page, '[data-hud]'))[0]; // the HUD re-wraps when its alert chips appear (CI fonts: 2px shorter at 1280), so compare against its box now
       const cards = await box(page, '[data-event-card]');
       assert.ok(cards.length >= 2, 'cards open');
       const nCards = await page.evaluate(() => document.querySelectorAll('[data-event-card]').length);
       for (let i = 0; i < nCards; i++) { // cards sit in a snap carousel: each must be fully visible once scrolled to
         await page.evaluate((i) => document.querySelectorAll('[data-event-card]')[i].scrollIntoView({ inline: 'center', block: 'nearest' }), i); await settle(page, 300);
-        const c = (await box(page, '[data-event-card]'))[i]; inside(c, W, H, 'event card'); assert.ok(c.y >= hud.b - 0.5 || c.x >= hud.r - 0.5, `card overlaps HUD ${JSON.stringify(c)} vs ${JSON.stringify(hud)}`); }
+        const c = (await box(page, '[data-event-card]'))[i]; inside(c, W, H, 'event card'); assert.ok(c.y >= hudNow.b - 0.5 || c.x >= hudNow.r - 0.5, `card overlaps HUD ${JSON.stringify(c)} vs ${JSON.stringify(hudNow)}`); }
       // why popovers: every trigger on the shell, including the rightmost one. Park the pointer off the HUD first: the chip row
       // can shift a well under a stationary cursor, and a hover-opened popover would then count beside the clicked one.
       await page.mouse.move(4, H - 4); await settle(page, 200);
