@@ -216,6 +216,7 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
 .wl-allocate-l{display:none;margin-left:4px} /* the HUD button is icon-only until 1440: the nation block keeps its width */
 @media (min-width:1440px){.wl-allocate-l{display:inline}}
 @media (min-width:${BREAK.desktop}px){.wl-hud:has([data-allocate]) .wl-hud-row>.wl-pause-chip{flex-basis:220px}}
+@media (min-width:${BREAK.desktop}px){.wl-hud:has(.wl-alerts):has([data-allocate]) .wl-hud-figs{width:clamp(440px,35vw,820px)}} /* chips and ALLOCATE together: the wells give a little so the nation block keeps 120px at 1280 */
 @media (min-width:${BREAK.tablet}px){
   .wl-speed{order:0;flex:0 0 auto}
   .wl-speed button{flex:0 0 auto}
