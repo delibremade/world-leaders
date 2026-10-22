@@ -40,7 +40,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       assert.ok(cards.length >= 2, 'cards open');
       const nCards = await page.evaluate(() => document.querySelectorAll('[data-event-card]').length);
       for (let i = 0; i < nCards; i++) { // cards sit in a snap carousel: each must be fully visible once scrolled to
-        await page.evaluate((i) => document.querySelectorAll('[data-event-card]')[i].scrollIntoView({ inline: 'center', block: 'nearest' }), i); await settle(page, 300);
+        await page.evaluate((i) => { const el = document.querySelectorAll('[data-event-card]')[i]; el.scrollIntoView({ inline: 'center', block: el.closest('[data-dock]') ? 'start' : 'nearest' }); }, i); await settle(page, 300); // a card taller than the desktop dock scrolls to its top, as a player would; 'nearest' aligns its bottom and reports the clipped top above the HUD
         const c = (await box(page, '[data-event-card]'))[i]; inside(c, W, H, 'event card'); assert.ok(c.y >= hudNow.b - 0.5 || c.x >= hudNow.r - 0.5, `card overlaps HUD ${JSON.stringify(c)} vs ${JSON.stringify(hudNow)}`); }
       // why popovers: every trigger on the shell, including the rightmost one. Park the pointer off the HUD first: the chip row
       // can shift a well under a stationary cursor, and a hover-opened popover would then count beside the clicked one.
