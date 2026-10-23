@@ -16,12 +16,12 @@ test('lod: three ascending levels; each level keeps every layer of the one below
 });
 
 test('lod: the level follows the viewport scale; layers answer by level or by scale; names fade with zoom', () => {
-  assert.equal(lodFor(0.4).id, 'strategic'); assert.equal(lodFor(1).id, 'strategic'); assert.equal(lodFor(1.05).id, 'operational');
-  assert.equal(lodFor(1.5).id, 'operational'); assert.equal(lodFor(1.9).id, 'tactical'); assert.equal(lodFor(6).id, 'tactical');
+  assert.equal(lodFor(0.4).id, 'strategic'); assert.equal(lodFor(1).id, 'strategic'); assert.equal(lodFor(1.6).id, 'operational');
+  assert.equal(lodFor(2).id, 'operational'); assert.equal(lodFor(3).id, 'tactical'); assert.equal(lodFor(6).id, 'tactical');
   assert.equal(lodFor(NaN).id, 'strategic'); assert.equal(lodFor(-1).id, 'strategic');
   assert.equal(layersAt(0.5).rings, false); assert.equal(layersAt(0.5).baseNames, false); assert.equal(layersAt(0.5).names, true);
-  assert.equal(layersAt(1.2).baseNames, true); assert.equal(layersAt(1.2).rings, false);
-  assert.equal(layersAt(2.5).rings, true); assert.equal(layersAt(2.5).unitDetail, true);
+  assert.equal(layersAt(2).baseNames, true); assert.equal(layersAt(2).rings, false);
+  assert.equal(layersAt(3).rings, true); assert.equal(layersAt(3).unitDetail, true);
   assert.deepEqual(layersAt('tactical'), layersAt(3)); assert.deepEqual(layersAt('nonsense'), layersAt(0));
   assert.equal(nameAlpha(0.5), 1); assert.ok(nameAlpha(2) < nameAlpha(1) && nameAlpha(6) >= 0.35, 'names fade, never vanish');
 });

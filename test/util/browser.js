@@ -15,6 +15,7 @@ export async function stableRect(page, sel, { within = null } = {}) { // within:
   return prev;
 }
 const findChromium = () => {
+  if (process.env.WL_CHROMIUM_PATH) return process.env.WL_CHROMIUM_PATH;
   const root = process.env.PLAYWRIGHT_BROWSERS_PATH;
   if (!root || !existsSync(root)) return undefined; // let playwright resolve its own cache
   const d = readdirSync(root).filter((n) => /^chromium-\d+$/.test(n)).sort().pop();

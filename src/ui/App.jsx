@@ -22,6 +22,8 @@ import { tier1Plan } from '../sim/forces.js';
 import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups } from '../sim/selectors.js';
 import { VERSION, BUILD_STAMP } from './version.js';
 import { MapView } from './map/MapView.jsx';
+import { EnergyDesk } from './energy/EnergyDesk.jsx';
+import { NationWorkspace } from './shell/NationWorkspace.jsx';
 import { Hud } from './shell/Hud.jsx';
 import { BottomNav } from './shell/BottomNav.jsx';
 import { Help } from './shell/Help.jsx';
@@ -168,7 +170,7 @@ function WorldLeadersInner({resumeSignal}){
   const [darpaDisc,setDarpaDisc]=useState({});
   const [activeDecision,setActiveDecision]=useState(null);
   const [usedDecisions,setUsedDecisions]=useState(new Set());
-  const [activeTab,setActiveTab]=useState('overview');const wide=useWide();
+  const [activeTab,setActiveTab]=useState('overview');const [mapSelection,setMapSelection]=useState(null);const [commandView,setCommandView]=useState('world');const wide=useWide();
   const [mapMode,setMapMode]=useState('sphere');
   const [selNation,setSelNation]=useState(null);      // P3c nation sheet (presentation)
   const [selSite,setSelSite]=useState(null);const [buildMode,setBuildMode]=useState(false);const [act,setAct]=useState(null); // F9b site sheet, build mode, confirm sheet
@@ -556,8 +558,8 @@ function WorldLeadersInner({resumeSignal}){
   // Closing the feed marks everything read (rows keep their unread dots while it is open).
   const closeFeed=()=>{setFeedOpen(false);notifierR.current.readAll();};
   // One jump for the outliner and the feed: pane, then the region/nation/site sheet it names.
-  const jumpTo=({tab,region,nation,issue,sub,site,card,pan,op,target})=>{setActiveTab(tab);if(card)setDockFocus({card,at:Date.now()});if(pan){if(mapRef.current)mapRef.current.focus?.(pan);else panPending.current=pan;}if(op){setSelIntelTarget(target||null);setOpFocus(op);}if(sub&&tab==='arsenal')setArsenalSub(sub);if(sub&&tab==='resources')setResSub(sub);if(issue)setIntelIssue(issue);setVitalsDrill(null);if(region){setSelNation(null);setSelectedRegion(region);}if(nation&&!op)setSelNation(nation);if(site){setSelNation(null);setSelectedRegion(null);setSelSite(site);}setOutlinerOpen(false);closeFeed();};
-  const segOverview=<Seg id="overview" label="Overview views" active={activeTab} onSelect={goPane} items={[{id:'overview',label:'Map'},{id:'sitroom',label:'Situation',badge:sitBadge(),sev:'alert'}]}/>;
+  const jumpTo=({tab,region,nation,issue,sub,site,card,pan,op,target})=>{if(tab==='overview')setCommandView('world');setActiveTab(tab);if(card)setDockFocus({card,at:Date.now()});if(pan){if(mapRef.current)mapRef.current.focus?.(pan);else panPending.current=pan;}if(op){setSelIntelTarget(target||null);setOpFocus(op);}if(sub&&tab==='arsenal')setArsenalSub(sub);if(sub&&tab==='resources')setResSub(sub);if(issue)setIntelIssue(issue);setVitalsDrill(null);if(region){setSelNation(null);setSelectedRegion(region);}if(nation&&!op)setSelNation(nation);if(site){setSelNation(null);setSelectedRegion(null);setSelSite(site);}setOutlinerOpen(false);closeFeed();};
+  const segOverview=<Seg id="overview" label="Command workspaces" active={activeTab==='overview'?commandView:activeTab} onSelect={id=>{if(id==='nation'||id==='world'){setCommandView(id);goPane('overview');}else goPane(id);}} items={[{id:'nation',label:'Nation'},{id:'world',label:'World'},{id:'sitroom',label:'Situation',badge:sitBadge(),sev:'alert'}]}/>;
   const segResources=<Seg id="resources" label="Resources views" cols={3} active={resSub} onSelect={setResSub} items={RES_SUBS}/>;
   // Plain render helper (not a component: an inner component would remount every render)
   const panelBox=(id,title,accent,content)=>{const open=!collapsed.has(id);
@@ -750,6 +752,8 @@ function WorldLeadersInner({resumeSignal}){
   const nationView={bases,country,stats,nationRelations,embassies,defensePacts,tradeAgreements,sanctions,embargoes,embassyMissions,influenceAlloc,influenceBudget,dominance:domR.current,doctrine,defLevels,defExports,intelOps,continuousOps,rivalTension,actionCooldowns,embassyLocks:embLockR.current,resExtraction,platforms,blackPrograms,blackResearch,arsenal,intelInfra,covertPrograms,intelBudget,absorbBonus:absorbR.current};
   // V2d command cards: one runner for every card (escalatory through the confirm sheet, UI side effects, else the verb).
   const runCmd=(a)=>runCommand(a,{dispatch,ask:setAct,ui:(u)=>{if(u.build!=null)setBuildMode(u.build);if(u.site){setSelNation(null);setSelSite(u.site);}if(u.nation)setSelNation(u.nation);}});
+  const energyGame={country,stats,resources,resExtraction,importContracts,spr,sprRelease,chokeStatus,chokeDeals,forceDeployments,forcePosture,bases,blocTrade,dominanceLeverage:domLevR.current,stewardship,embargoedBy,ledger};
+  const openSupplyMap=(choke)=>{setCommandView('world');setMapSelection(choke?{kind:'choke',id:choke}:null);setSelNation(null);setSelSite(null);setSelectedRegion(null);setMapMode('energy');setActiveTab('overview');};
   const cmdView={country,stats,nationRelations,sanctions,embargoes,actionCooldowns,influenceAlloc,platforms,platformsImported,blackPrograms,forceDeployments,resExtraction,bases,intelOps,sphere};
   const regionCard=selectedRegion&&!selNation&&!selSite?<CommandCard id="region" placement={wide?'map':'sheet'} title={REGIONS[selectedRegion]?.n} sub={`${Math.round(sphere[selectedRegion]?.player||0)}% your sphere · keys A S D F Z X C V`} color={country?.color||'#6ee7a8'} actions={regionCommands(cmdView,selectedRegion)} onRun={runCmd} onClose={()=>setSelectedRegion(null)}/>:null;
   // V2b: outliner rows and the top-bar alert chips come from one builder; a chip focuses its rows and switches the map mode.
@@ -916,11 +920,12 @@ function WorldLeadersInner({resumeSignal}){
         {/* OVERVIEW / MAP TAB */}
         {activeTab==='overview'&&<div className="wl-pane-wrap" data-sentinel="overview">{segOverview}<div className="wl-overview" style={{flex:1,display:'flex',overflow:'hidden'}}>
           <div className="wl-ov-col" style={{flex:1,overflowY:'auto',padding:'12px',display:'flex',flexDirection:'column',gap:'12px'}}>
+            {commandView==='nation'?<NationWorkspace g={energyGame} rows={outlinerRows} onJump={jumpTo}><Allocation allocs={budgetAlloc} maturity={sectorMaturity} age={sectorAge} treasury={stats?.treasury||0} locks={budgetLocks} onLock={(k,v)=>setBudgetLocks(p=>{const n2=new Set(p);if(v)n2.add(k);else n2.delete(k);return n2;})} hold={poolHold} onHold={setHold} baseline={baselineR.current||budgetAlloc} dispatch={dispatch} onSelect={k=>{setSelBudget(k);setActiveTab('economy');}}/></NationWorkspace>:<>
             <NationalPulse stats={stats} energyTier={getEnergyTier(resources,resExtraction,importContracts)} spr={spr} onJump={jumpTo}/>
             {/* SVG WORLD MAP */}
             <div className="wl-map-card" style={{background:'#0a0f1a',borderRadius:'10px',border:'1px solid #1c2a42',padding:'12px'}}>
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',marginBottom:'8px'}}><div style={{fontSize:'11px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px'}}>World command · select a region</div><Help items={HELP_TIPS}/></div>
-              <MapView onMap={m=>{mapRef.current=m;if(m&&panPending.current){m.focus?.(panPending.current);panPending.current=null;}}} mode={mapMode} onModeChange={setMapMode} onRegionTap={rid=>setSelectedRegion(selectedRegion===rid?null:rid)} onSiteTap={sid=>{setSelNation(null);setSelectedRegion(null);setSelSite(sid);}} onBuildToggle={setBuildMode}
+              <MapView selectionRequest={mapSelection} game={{...cmdView,...energyGame,forcePosture,forces,defensePacts,chokeStatus,embassies,tradeAgreements}} dispatch={dispatch} ask={setAct} onNation={setSelNation} onJump={setActiveTab} onMap={m=>{mapRef.current=m;if(m&&panPending.current){m.focus?.(panPending.current);panPending.current=null;}}} mode={mapMode} onModeChange={setMapMode} onRegionTap={rid=>setSelectedRegion(selectedRegion===rid?null:rid)} onSiteTap={sid=>{setSelNation(null);setSelectedRegion(null);setSelSite(sid);}} onBuildToggle={setBuildMode}
                 view={{country,sphere,selectedRegion,forceDeployments,flashpoint,sphereTrend,intelOps,defExports,doctrine,nationRelations,embassies,defensePacts,chokeStatus,rivalTension,blockades,tradeAgreements,importContracts,embargoes,embargoedBy,forcePosture,sanctions,moles,expelled:expelR.current,concessions,bases,build:buildMode,selectedSite:selSite}}/>
               {wide&&regionCard}
 
@@ -928,6 +933,7 @@ function WorldLeadersInner({resumeSignal}){
 
             <QueueDeck rows={outlinerRows} onJump={jumpTo}/>
             {!wide&&flankEl}
+            </>}
           </div>
 
           {/* Right intel panel */}
@@ -1182,7 +1188,7 @@ function WorldLeadersInner({resumeSignal}){
         </div></div>}
 
         {/* ENERGY TAB */}
-        {activeTab==='energy'&&<div className="wl-energy-workspace" style={{flex:1,overflowY:'auto',padding:'16px'}}><EnergySummary tier={getEnergyTier(resources,resExtraction,importContracts)} spr={spr} releasing={sprRelease} imports={importContracts.size} disruptions={(IMPORT_ROUTES[Object.entries(REGIONS).find(([,r])=>r.homeFor?.includes(country?.id))?.[0]]||[]).filter(k=>chokeStatus[k]==='disrupted').length} routeIds={IMPORT_ROUTES[Object.entries(REGIONS).find(([,r])=>r.homeFor?.includes(country?.id))?.[0]]||[]} chokeStatus={chokeStatus} onMap={(region)=>{setMapMode('energy');jumpTo({tab:'overview',region:typeof region==='string'?region:undefined});}} onResources={()=>jumpTo({tab:'resources',sub:'natural'})}/>{vitalsDrill&&<VitalsDrillPanel/>}
+        {activeTab==='energy'&&<div className="wl-energy-workspace" style={{flex:1,overflowY:'auto',padding:'16px'}}><EnergyDesk g={energyGame} ledger={ledger} date={date} dispatch={dispatch} onMap={openSupplyMap} onResources={()=>jumpTo({tab:'resources',sub:'natural'})} onBudget={()=>setActiveTab('economy')}/>{vitalsDrill&&<VitalsDrillPanel/>}
           {(()=>{const homeRid=Object.entries(REGIONS).find(([,r])=>r.homeFor?.includes(country?.id))?.[0];const routes=IMPORT_ROUTES[homeRid]||[];const fossil=['oil','gas','coal'].filter(k=>importContracts.has(k));
             const evOil=worldEvent?(WORLD_EVENTS[worldEvent.id]?.oilM||1):1;const price=(evOil*(opecSwing?(opecSwing.mode==='cut'?1.6:0.55):1)*(chokeStatus.hormuz==='disrupted'?1.4:1));
             const trait=NATION_TRAITS[country?.id]||{};const dep=trait.energyDep||0;
@@ -1192,11 +1198,7 @@ function WorldLeadersInner({resumeSignal}){
               <details className="wl-energy-help"><summary>How supply disruption affects your economy</summary>
               <p style={{fontSize:'9px',color:'#7c8aa3',marginTop:'4px'}}>Disrupted lanes: fossil imports ×1.5, inflation +0.1/mo, downstream exports −25%. Station naval weight 2+ in the governing region on <b>Escort</b> posture to keep it open — or burn reserve.</p>
               </details>
-              <div className="wl-energy-production"><div className="wl-reserve-controls">
-                <span style={{fontSize:'10px',fontWeight:700,color:'#f5c451'}}>🛢️ Strategic Petroleum Reserve: {spr}/6</span>
-                <button onClick={()=>dispatch({type:'fillReserve'})} style={{background:'transparent',border:'1px solid #2e3f5c',color:'#9aa8bf',padding:'3px 9px',borderRadius:'4px',fontSize:'10px'}}>+ Fill $200M</button>
-                <button onClick={()=>dispatch({type:'toggleReserveRelease'})} style={{background:sprRelease?'rgba(245,196,81,.12)':'transparent',border:`1px solid ${sprRelease?'#f5c451':'#2e3f5c'}`,color:sprRelease?'#f5c451':'#9aa8bf',padding:'3px 9px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{sprRelease?'⏹ Stop release':'▶ Release'}</button>
-              </div>
+              <div className="wl-energy-production">
               <div style={{marginTop:'9px',paddingTop:'9px',borderTop:'1px solid #1c2a42'}}>
                 <div style={{fontSize:'9px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'4px'}}>Supply to market · how much of your production you sell abroad</div>
                 {['oil','gas'].map(k=>{const sh=exportShare[k]??0.6;const ext=resExtraction[k]||0;return <div key={k} style={{marginBottom:'6px'}}>

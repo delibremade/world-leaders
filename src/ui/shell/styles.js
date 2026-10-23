@@ -1,3 +1,6 @@
+import { NATION_CSS } from './NationWorkspace.jsx';
+import { ENERGY_DESK_CSS } from '../energy/EnergyDesk.jsx';
+import { atlasStyles } from '../map/styles.js';
 // Tier 1 shell stylesheet (P3c): app grid, HUD, event-card strip, bottom nav / side rail, outliner, sheet,
 // why-popover. Tokens only (docs/DESIGN-SYSTEM.md). Mobile first; the 900px query turns the bottom nav into
 // a left rail and the outliner into a right column.
@@ -374,4 +377,7 @@ kbd{font:inherit;font-size:${SIZE.micro}px;color:${c.text.dim};border:1px solid 
   .wl-hud:has(.wl-alerts) .wl-hud-figs{width:clamp(480px,38vw,820px);grid-template-columns:repeat(3,minmax(160px,1fr))}
 }
 @media (min-width:1680px){.wl-alert-l{display:inline}}
+${atlasStyles}
+${ENERGY_DESK_CSS}
+${NATION_CSS}
 `;

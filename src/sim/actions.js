@@ -67,8 +67,7 @@ function deployPolicy(g,S,fx,issueType,optId){
   return true;
 }
 
-const ownedUnits=(g,pid)=>BLACK_PROGRAMS[pid]?(+g.blackPrograms?.[pid]||0):((g.platforms[pid]||0)+(g.platformsImported[pid]||0));
-const deployedTotal=(g,pid)=>Object.values(g.forceDeployments||{}).reduce((a,o)=>a+(o?.[pid]||0),0);
+import { ownedUnits, deployedTotal } from './deployment-view.js';
 function deployUnit(g,S,fx,rid,pid){
   if(!DEPLOYABLE.includes(pid)){fx.toast(`⚠ ${(PLATFORMS[pid]||BLACK_PROGRAMS[pid])?.n||pid} cannot be stationed${BLACK_PROGRAMS[pid]?.attachesTo?' — it attaches to '+BLACK_PROGRAMS[BLACK_PROGRAMS[pid].attachesTo].n+' wings':''}`);return false;}
   const avail=ownedUnits(g,pid)-deployedTotal(g,pid);const nm=(PLATFORMS[pid]||BLACK_PROGRAMS[pid])?.n||pid;

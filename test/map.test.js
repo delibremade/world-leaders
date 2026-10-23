@@ -52,7 +52,7 @@ test('scene: six modes, ten regions each, valid fills, legend per mode, every v5
     assert.equal(s.mode, m.id); assert.equal(s.regions.length, 10);
     for (const r of s.regions) { assert.match(r.fill, HEX, `${m.id} ${r.rid}`); assert.match(r.stroke, HEX); assert.ok(r.fillAlpha > 0 && r.fillAlpha <= 1); assert.ok(typeof r.line2 === 'string' && r.line2.length); assert.ok(r.value >= 0 && r.value <= 1); assert.equal(r.name, REGIONS[r.rid].n); }
     assert.ok(s.legend.title && s.legend.items.length >= 5, 'legend');
-    assert.equal(s.routes.length, 1, 'trade route to Japan'); assert.equal(s.routes[0].rid, 'EA');
+    if(m.id==='energy')assert.equal(s.routes.length,0,'no fossil contracts in this fixture');else{assert.equal(s.routes.length, 1, 'trade route to Japan'); assert.equal(s.routes[0].rid, 'EA');}
     assert.ok(s.influence.some((l) => l.rid === 'EA' && l.strength === 3), 'pact line'); assert.ok(s.influence.some((l) => l.rid === 'WE' && l.strength === 1), 'relations line'); assert.ok(s.influence.some((l) => l.rid === 'SAS' && l.strength === 2), 'embassy line');
     assert.equal(s.chokepoints.length, Object.keys(CHOKEPOINTS).length);
     const hz = s.chokepoints.find((c) => c.k === 'hormuz'); assert.equal(hz.status, 'disrupted'); assert.ok(hz.ring); assert.equal(hz.color, COLOR.choke.disrupted);
@@ -119,8 +119,9 @@ test('scene: base markers and reach rings come from g.bases; build mode lists ev
   assert.equal(s.sites.length, withNodes.size); assert.ok(s.sites.every((x) => !x.candidate));
   const dj = s.sites.find((x) => x.id === 'djibouti'); assert.ok(dj.mine === 1 && dj.theirs >= 2 && dj.owners.includes('china'), JSON.stringify(dj)); assert.equal(dj.color, COLOR.faction.player); assert.equal(dj.host, 'Djibouti');
   const ream = s.sites.find((x) => x.id === 'ream'); assert.equal(ream.mine, 0); assert.equal(ream.color, COLOR.faction.china);
-  const guam = s.rings.find((r) => r.site === 'guam' && r.type === 'naval'); assert.equal(guam.r, +(NODE_TYPES.naval.reach / KM_PER_PX).toFixed(1)); assert.ok(guam.mine);
-  assert.ok(s.rings.some((r) => r.site === 'ream' && !r.mine), 'foreign rings too');
+  assert.equal(s.rings.length,0,'coverage stays hidden without selection');
+  const guam = buildScene(view({bases,selectedSite:'guam'}),'military').rings.find((r) => r.site === 'guam' && r.type === 'naval'); assert.equal(guam.r, +(NODE_TYPES.naval.reach / KM_PER_PX).toFixed(1)); assert.ok(guam.mine);
+  assert.ok(buildScene(view({bases,selectedSite:'ream'}),'military').rings.some((r) => r.site === 'ream' && !r.mine), 'foreign rings too');
   assert.match(s.legend.glyphs, /your base/);
   const b = buildScene(view({ bases, build: true, selectedSite: 'subic' }), 'sphere');
   assert.equal(b.sites.length, SITE_IDS.length); assert.ok(b.build); assert.ok(b.sites.find((x) => x.id === 'subic').candidate && b.sites.find((x) => x.id === 'subic').selected);

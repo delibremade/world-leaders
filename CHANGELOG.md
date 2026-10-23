@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.93.0 (2026-10-23) — Nation, energy decisions and the operational atlas
+- Nation workspace: shared budget allocation, service outcomes, energy exposure and project queues. World remains the spatial workspace.
+- Energy: connected supply/transit/economy view, reserve controls, import and extraction settings, current import-cost estimate and observed monthly accounting. The estimate and monthly tick share one import-cost calculation.
+- Atlas: flat world geography, shallow regional relief, screen-sized labels and facility silhouettes, nearby-site groups, selectable corridors, lens-specific networks and selection-only coverage.
+- Persistent desktop inspector: search sites, preview construction with actual host gates/costs/reach, build through confirmation, explicitly station/recall platforms and set posture. Mobile retains sheets and the SVG fallback remains keyboard accessible.
+- Browser acceptance captures added to CI. No save-schema or balance changes.
+
 ## 0.92.0 (2026-10-23) — Desktop command workspace
 - Overview: clickable national indicators and real production, research and operations queues surround the 2.5D map. The existing event dock and outliner keep their fixed positions.
 - Economy: public-service outcomes and the shared allocation pool lead the screen; tax and monetary policy sit alongside. Budget command buttons now use the same held-pool and lock rules as sliders.

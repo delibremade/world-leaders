@@ -1,3 +1,4 @@
+import { importCost } from './energy-view.js';
 import { applyAction } from './actions.js';
 import { renewableTotal, oilPriceTerms, influencePool, influenceGain, compliance, variantEff, opOdds, opOddsTerms } from './selectors.js';
 import { ALLIED_PROGRAMS, TIERS, ACCESS_RULES, MEMBER_INCOME, LEAK } from '../data/alliance.js';
@@ -365,13 +366,7 @@ function economy(g,S,fx,m){
   const oilExportM=oilPriceTerms(g,{renTot,hormuzHit}).mult; // terms shared with the HUD why-breakdown (selectors.js)
   // Resource import contracts: continuity when domestic reserves run dry
   if(g.importContracts.size>0){
-    const blocCut=(g.blocTrade.eu>=1?0.9:1)*(g.blocTrade.cn>=1?0.85:1);
-    const secured=myRoutes.length&&myRoutes.every(k=>cs[k]==='secured'||cs[k]==='escorted');
-    let impCost=g.importContracts.size*80*(g.dominanceLeverage.importCut||1)*blocCut*(routeHit&&!sprShield?1.5:1)*(secured?0.9-laneCut(g,myRoutes):1)*(g.embargoedBy&&!isDiversified(g)&&!sprShield?1.3:1); // F9c: lane protection from bases on the route
-    if(Object.keys(g.stewardship).length&&g.importContracts.has('oil'))impCost-=40; // you market their crude
-    if((g.chokeDeals.panama||{}).priority&&myRoutes.includes('panama'))impCost*=0.85;
-    if(g.blocTrade.opec>=1){let foss=0;['oil','gas','coal'].forEach(k=>{if(g.importContracts.has(k))foss++;});impCost-=foss*16;}
-    cash('Imports',-Math.round(Math.max(0,impCost)));ns.inflation+=g.importContracts.size*0.03;}
+    cash('Imports',-importCost(g,{myRoutes,cs,routeHit,sprShield}));ns.inflation+=g.importContracts.size*0.03;}
   // Energy shortage: no domestic fossils left, weak renewables, no import lifeline
   const fossilLeft=['oil','gas','coal'].some(k=>(g.resources?.[k]?.r||0)>1);
   const impFossil=['oil','gas','coal'].some(k=>g.importContracts.has(k));

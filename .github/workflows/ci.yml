@@ -16,6 +16,14 @@ jobs:
       - run: npx playwright-core install --with-deps chromium
       - run: npm test
       - run: npm run build
+        if: always()
+      - run: node scripts/capture-ui.js
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-captures
+          path: reports/ui-captures
       - uses: actions/upload-artifact@v4
         with:
           name: world-leaders-html

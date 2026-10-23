@@ -43,7 +43,7 @@ test('national overview, project queue and energy routes open the working manage
     assert.ok(+q('[data-sector=education]').value < 100, 'raising a line through the command card squeezes the held pool');
     await click('[data-tab=energy]');
     assert.ok(q('[data-energy-summary]'));
-    await click('.wl-energy-metrics button:first-child');
+    await click('.wl-energy-chain button:first-child');
     assert.equal(q('[data-tab=resources]').getAttribute('aria-current'), 'page');
     assert.equal(q('[data-seg=natural]').getAttribute('aria-selected'), 'true');
     await click('[data-tab=energy]');
