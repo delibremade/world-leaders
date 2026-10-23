@@ -205,12 +205,18 @@ test('390px: six map-mode chips fit inside the map card, equal width, none clipp
   } finally { await ctx.close(); }
 });
 
-test('Overview: the map comes first (phone: above every card; desktop: main column, tips behind a popover)', async () => {
+test('Overview: map leads on phone; desktop indicators frame the map; tips stay behind a popover', async () => {
   for (const [W, H] of [[390, 844], [1280, 800]]) {
     const { ctx, page } = await openGame(browser, { width: W, height: H });
     try {
       const top = await page.evaluate(() => { const els = [...document.querySelectorAll('.wl-overview > div:first-child > *')].filter((e) => e.getBoundingClientRect().height > 0).sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top); return { first: els[0]?.className, mapTop: document.querySelector('.wl-map-card').getBoundingClientRect().top, otherTops: els.filter((e) => !e.matches('.wl-map-card')).map((e) => e.getBoundingClientRect().top) }; });
-      assert.equal(top.first, 'wl-map-card', `${W}px first block`); assert.ok(top.otherTops.every((y) => y > top.mapTop), `${W}px: cards below the map`);
+      if (W < 1100) {
+        assert.equal(top.first, 'wl-map-card', `${W}px first block`); assert.ok(top.otherTops.every((y) => y > top.mapTop), `${W}px: cards below the map`);
+      } else {
+        assert.equal(top.first, 'wl-national-pulse', 'desktop national indicators above the map');
+        const queue = await rect(page, '.wl-queue-deck');
+        assert.ok(queue.y > top.mapTop, 'project queue below the map');
+      }
       const map = await rect(page, '.wl-map-card');
       if (W >= 900) assert.ok(map.w >= 600, `desktop map column ${map.w}px`); else assert.ok(map.w >= 340 && map.y < 300, `phone map ${JSON.stringify(map)}`);
       assert.equal(await page.evaluate(() => /Investigate issues/.test(document.body.innerText)), false, 'static tips are out of the layout');

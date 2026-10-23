@@ -92,7 +92,6 @@ export const verbScript = (g, shocks) => {
   const h = () => g.w.__wl;
   const plan = {
     2: async () => { // doctrine; economy: rate, stance, tax, sector budget, social program, policy action, budget drill +/-
-      await clickDiv(/^🛡️Military Superpower/);
       await tab('economy');
       await range(mm(0, 20), 5.5); await click(/Stimulus/); await range(mm(8, 48), 33);
       if (g.w.__wl?.poolHold) { g.w.__wl.poolHold(false); await flush(); await flush(); } // V2e: v57 drags one line; the App replays it with the pool free (held by default for players)
@@ -218,5 +217,5 @@ export const verbScript = (g, shocks) => {
     await shocks(m);
     if (m >= 2) { if (plan[m]) await plan[m](); await every(m); }
   };
-  return { onMonth, hits: d.hits };
+  return { onMonth, hits: d.hits, chooseDoctrine: () => clickDiv(/^🛡️Military Superpower/) };
 };

@@ -36,10 +36,10 @@ export function EventCards({ dock = false, focus = null, doctrine, activeDecisio
     <div key="doctrine" className="wl-card-ev" data-event-card="doctrine" data-modal="1900" style={{ '--ev': COLOR.accent.command }}>
       <div className="wl-label">Choose your national doctrine</div>
       <h4>This defines your path to hegemony</h4>
-      <p>First nation to 80% Hegemony wins the era. Rivals are racing you. The game runs while you choose.</p>
+      <p>Hold 85% Hegemony for 24 months to win this path. Economic, technological and diplomatic victories are also possible. Time is paused while you choose.</p>
       <div className="wl-opts">
         {Object.entries(DOCTRINES).map(([id, d]) => (
-          <div key={id} className="wl-opt" style={{ cursor: 'pointer', borderColor: d.col + '55' }} onClick={() => dispatch({ type: 'chooseDoctrine', payload: { doctrine: id } })}>
+          <div key={id} className="wl-opt" role="button" tabIndex={0} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();dispatch({type:'chooseDoctrine',payload:{doctrine:id}});}}} style={{ cursor: 'pointer', borderColor: d.col + '55' }} onClick={() => dispatch({ type: 'chooseDoctrine', payload: { doctrine: id } })}>
             <span style={{ fontSize: 18 }}>{d.i}</span><b style={{ color: d.col }}>{d.n}</b><small>{d.d}</small>
             {d.pros.map((p) => <small key={p} style={{ color: COLOR.accent.good }}>+ {p}</small>)}{d.cons.map((c) => <small key={c} style={{ color: COLOR.accent.alert }}>− {c}</small>)}
           </div>))}

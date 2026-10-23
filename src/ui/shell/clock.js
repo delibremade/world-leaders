@@ -4,7 +4,7 @@
 //   mode 'step' the clock is stopped; the Next button advances exactly one month (unless a hard gate needs an answer).
 // Reason precedence (first match wins): player/rule pause, hard engine gate, crisis briefing, open confirm, open sheet.
 // A pause always shows its reason (PLAYABLE-PLAN shell chrome).
-export const HARD_LABELS = [['ultimatum', 'Nuclear ultimatum'], ['confrontation', 'Blockade confrontation'], ['intelCrisis', 'Intel crisis'], ['gameOver', 'Game over'], ['victory', 'Victory']];
+export const HARD_LABELS = [['doctrine', 'Choose your doctrine'], ['ultimatum', 'Nuclear ultimatum'], ['confrontation', 'Blockade confrontation'], ['intelCrisis', 'Intel crisis'], ['gameOver', 'Game over'], ['victory', 'Victory']];
 
 export function clockPlan({ inPlay = true, paused = false, pauseWhy = null, hard = {}, crisisBrief = false, held = {} } = {}) {
   const hardHit = HARD_LABELS.find(([k]) => hard[k]);

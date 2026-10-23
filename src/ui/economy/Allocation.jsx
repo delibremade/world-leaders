@@ -17,18 +17,22 @@ export function Allocation({ allocs, maturity = {}, age = {}, treasury = 0, lock
   const live = drag ? { ...allocs, [drag.sector]: drag.value } : allocs;
   const pool = poolCost(live, maturity); const base = poolCost(baseline, maturity); const d = deltas(live, baseline, maturity);
   const latest = useRef(null); latest.current = { allocs, locks, maturity, hold, dispatch };
+  // Sliders and command-card buttons share this one commit path, including pool locks.
+  const commit = (sector, value) => {
+    const { allocs, locks, maturity, hold, dispatch } = latest.current;
+    setDrag(null);
+    if (!hold) { dispatch({ type: 'setSectorBudget', payload: { sector, value } }); setLast(null); return; }
+    const r = squeeze({ allocs, locks, maturity, sector, value });
+    dispatch({ type: 'setSectorBudgets', payload: { allocs: r.allocs } });
+    setLast(r);
+  };
   // Commit on the native change event: it fires once on pointer release (or key release), after the input events of a drag.
   const root = useRef(null);
   useEffect(() => {
     const el = root.current; if (!el) return;
     const onChange = (e) => {
       const t = e.target; if (!(t instanceof HTMLInputElement) || t.type !== 'range' || !t.dataset.sector) return;
-      const { allocs, locks, maturity, hold, dispatch } = latest.current; const sector = t.dataset.sector; const value = +t.value;
-      setDrag(null);
-      if (!hold) { dispatch({ type: 'setSectorBudget', payload: { sector, value } }); setLast(null); return; }
-      const r = squeeze({ allocs, locks, maturity, sector, value });
-      dispatch({ type: 'setSectorBudgets', payload: { allocs: r.allocs } }); // one action for the line and everything it squeezed
-      setLast(r);
+      commit(t.dataset.sector, +t.value);
     };
     el.addEventListener('change', onChange); return () => el.removeEventListener('change', onChange);
   }, []);
@@ -60,7 +64,7 @@ export function Allocation({ allocs, maturity = {}, age = {}, treasury = 0, lock
               {decaying && <span className="wl-chip wl-chip-alert wl-pulse">⚠ aging</span>}
               {nearEnd && !decaying && <span className="wl-chip wl-chip-warn">⏱ {480 - a}mo</span>}
               <span className="wl-num wl-alloc-cost" style={{ color: tone }}>{money(cost)}/mo</span>
-              <button type="button" className="wl-btn wl-btn-sm" data-lock={sector} aria-pressed={locked} onClick={() => onLock(sector, !locked)} title={locked ? 'Locked: never squeezed. Tap to unlock.' : 'Unlocked: gives way when the pool is held. Tap to lock.'}>{locked ? '🔒' : '🔓'}</button>
+              <button type="button" className="wl-btn wl-btn-sm" data-lock={sector} aria-pressed={locked} onClick={() => onLock(sector, !locked)} title={locked ? 'Locked: never squeezed. Tap to unlock.' : 'Unlocked: gives way when the pool is held. Tap to lock.'}>{locked ? 'Locked' : 'Lock'}</button>
             </div>
             <div className="wl-alloc-row">
               <span className="wl-num wl-alloc-pct" style={{ color: tone }}>{alloc}%</span>
@@ -68,7 +72,7 @@ export function Allocation({ allocs, maturity = {}, age = {}, treasury = 0, lock
               <span className="wl-alloc-eff">{alloc > 100 ? `+${((alloc - 100) / 100).toFixed(2)}× gains` : alloc < 100 ? `−${((100 - alloc) / 100).toFixed(2)}× decay` : 'Normal'}</span>
             </div>
             {!compact && decaying && <button type="button" className="wl-btn wl-btn-alert" data-modernize-sector={sector} onClick={() => dispatch({ type: 'modernizeSector', payload: { sector } })}>🔄 Great Modernization — costs 30% treasury ({money(treasury * 0.3)})</button>}
-            {selected === sector && children}
+            {selected === sector && (typeof children === 'function' ? children(commit) : children)}
           </div>);
       })}
     </div>

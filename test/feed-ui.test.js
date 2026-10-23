@@ -65,6 +65,7 @@ test('jumps: a pane notice opens that pane; a region notice opens the region she
 
 test('routing: toast pops and is kept; feed is kept without a popup; pause stops the clock with a named reason and resumes at the same speed; routes survive a reload', async () => {
   const { g, q, settle, openFeed, notify, route } = await boot();
+  q('[data-event-card=doctrine] .wl-opt').click(); await settle();
   await notify('intelOps', '🕵️ Toast me'); assert.match(toastText(g), /Toast me/, 'default route toasts');
   await openFeed(); await route('intel', 'feed');
   assert.equal(q('[data-route-class=intel] [data-route=feed]').getAttribute('aria-pressed'), 'true');

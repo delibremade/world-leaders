@@ -1,3 +1,4 @@
+import { COLOR } from './tokens.js';
 import { useState, useEffect, useRef, useCallback, useMemo, Component } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { MONTHS, GOOD, SC, ss, sc } from '../data/stats.js';
@@ -50,6 +51,7 @@ import { groupOps } from './shell/ops.js';
 import { groupEffects, clockLabel } from './shell/effects.js';
 import { EventCards } from './shell/EventCards.jsx';
 import { SHELL_CSS } from './shell/styles.js';
+import { NationalPulse, QueueDeck, EnergySummary, ServiceStrip, WORKSPACE_CSS } from './shell/Workspace.jsx';
 import { Seg } from './shell/Seg.jsx';
 import { ForcesTab } from './forces/ForcesTab.jsx';
 import { ArsenalTab } from './arsenal/ArsenalTab.jsx';
@@ -508,9 +510,9 @@ function WorldLeadersInner({resumeSignal}){
 
   // Q2 (#42): one planner decides run vs step and the chip's reason; open sheets and confirms hold the clock.
   const crisisBrief=!!(activeTab==='overview'&&selectedRegion&&flashpoint&&flashpoint.rid===selectedRegion);
-  const hardGate=!!(ultimatum||confrontation||intelCrisis||gameOver||(victory&&!victoryShown));
+  const hardGate=!!(!doctrine||ultimatum||confrontation||intelCrisis||gameOver||(victory&&!victoryShown));
   const clockGate=useMemo(()=>({hold:k=>{setHolds(h=>({...h,[k]:(h[k]||0)+1}));return()=>setHolds(h=>({...h,[k]:Math.max(0,(h[k]||0)-1)}));}}),[]);
-  const plan=clockPlan({inPlay:phase==='play',paused,pauseWhy,hard:{ultimatum,confrontation,intelCrisis,gameOver,victory:victory&&!victoryShown},crisisBrief,held:holds});
+  const plan=clockPlan({inPlay:phase==='play',paused,pauseWhy,hard:{doctrine:!doctrine,ultimatum,confrontation,intelCrisis,gameOver,victory:victory&&!victoryShown},crisisBrief,held:holds});
   useEffect(()=>{if(!plan.running)return;const id=setInterval(tick,2000/gameSpeed);return()=>clearInterval(id);},[plan.running,tick,gameSpeed]);
   // Next (step mode): exactly one month through the same tick the interval runs; never past a hard gate.
   const stepMonth=()=>{if(plan.canStep&&!plan.running)tick();};
@@ -554,7 +556,7 @@ function WorldLeadersInner({resumeSignal}){
   // Closing the feed marks everything read (rows keep their unread dots while it is open).
   const closeFeed=()=>{setFeedOpen(false);notifierR.current.readAll();};
   // One jump for the outliner and the feed: pane, then the region/nation/site sheet it names.
-  const jumpTo=({tab,region,nation,issue,sub,site,card,pan,op,target})=>{setActiveTab(tab);if(card)setDockFocus({card,at:Date.now()});if(pan){if(mapRef.current)mapRef.current.focus?.(pan);else panPending.current=pan;}if(op){setSelIntelTarget(target||null);setOpFocus(op);}if(sub&&tab==='arsenal')setArsenalSub(sub);if(issue)setIntelIssue(issue);setVitalsDrill(null);if(region){setSelNation(null);setSelectedRegion(region);}if(nation&&!op)setSelNation(nation);if(site){setSelNation(null);setSelectedRegion(null);setSelSite(site);}setOutlinerOpen(false);closeFeed();};
+  const jumpTo=({tab,region,nation,issue,sub,site,card,pan,op,target})=>{setActiveTab(tab);if(card)setDockFocus({card,at:Date.now()});if(pan){if(mapRef.current)mapRef.current.focus?.(pan);else panPending.current=pan;}if(op){setSelIntelTarget(target||null);setOpFocus(op);}if(sub&&tab==='arsenal')setArsenalSub(sub);if(sub&&tab==='resources')setResSub(sub);if(issue)setIntelIssue(issue);setVitalsDrill(null);if(region){setSelNation(null);setSelectedRegion(region);}if(nation&&!op)setSelNation(nation);if(site){setSelNation(null);setSelectedRegion(null);setSelSite(site);}setOutlinerOpen(false);closeFeed();};
   const segOverview=<Seg id="overview" label="Overview views" active={activeTab} onSelect={goPane} items={[{id:'overview',label:'Map'},{id:'sitroom',label:'Situation',badge:sitBadge(),sev:'alert'}]}/>;
   const segResources=<Seg id="resources" label="Resources views" cols={3} active={resSub} onSelect={setResSub} items={RES_SUBS}/>;
   // Plain render helper (not a component: an inner component would remount every render)
@@ -826,7 +828,7 @@ function WorldLeadersInner({resumeSignal}){
   );
   return(
     <ClockGateContext.Provider value={clockGate}><div className="wl-app" style={{backgroundImage:'radial-gradient(1100px 540px at 72% -8%,rgba(79,184,255,.07),transparent 62%),radial-gradient(900px 480px at -4% 108%,rgba(180,156,255,.05),transparent 58%)'}}>
-      <style>{SHELL_CSS}</style>
+      <style>{SHELL_CSS + WORKSPACE_CSS}</style>
       <style>{`
         *{font-variant-numeric:tabular-nums}
         ::selection{background:rgba(79,184,255,.35)}
@@ -914,15 +916,17 @@ function WorldLeadersInner({resumeSignal}){
         {/* OVERVIEW / MAP TAB */}
         {activeTab==='overview'&&<div className="wl-pane-wrap" data-sentinel="overview">{segOverview}<div className="wl-overview" style={{flex:1,display:'flex',overflow:'hidden'}}>
           <div className="wl-ov-col" style={{flex:1,overflowY:'auto',padding:'12px',display:'flex',flexDirection:'column',gap:'12px'}}>
+            <NationalPulse stats={stats} energyTier={getEnergyTier(resources,resExtraction,importContracts)} spr={spr} onJump={jumpTo}/>
             {/* SVG WORLD MAP */}
             <div className="wl-map-card" style={{background:'#0a0f1a',borderRadius:'10px',border:'1px solid #1c2a42',padding:'12px'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',marginBottom:'8px'}}><div style={{fontSize:'11px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px'}}>World Map · tap a region</div><Help items={HELP_TIPS}/></div>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',marginBottom:'8px'}}><div style={{fontSize:'11px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px'}}>World command · select a region</div><Help items={HELP_TIPS}/></div>
               <MapView onMap={m=>{mapRef.current=m;if(m&&panPending.current){m.focus?.(panPending.current);panPending.current=null;}}} mode={mapMode} onModeChange={setMapMode} onRegionTap={rid=>setSelectedRegion(selectedRegion===rid?null:rid)} onSiteTap={sid=>{setSelNation(null);setSelectedRegion(null);setSelSite(sid);}} onBuildToggle={setBuildMode}
                 view={{country,sphere,selectedRegion,forceDeployments,flashpoint,sphereTrend,intelOps,defExports,doctrine,nationRelations,embassies,defensePacts,chokeStatus,rivalTension,blockades,tradeAgreements,importContracts,embargoes,embargoedBy,forcePosture,sanctions,moles,expelled:expelR.current,concessions,bases,build:buildMode,selectedSite:selSite}}/>
               {wide&&regionCard}
 
             </div>
 
+            <QueueDeck rows={outlinerRows} onJump={jumpTo}/>
             {!wide&&flankEl}
           </div>
 
@@ -1062,8 +1066,8 @@ function WorldLeadersInner({resumeSignal}){
 
             {panelBox('nukes','☢ Nuclear Register · who fired, at whom, when','#831843',<NukeRegister log={nukeLog} me={country?.id}/>)}
         </div></div>}
-        {activeTab==='economy'&&<div className="wl-pane-wrap" data-sentinel="economy"><div style={{flex:1,display:'flex',overflow:'hidden'}}>
-          <div style={{width:'230px',background:'#070b14',borderRight:'1px solid #1c2a42',overflowY:'auto',padding:'13px',flexShrink:0}}>
+        {activeTab==='economy'&&<div className="wl-pane-wrap" data-sentinel="economy"><div className="wl-economy-heading"><div className="wl-workspace-title"><div><span className="wl-eyebrow">Domestic policy</span><h2>Economy & living standards</h2><p>Allocate the budget. Fund public services. Track the monthly result.</p></div></div><ServiceStrip stats={stats}/></div><div className="wl-economy-layout" style={{flex:1,display:'flex',overflow:'hidden'}}>
+          <div className="wl-policy-panel" style={{width:'230px',background:'#070b14',borderRight:'1px solid #1c2a42',overflowY:'auto',padding:'13px',flexShrink:0}}>
             <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'12px'}}>Monetary Policy</div>
             <div style={{marginBottom:'16px'}}>
               <div style={{display:'flex',justifyContent:'space-between',marginBottom:'5px'}}><span style={{fontSize:'12px',color:'#9aa8bf'}}>Interest Rate</span><span style={{fontSize:'15px',fontWeight:700,color:'#f5c451'}}>{(+interestRate||0).toFixed(2)}%</span></div>
@@ -1092,7 +1096,24 @@ function WorldLeadersInner({resumeSignal}){
               </div>
             </div>);})()}
           </div>
-          <div style={{flex:1,overflowY:'auto',padding:'12px'}}>
+          <div className="wl-economy-main" style={{flex:1,overflowY:'auto',padding:'12px'}}>
+            {/* ── Sector Budgets: one-pool allocation surface (V2e) ───── */}
+            <div style={{marginBottom:'14px'}} data-sector-budgets>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
+                <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px'}}>Sector Budgets · one pool</div>
+                <div style={{fontSize:'11px',color:'#9aa8bf'}}>Total: <span style={{color:'#e6edf7',fontWeight:700}}>${Math.round(Object.entries(budgetAlloc).reduce((s,[sec,a])=>s+rSCost(sec,a),0)).toLocaleString()}M/mo</span></div>
+              </div>
+              <Allocation allocs={budgetAlloc} maturity={sectorMaturity} age={sectorAge} treasury={stats?.treasury||0} locks={budgetLocks} onLock={(k,v)=>setBudgetLocks(p=>{const n2=new Set(p);if(v)n2.add(k);else n2.delete(k);return n2;})} hold={poolHold} onHold={setHold} baseline={baselineR.current||budgetAlloc} dispatch={dispatch} selected={selBudget} onSelect={setSelBudget}>
+                {commit=>selBudget&&<CommandCard id="budget" placement="column" title={SECTOR_LABELS[selBudget]} sub={`${budgetAlloc[selBudget]??100}% · keys K J N M`} color="#f5c451" actions={budgetCommands(selBudget,budgetAlloc[selBudget]??100,{age:sectorAge[selBudget]||0,treasury:stats?.treasury||0})} onRun={a=>{const d=a.dispatch;if(!a.disabled&&d?.type==='adjustSectorBudget')commit(d.payload.sector,(budgetAlloc[d.payload.sector]??100)+d.payload.delta);else if(!a.disabled&&d?.type==='setSectorBudget')commit(d.payload.sector,d.payload.value);else runCmd(a);}} onClose={()=>setSelBudget(null)}/>}
+              </Allocation>
+              {(()=>{
+                const defSpend=rSCost('defense',budgetAlloc.defense)+(intelBudget||1)*200/12;
+                const socSpend=rSCost('healthcare',budgetAlloc.healthcare)+rSCost('education',budgetAlloc.education);
+                const ratio=socSpend>0?defSpend/socSpend:99;
+                if(ratio>2)return <div style={{marginTop:'8px',fontSize:'11px',color:'#ff7a45',padding:'6px 8px',background:'rgba(255,122,69,.07)',borderRadius:'5px',border:'1px solid #ef444455'}}>⚠ Defense/Intel {ratio.toFixed(1)}× social spending — legitimacy penalty (−0.07 stability/mo)</div>;
+                return null;
+              })()}
+            </div>
             {vitalsDrill&&<VitalsDrillPanel/>}
             {(()=>{const trait=NATION_TRAITS[country?.id]||{};const ret=Math.round(talentRetention);const rc=ret>70?'#6ee7a8':ret>45?'#f5c451':'#ff7a45';const rdMult=(0.6+ret/100*0.8).toFixed(2);return(
             <div style={{marginBottom:'14px',padding:'11px',background:'#0c1424',borderRadius:'8px',border:`1px solid ${ret>70?'#0f2a1f':ret<45?'#3a1c12':'#1c2a42'}`}}>
@@ -1134,23 +1155,6 @@ function WorldLeadersInner({resumeSignal}){
               </div>)}
               <div style={{fontSize:'9px',color:'#7c8aa3',marginTop:'6px'}}>One-off purchases and event costs aren't shown — this is your recurring position.</div>
             </div>);})()}
-            {/* ── Sector Budgets: one-pool allocation surface (V2e) ───── */}
-            <div style={{marginBottom:'14px'}} data-sector-budgets>
-              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
-                <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px'}}>Sector Budgets · one pool</div>
-                <div style={{fontSize:'11px',color:'#9aa8bf'}}>Total: <span style={{color:'#e6edf7',fontWeight:700}}>${Math.round(Object.entries(budgetAlloc).reduce((s,[sec,a])=>s+rSCost(sec,a),0)).toLocaleString()}M/mo</span></div>
-              </div>
-              <Allocation allocs={budgetAlloc} maturity={sectorMaturity} age={sectorAge} treasury={stats?.treasury||0} locks={budgetLocks} onLock={(k,v)=>setBudgetLocks(p=>{const n2=new Set(p);if(v)n2.add(k);else n2.delete(k);return n2;})} hold={poolHold} onHold={setHold} baseline={baselineR.current||budgetAlloc} dispatch={dispatch} selected={selBudget} onSelect={setSelBudget}>
-                {selBudget&&<CommandCard id="budget" placement="column" title={SECTOR_LABELS[selBudget]} sub={`${budgetAlloc[selBudget]??100}% · keys K J N M`} color="#f5c451" actions={budgetCommands(selBudget,budgetAlloc[selBudget]??100,{age:sectorAge[selBudget]||0,treasury:stats?.treasury||0})} onRun={runCmd} onClose={()=>setSelBudget(null)}/>}
-              </Allocation>
-              {(()=>{
-                const defSpend=rSCost('defense',budgetAlloc.defense)+(intelBudget||1)*200/12;
-                const socSpend=rSCost('healthcare',budgetAlloc.healthcare)+rSCost('education',budgetAlloc.education);
-                const ratio=socSpend>0?defSpend/socSpend:99;
-                if(ratio>2)return <div style={{marginTop:'8px',fontSize:'11px',color:'#ff7a45',padding:'6px 8px',background:'rgba(255,122,69,.07)',borderRadius:'5px',border:'1px solid #ef444455'}}>⚠ Defense/Intel {ratio.toFixed(1)}× social spending — legitimacy penalty (−0.07 stability/mo)</div>;
-                return null;
-              })()}
-            </div>
             {/* ── Social Programs — quality of life levers ────────────── */}
             <div style={{marginBottom:'14px'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
@@ -1178,17 +1182,17 @@ function WorldLeadersInner({resumeSignal}){
         </div></div>}
 
         {/* ENERGY TAB */}
-        {activeTab==='energy'&&<div style={{flex:1,overflowY:'auto',padding:'12px'}}>{vitalsDrill&&<VitalsDrillPanel/>}
+        {activeTab==='energy'&&<div className="wl-energy-workspace" style={{flex:1,overflowY:'auto',padding:'16px'}}><EnergySummary tier={getEnergyTier(resources,resExtraction,importContracts)} spr={spr} releasing={sprRelease} imports={importContracts.size} disruptions={(IMPORT_ROUTES[Object.entries(REGIONS).find(([,r])=>r.homeFor?.includes(country?.id))?.[0]]||[]).filter(k=>chokeStatus[k]==='disrupted').length} routeIds={IMPORT_ROUTES[Object.entries(REGIONS).find(([,r])=>r.homeFor?.includes(country?.id))?.[0]]||[]} chokeStatus={chokeStatus} onMap={(region)=>{setMapMode('energy');jumpTo({tab:'overview',region:typeof region==='string'?region:undefined});}} onResources={()=>jumpTo({tab:'resources',sub:'natural'})}/>{vitalsDrill&&<VitalsDrillPanel/>}
           {(()=>{const homeRid=Object.entries(REGIONS).find(([,r])=>r.homeFor?.includes(country?.id))?.[0];const routes=IMPORT_ROUTES[homeRid]||[];const fossil=['oil','gas','coal'].filter(k=>importContracts.has(k));
             const evOil=worldEvent?(WORLD_EVENTS[worldEvent.id]?.oilM||1):1;const price=(evOil*(opecSwing?(opecSwing.mode==='cut'?1.6:0.55):1)*(chokeStatus.hormuz==='disrupted'?1.4:1));
-            const trait=NATION_TRAITS[country?.id]||{};const dep=trait.energyDep||0;const stC={secured:'#6ee7a8',escorted:'#8fdfff',open:'#9aa8bf',disrupted:'#ff7a45'};
+            const trait=NATION_TRAITS[country?.id]||{};const dep=trait.energyDep||0;
             return <div style={{marginBottom:'14px',padding:'11px',background:'#0c1424',border:`1px solid ${routes.some(k=>chokeStatus[k]==='disrupted')?'#3a1c12':'#1c2a42'}`,borderRadius:'8px'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'6px'}}><span style={{fontSize:'11px',fontWeight:700,color:'#e6edf7'}}>⛽ Energy Security</span><span style={{fontSize:'11px',fontWeight:800,color:price>1.2?'#ff7a45':price<0.8?'#6ee7a8':'#f5c451'}}>World oil ×{price.toFixed(2)}</span></div>
               <div style={{fontSize:'10px',color:'#9aa8bf',marginBottom:'6px'}}>Import dependency: {dep>0?`structural (${Math.round(dep*100)}%)`:dep<0?'net exporter':'balanced'} · fossil import contracts: {fossil.length?fossil.join(', '):'none'}</div>
-              <div style={{fontSize:'9px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'4px'}}>Your transit chokepoints</div>
-              {routes.map(k=>{const cp=CHOKEPOINTS[k];const st=chokeStatus[k]||'open';return <div key={k} style={{display:'flex',justifyContent:'space-between',fontSize:'10px',marginBottom:'3px'}}><span style={{color:'#c3cddc'}}>{cp.i} {cp.n} <span style={{color:'#5b6880'}}>· {Math.round(cp.oilShare*100)}% of world oil</span></span><span style={{color:stC[st],fontWeight:700,textTransform:'uppercase'}}>{st}</span></div>;})}
-              <div style={{fontSize:'9px',color:'#7c8aa3',marginTop:'4px'}}>Disrupted lanes: fossil imports ×1.5, inflation +0.1/mo, downstream exports −25%. Station naval weight 2+ in the governing region on <b>Escort</b> posture to keep it open — or burn reserve.</div>
-              <div style={{marginTop:'9px',paddingTop:'9px',borderTop:'1px solid #1c2a42',display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
+              <details className="wl-energy-help"><summary>How supply disruption affects your economy</summary>
+              <p style={{fontSize:'9px',color:'#7c8aa3',marginTop:'4px'}}>Disrupted lanes: fossil imports ×1.5, inflation +0.1/mo, downstream exports −25%. Station naval weight 2+ in the governing region on <b>Escort</b> posture to keep it open — or burn reserve.</p>
+              </details>
+              <div className="wl-energy-production"><div className="wl-reserve-controls">
                 <span style={{fontSize:'10px',fontWeight:700,color:'#f5c451'}}>🛢️ Strategic Petroleum Reserve: {spr}/6</span>
                 <button onClick={()=>dispatch({type:'fillReserve'})} style={{background:'transparent',border:'1px solid #2e3f5c',color:'#9aa8bf',padding:'3px 9px',borderRadius:'4px',fontSize:'10px'}}>+ Fill $200M</button>
                 <button onClick={()=>dispatch({type:'toggleReserveRelease'})} style={{background:sprRelease?'rgba(245,196,81,.12)':'transparent',border:`1px solid ${sprRelease?'#f5c451':'#2e3f5c'}`,color:sprRelease?'#f5c451':'#9aa8bf',padding:'3px 9px',borderRadius:'4px',fontSize:'10px',fontWeight:700}}>{sprRelease?'⏹ Stop release':'▶ Release'}</button>
@@ -1201,13 +1205,14 @@ function WorldLeadersInner({resumeSignal}){
                   <div style={{fontSize:'8px',color:'#7c8aa3'}}>Export revenue ×{(0.45+0.55*sh).toFixed(2)} · domestic retention: inflation −{(0.03*(1-sh)).toFixed(3)}/mo{ext===0?' · (no extraction — set it in Resources)':''}</div>
                 </div>;})}
               </div>
-              <div style={{marginTop:'9px',paddingTop:'9px',borderTop:'1px solid #1c2a42'}}>
-                <div style={{fontSize:'9px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'4px'}}>⛽ Energy embargo · the producer's weapon</div>
+              </div>
+              <details className="wl-energy-details" data-energy-diplomacy><summary>Energy diplomacy <span>{embargoes.size} active embargoes{embargoedBy?` · Under embargo by ${embargoedBy.by}`:''}</span></summary>
+                <div style={{fontSize:'12px',color:COLOR.text.muted,marginBottom:'8px'}}>Energy embargoes</div>
                 {(()=>{const prod=(resExtraction.oil||0)>=2||(resExtraction.gas||0)>=2;const targets=Object.keys(NATIONS).filter(r=>r!==country?.id).sort((a,b)=>(embargoes.has(b)?1:0)-(embargoes.has(a)?1:0)||((rivalTension[b]||0)-(rivalTension[a]||0))||((nationRelations[a]||0)-(nationRelations[b]||0)));
                   return <div style={{marginBottom:'10px'}}>
                     {embargoedBy&&<div style={{fontSize:'10px',color:'#ff7a45',fontWeight:700,marginBottom:'4px'}}>🚨 {embargoedBy.by.toUpperCase()} is embargoing you — {embargoedBy.mo}mo. Diversify (2+ fossil contracts, High/Nuclear tier) or release reserve to blunt it.</div>}
                     <div style={{fontSize:'9px',color:'#7c8aa3',marginBottom:'4px'}}>{prod?'You produce enough to withhold. Great powers: sphere −0.15/mo everywhere, pressure −25%, tension +10. Any nation: relations −25 then −0.5/mo, and they stop buying your arms. Allies: −3 stability and their bloc freezes. Your barrels −20% volume at +15% price.':'Needs oil or gas extraction ≥2 to withhold anything.'}</div>
-                    <div style={{display:'flex',gap:'4px',flexWrap:'wrap'}}>{targets.map(tg=>{const on=embargoes.has(tg);return <button key={tg} onClick={()=>dispatch({type:'toggleEmbargo',payload:{nation:tg}})} style={{flex:1,background:on?'rgba(255,122,69,.12)':'#0c1424',border:`1px solid ${on?'#ff7a45':'#2e3f5c'}`,color:on?'#ff7a45':'#9aa8bf',padding:'5px',borderRadius:'4px',fontSize:'9px',fontWeight:700}}>{on?`⛽ Lift — ${NATIONS[tg]?.n}`:`⛽ Embargo ${NATIONS[tg]?.n}`}</button>;})}</div>
+                    <div style={{display:'flex',gap:'4px',flexWrap:'wrap'}}>{targets.map(tg=>{const on=embargoes.has(tg);return <button key={tg} disabled={!prod&&!on} onClick={()=>dispatch({type:'toggleEmbargo',payload:{nation:tg}})} style={{flex:1,background:on?'rgba(255,122,69,.12)':'#0c1424',border:`1px solid ${on?'#ff7a45':'#2e3f5c'}`,color:on?'#ff7a45':'#9aa8bf',padding:'5px',borderRadius:'4px',fontSize:'9px',fontWeight:700}}>{on?`⛽ Lift — ${NATIONS[tg]?.n}`:`⛽ Embargo ${NATIONS[tg]?.n}`}</button>;})}</div>
                   </div>;})()}
                 <div style={{fontSize:'9px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'4px'}}>🇵🇦 Panama Canal · {chokeStatus.panama||'open'}</div>
                 {(()=>{const cd=chokeDeals.panama||{};const naHome=homeRid==='NA'||homeRid==='SA';const saRel=DIP_TARGETS.filter(d=>d.region==='SA').reduce((s,d)=>s+(nationRelations[d.id]||0),0)/Math.max(1,DIP_TARGETS.filter(d=>d.region==='SA').length);const dom=(sphere.NA?.player||0)>60;
@@ -1219,9 +1224,8 @@ function WorldLeadersInner({resumeSignal}){
                     </div>
                     <div style={{fontSize:'8px',color:'#7c8aa3',marginTop:'4px'}}>Priority: your Panama-routed imports −15%, immune to drought rationing. Third lane: canal never disrupts for you; +$50M/mo transit fees while you dominate North America; China's SA sphere −0.1/mo (their belt-and-road port play loses its hinge).</div>
                   </div>;})()}
-              </div>
-              <div style={{marginTop:'9px',paddingTop:'9px',borderTop:'1px solid #1c2a42'}}>
-                <div style={{fontSize:'9px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'4px'}}>Foreign energy concessions · technology for barrels</div>
+              </details>
+              <details className="wl-energy-details" data-energy-projects><summary>Foreign energy projects <span>{concessions.size} concessions · {Object.keys(stewardship).length} interventions</span></summary>
                 {Object.entries(CONCESSIONS).map(([ck,cp])=>{const have=concessions.has(ck);const nat=NATIONS[cp.nation];const rel=Math.round(nationRelations[cp.nation]||0);const reqs=[[`Materials L${cp.req.materials} (upgrading tech)`,(defLevels.materials||0)>=cp.req.materials],[`${nat?.n} relations ≥${cp.req.rel} (${rel})`,rel>=cp.req.rel],[`Embassy in ${nat?.n}`,embassies.has(cp.nation)]];const ok=reqs.every(r=>r[1]);const susp=have&&(sanctions.has(cp.nation)||rel<0);
                   return <div key={ck} style={{padding:'8px',background:'#111a2c',border:`1px solid ${have?'#0f2a1f':'#1c2a42'}`,borderRadius:'6px'}}>
                     <div style={{display:'flex',justifyContent:'space-between'}}><span style={{fontSize:'11px',fontWeight:700,color:'#e6edf7'}}>{cp.i} {cp.n} <span style={{color:'#7c8aa3',fontWeight:400}}>· {nat?.flag} {nat?.n}</span></span><span style={{fontSize:'10px',fontWeight:700,color:have?(susp?'#ff7a45':'#6ee7a8'):'#7c8aa3'}}>{have?(susp?'SUSPENDED':`+$${Math.round(cp.income*(1+Math.max(0,(defLevels.materials||4)-4)*0.15))}M/mo`):`$${cp.cost}M`}</span></div>
@@ -1248,7 +1252,7 @@ function WorldLeadersInner({resumeSignal}){
                         <div style={{fontSize:'8px',color:'#7c8aa3',marginTop:'3px'}}>Success: ~3× a concession's income, ramping to 2× over 24 months as production recovers, +25%/tier of field rehabilitation. China/Russia tension +12, region relations −10, stability −2. Failure: stability −4, relations −30, 12mo cooldown.</div>
                       </div>;})()}
                   </div>;})}
-              </div>
+              </details>
             </div>;})()}
           <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'10px'}}>Energy Policy Actions</div><div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'9px'}}>{PA.filter(a=>a.t==='energy').map(a=><ActionCard key={a.id} action={a}/>)}</div></div>}
 

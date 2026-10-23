@@ -5,6 +5,7 @@
 // the layout, opened-state and shell tests drive.
 import { LineChart, Line } from 'recharts';
 import { Why } from './Why.jsx';
+import { Icon } from './Icon.jsx';
 import { COLOR } from '../tokens.js';
 import { MONTHS, SC, ss } from '../../data/stats.js';
 import { groupEffects, clockLabel } from './effects.js';
@@ -55,7 +56,7 @@ export function Hud({ version, country, date, stats, ledger = {}, history = [], 
           {onStep && <button type="button" data-step title={canStep ? 'Next month (.)' : 'Pause to step one month (.)'} aria-label="Next month" aria-disabled={!canStep || undefined} onClick={() => canStep && onStep()}>⏭</button>}
         </div>
         {onAllocate && <button type="button" className="wl-btn wl-btn-sm" data-allocate title="Allocate: the five sector lines as one pool (drawer over the map)" onClick={onAllocate} aria-label="Allocate"><span aria-hidden="true">⚖</span><span className="wl-allocate-l">ALLOCATE</span></button>}
-        {onFeed && <button type="button" className="wl-bell" data-bell data-unread={unread} title="Notifications" aria-label={`Notifications, ${unread} unread`} onClick={onFeed}>🔔{unread > 0 && <span className="wl-bell-b" data-bell-badge>{unread > 99 ? '99+' : unread}</span>}</button>}
+        {onFeed && <button type="button" className="wl-bell" data-bell data-unread={unread} title="Notifications" aria-label={`Notifications, ${unread} unread`} onClick={onFeed}><Icon name="bell"/>{unread > 0 && <span className="wl-bell-b" data-bell-badge>{unread > 99 ? '99+' : unread}</span>}</button>}
         <button type="button" className="wl-btn wl-btn-sm" title="New nation" aria-label="Quit to nation select" onClick={onQuit} style={{ minWidth: 36 }}>✕</button>
       </div>
       {stats && <div className="wl-hud-figs" data-wells>

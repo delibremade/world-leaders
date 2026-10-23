@@ -86,6 +86,9 @@ test('App: shell renders (HUD, speed, nav badges, doctrine card, sheet, outliner
     assert.equal(q('[data-event-card=doctrine]').getAttribute('data-modal'), '1900');
     assert.ok(!qa('div').some((d) => d.style.position === 'fixed' && d.style.inset && /Doctrine/.test(d.textContent)), 'no doctrine scrim');
     assert.equal(q('[data-badge=overview]')?.textContent, '1', 'doctrine pending badge');
+    // doctrine via the card, then nav to intel and back (data-tab)
+    [...q('[data-event-card=doctrine]').querySelectorAll('div')].find((d) => d.style.cursor === 'pointer' && /Military Superpower/.test(d.textContent)).click(); await flush();
+    assert.equal(q('[data-event-card=doctrine]'), null, 'doctrine chosen, card gone');
     // speed control: pause shows its reason; 2x sets speed and clears the pause
     const speed = qa('[data-speed] button'); assert.equal(speed.length, 5, 'pause, 1x, 2x, 4x, Next (Q2, #42)');
     speed[0].click(); await flush(); assert.match(q('[data-pause-reason]').textContent, /Paused by you/);
@@ -93,9 +96,7 @@ test('App: shell renders (HUD, speed, nav badges, doctrine card, sheet, outliner
     // why-breakdowns open from the HUD figures
     q('[data-why^="Treasury"]').click(); await flush(); await flush();
     assert.ok(q('[data-why-content^="Treasury"]'), 'treasury why opens'); assert.match(q('[data-why-content^="Treasury"]').textContent, /Net \/ month/);
-    // doctrine via the card, then nav to intel and back (data-tab)
-    [...q('[data-event-card=doctrine]').querySelectorAll('div')].find((d) => d.style.cursor === 'pointer' && /Military Superpower/.test(d.textContent)).click(); await flush();
-    assert.equal(q('[data-event-card=doctrine]'), null, 'doctrine chosen, card gone');
+
     g.tabBtn('intel').click(); await flush(); assert.equal(q('[data-tab=intel]').getAttribute('aria-current'), 'page');
     g.tabBtn('overview').click(); await flush();
     // region tap -> sheet with the v57 panel + nations; nation row -> nation sheet listing verbs; dispatch one

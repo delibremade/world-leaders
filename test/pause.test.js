@@ -6,6 +6,7 @@ import { mount, flush, BUNDLES } from './util/harness.js';
 async function boot() {
   const g = await mount(BUNDLES.app, { testHook: true, seed: 11 });
   await g.pickCountry(0);
+  g.doc.querySelector('[data-event-card=doctrine] .wl-opt').click(); await flush(); await flush();
   const q = (s) => g.doc.querySelector(s);
   return { g, q, speedBtn: (n) => [...g.doc.querySelectorAll('[data-speed] button')].find((b) => b.textContent.trim() === `${n}×`), pauseBtn: () => q('[data-speed] [data-pause]') };
 }

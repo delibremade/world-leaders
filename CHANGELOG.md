@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.92.0 (2026-10-23) — Desktop command workspace
+- Overview: clickable national indicators and real production, research and operations queues surround the 2.5D map. The existing event dock and outliner keep their fixed positions.
+- Economy: public-service outcomes and the shared allocation pool lead the screen; tax and monetary policy sit alongside. Budget command buttons now use the same held-pool and lock rules as sliders.
+- Energy: reserve and supply status, clickable transit routes, direct links to the energy map and natural-resource generation controls.
+- Essential navigation uses SVG icons; budget locks have text labels. Doctrine choices support the keyboard and hold time until selected; victory instructions now match the 85% / 24-month rule.
+- Tests: workspace navigation, reserve transactions, budget locking, desktop/390px layout. Clock fixtures choose a doctrine explicitly. Five parity baselines updated because both replay UIs now choose their opening doctrine before month 1, with the same simulation formulas and save schema.
+
 ## 0.91.0 (2026-10-22) — #89: Host nations and base sites (F15 tenure)
 - Rule change (spec Parts 11, 13 F15). 18 host nations are now in `NATIONS` with `host` data (terms, status_source): Singapore, Philippines, Australia, South Korea, UK, Italy, Spain, Greece, Turkey, Poland, Romania, Qatar, UAE, Kuwait, Bahrain, Djibouti, Iceland, Greenland. 10 are new entries; none are `dip`, so the v57 relations map is untouched (relations start from the bloc rule via `relOf`).
 - 19 new real sites (Paya Lebar, four EDCA sites, Tindal, Pine Gap, Camp Humphreys, Lakenheath, Aviano, Sigonella, Moron, Alexandroupolis, Poznan, Lask, MK, Ali Al Salem, Jebel Ali, Kurecik); Changi, Subic, Souda, Deveselu, Bahrain, Al Udeid, Arifjan, Djibouti, Keflavik, Pituffik move from local hosts to their registry host.

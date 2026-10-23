@@ -85,6 +85,7 @@ test('App: map renders (SVG fallback in jsdom), six mode chips switch fills and 
   const g = await mount(BUNDLES.app, { testHook: true });
   try {
     await g.pickCountry(0);
+    g.doc.querySelector('[data-event-card=doctrine] .wl-opt').click(); await flush(); await flush();
     const { doc } = g;
     assert.equal(doc.querySelector('[data-map]')?.getAttribute('data-map-renderer'), 'svg');
     assert.equal(doc.querySelectorAll('[data-map-mode-btn]').length, 6);
