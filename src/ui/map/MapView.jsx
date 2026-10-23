@@ -16,13 +16,14 @@ export const webglAvailable = () => {
 const hatchBg = `repeating-linear-gradient(45deg, ${COLOR.text.muted}55 0 1px, transparent 1px 4px)`;
 const typing = (e) => /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName) || e.target?.isContentEditable;
 
-export function MapView({ view, mode = 'sphere', onModeChange, onRegionTap, onSiteTap, onBuildToggle, height = 'clamp(240px, 58vw, 520px)' }) {
+export function MapView({ view, mode = 'sphere', onModeChange, onRegionTap, onSiteTap, onBuildToggle, onMap, height = 'clamp(240px, 58vw, 520px)' }) {
   const scene = useMemo(() => buildScene(view, mode), [view, mode]);
   const key = JSON.stringify(scene);
   const host = useRef(null); const map = useRef(null); const latest = useRef(scene); latest.current = scene;
   const tapRef = useRef(onRegionTap); tapRef.current = onRegionTap;
   const siteRef = useRef(onSiteTap); siteRef.current = onSiteTap;
   const modeRef = useRef(onModeChange); modeRef.current = onModeChange;
+  const onMapRef = useRef(onMap); onMapRef.current = onMap; // FIX 2: hands the live renderer to the App so an outliner row can pan the map
   const [renderer, setRenderer] = useState(() => (webglAvailable() ? 'pixi' : 'svg'));
   const [level, setLevel] = useState('strategic');
   // On-device fps readout for manual capture on the owner's phone: open the build with #fps in the URL.
@@ -36,9 +37,9 @@ export function MapView({ view, mode = 'sphere', onModeChange, onRegionTap, onSi
       onTap: (rid) => rid && tapRef.current?.(rid), onSiteTap: (sid) => siteRef.current?.(sid),
       onViewChange: (scale) => { const l = lodFor(scale).id; if (l !== lastLevel) { lastLevel = l; setLevel(l); } },
     }))
-      .then((m) => { if (!alive) { m.destroy(); return; } map.current = m; m.update(latest.current); if (globalThis.__WL_TEST) globalThis.__wlMap = { renderer: 'pixi', app: m.app, viewport: m.viewport, fps: m.fps, frames: m.frames, pan: m.pan, zoom: m.zoom, zoomBy: m.zoomBy, fit: m.fit, scale: m.scale, level: m.level, layers: m.layers, tilt: m.tilt, focus: m.focus, focusSite: m.focusSite, scene: () => latest.current, tapRegion: (rid) => tapRef.current?.(rid), tapSite: (sid) => siteRef.current?.(sid) }; })
+      .then((m) => { if (!alive) { m.destroy(); return; } map.current = m; m.update(latest.current); onMapRef.current?.(m); if (globalThis.__WL_TEST) globalThis.__wlMap = { renderer: 'pixi', app: m.app, viewport: m.viewport, fps: m.fps, frames: m.frames, pan: m.pan, zoom: m.zoom, zoomBy: m.zoomBy, fit: m.fit, scale: m.scale, level: m.level, layers: m.layers, tilt: m.tilt, focus: m.focus, focusSite: m.focusSite, scene: () => latest.current, tapRegion: (rid) => tapRef.current?.(rid), tapSite: (sid) => siteRef.current?.(sid) }; })
       .catch((e) => { console.error('pixi map unavailable, falling back to SVG', e); if (alive) setRenderer('svg'); });
-    return () => { alive = false; map.current?.destroy(); map.current = null; if (globalThis.__wlMap?.renderer === 'pixi') delete globalThis.__wlMap; };
+    return () => { alive = false; map.current?.destroy(); map.current = null; onMapRef.current?.(null); if (globalThis.__wlMap?.renderer === 'pixi') delete globalThis.__wlMap; };
   }, [renderer]);
   useEffect(() => { map.current?.update(scene); }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (!wantFps || renderer !== 'pixi') return; const id = setInterval(() => setFps(map.current?.fps() ?? null), 1000); return () => clearInterval(id); }, [wantFps, renderer]);
