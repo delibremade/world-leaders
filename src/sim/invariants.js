@@ -8,6 +8,7 @@ import { manPts } from './formulas.js';
 import { NATIONS } from '../data/nations.js';
 import { ALLIED_PROGRAMS, TIERS, ACCESS_RULES } from '../data/alliance.js';
 import { WORLD_EVENTS, DECISIONS } from '../data/world.js';
+import { HIST_MONTHS, HIST_KEYS } from '../data/event-evidence.js';
 import { MINERALS, MINERAL_IDS, MINERAL_RULES as MR } from '../data/minerals.js';
 import { SITES, NODE_TYPES, BASE_RULES, TENURES } from '../data/bases.js';
 import { INTEL_OPS } from '../data/intel.js';
@@ -70,6 +71,9 @@ export const V57_INVARIANTS = [
   ['an open decision opened at a month with a why-now line (saves from before F2 carry neither)', (g) => !g.activeDecision || g.activeDecision.at === undefined || (Number.isFinite(g.activeDecision.at) && typeof g.activeDecision.why === 'string' && g.activeDecision.why.length > 0)],
   ['an open world event with a why-now line has a non-empty one', (g) => !g.worldEvent || g.worldEvent.why === undefined || (typeof g.worldEvent.why === 'string' && g.worldEvent.why.length > 0)],
   ['queued follow-ups name real events', (g) => (g.evState?.q || []).every((q) => typeof q.id === 'string' && Number.isFinite(q.at))],
+  // Trigger evidence (FIX 5)
+  ['event metric history holds at most 12 finite months per tracked key', (g) => Object.entries(g.evState?.hist || {}).every(([k, a]) => HIST_KEYS.includes(k) && Array.isArray(a) && a.length <= HIST_MONTHS && a.every(Number.isFinite))],
+  ['a live world event or decision with evidence has a finite value and threshold (or a state gate) and a cause', (g) => [g.worldEvent?.ev, g.activeDecision?.ev].every((e) => !e || ((e.key === 'state' || e.key === 'fallback') ? typeof e.cause === 'string' : (Number.isFinite(e.value) && e.threshold != null && typeof e.cause === 'string' && e.cause.length > 0 && Number.isInteger(e.trend?.months) && e.trend.months >= 0)))],
   // Event content (E6, #18)
   ['queued follow-ups are registered world events', (g) => (g.evState?.q || []).every((q) => !!WORLD_EVENTS[q.id])],
   ['used decisions are registered decisions', (g) => [...(g.usedDecisions || [])].every((id) => DECISIONS.some((d) => d.id === id))],

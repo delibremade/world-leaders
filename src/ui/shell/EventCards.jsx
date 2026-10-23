@@ -8,6 +8,7 @@
 import { DOCTRINES, WORLD_EVENTS } from '../../data/world.js';
 import { REGIONS, FLASHPOINTS } from '../../data/regions.js';
 import { COLOR } from '../tokens.js';
+import { evidenceLine } from '../../data/event-evidence.js';
 
 // Inline responses (E2, #14): each is a button wired to the `eventResponse` verb; an unavailable one stays visible and says why.
 function Responses({ kind, opts, dispatch }) {
@@ -23,7 +24,7 @@ function Responses({ kind, opts, dispatch }) {
 }
 
 // 'Why now' (F2, #33): the state that opened this card. Saves from before the line existed show a neutral stand-in.
-function WhyNow({ text }) { return <div className="wl-why-now" data-why-now>Why now: {text || 'carried over from an earlier save'}</div>; }
+function WhyNow({ text, ev = null }) { return <div className="wl-why-now" data-why-now>Why now: {text || 'carried over from an earlier save'}{ev && <div className="wl-why-chain" data-evidence={ev.key}>Trigger: {evidenceLine(ev)}</div>}</div>; } // FIX 5: the causal chain (metric, value, threshold, trend, upstream cause)
 
 export function EventCards({ dock = false, doctrine, activeDecision, decisionDesc, worldEvent, flashpoint, worldOpts = [], fpOpts = [], decisionOpts = null, country = null, dispatch, onOpenRegion, fxBadge, readyBriefs = [], onOpenBrief }) {
   const cards = [];
@@ -44,7 +45,7 @@ export function EventCards({ dock = false, doctrine, activeDecision, decisionDes
     <div key="decision" className="wl-card-ev" data-event-card="decision" style={{ '--ev': COLOR.accent.warn }}>
       <div className="wl-label">{activeDecision.urgentNow ? '⚡ Urgent decision' : `${activeDecision.icon} Cabinet briefing`}</div>
       <h4>{activeDecision.title}</h4>
-      <WhyNow text={activeDecision.why} />
+      <WhyNow text={activeDecision.why} ev={activeDecision.ev} />
       <p>{decisionDesc}</p>
       <div className="wl-opts" style={{ display: 'grid' }}>
         {activeDecision.options.map((opt) => { const st = decisionOpts?.find((o) => o.id === opt.id); const ok = !st || st.ok; return (
@@ -66,7 +67,7 @@ export function EventCards({ dock = false, doctrine, activeDecision, decisionDes
     <div key="we" className="wl-card-ev" data-event-card="world" style={{ '--ev': COLOR.accent.energy }}>
       <div className="wl-label">{we?.i} World event · {worldEvent.mo}mo left</div>
       <h4>{we?.n || worldEvent.id}</h4>
-      <WhyNow text={worldEvent.why} />
+      <WhyNow text={worldEvent.why} ev={worldEvent.ev} />
       <p>{typeof we?.d === 'function' ? we.d(country) : we?.d}</p>
       <Responses kind="world" opts={worldOpts} dispatch={dispatch} />
     </div>); }
