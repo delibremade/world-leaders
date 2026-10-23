@@ -1,14 +1,14 @@
 import { energySituation } from '../../sim/energy-view.js';
-import { RES_META } from '../../data/energy.js';
+import { RES_META, ENERGY_SECURITY as E } from '../../data/energy.js';
 import { REGIONS } from '../../data/regions.js';
 const cash=n=>`$${Math.round(n).toLocaleString('en-US')}M`;
 export function ReserveControls({g,dispatch}) {
   const e=energySituation(g);
   return <div className="wl-reserve-desk" data-reserve-desk>
-    <div className="wl-energy-section-title"><b>Strategic reserve</b><span>{e.reserve} / 6 tranches</span></div>
-    <div className="wl-reserve-tanks" aria-hidden="true">{Array.from({length:6},(_,i)=><span key={i} data-filled={i<e.reserve}/>)}</div>
-    <progress value={e.reserve} max="6" aria-label="Strategic reserve"/>
-    <div className="wl-energy-actions"><button data-reserve-fill disabled={!e.canFill} onClick={()=>dispatch({type:'fillReserve'})}>+ Fill $200M</button><button data-reserve-release aria-pressed={e.shield} disabled={!e.reserve} onClick={()=>dispatch({type:'toggleReserveRelease'})}>{g.sprRelease?'⏹ Stop release':'▶ Release reserve'}</button></div>
+    <div className="wl-energy-section-title"><b>Strategic reserve</b><span>{e.reserve} / {E.reserveCapacity} tranches</span></div>
+    <div className="wl-reserve-tanks" aria-hidden="true">{Array.from({length:E.reserveCapacity},(_,i)=><span key={i} data-filled={i<e.reserve}/>)}</div>
+    <progress value={e.reserve} max={E.reserveCapacity} aria-label="Strategic reserve"/>
+    <div className="wl-energy-actions"><button data-reserve-fill disabled={!e.canFill} onClick={()=>dispatch({type:'fillReserve'})}>+ Fill {cash(E.reserveCost)}</button><button data-reserve-release aria-pressed={e.shield} disabled={!e.reserve} onClick={()=>dispatch({type:'toggleReserveRelease'})}>{g.sprRelease?'⏹ Stop release':'▶ Release reserve'}</button></div>
     <p>{e.shield?`Protection ordered for ${e.reserve} ${e.reserve===1?'month':'months'}. One tranche is used each month.`:e.reserve?'Release protects against route disruption and embargo costs for one month per tranche.':'Empty. Buy a tranche before ordering a release.'}</p>
     {e.releaseSavings>0&&<div className="wl-energy-savings">{cash(e.releaseSavings)}/mo in import costs {e.shield?'avoided':'avoidable with a release'}</div>}
   </div>;
@@ -29,7 +29,7 @@ export function EnergyDesk({g,ledger={},date,onMap,onResources,onBudget,dispatch
       <div className="wl-energy-observed"><span>LAST MONTH · {date?`${date.mo+1}/${date.yr}`:'—'}</span><b>{ledger.Imports!=null?`${cash(Math.abs(ledger.Imports))} import cost recorded`:'Advance a month to record import costs'}</b><small>Observed accounting. The estimate above reflects current orders and conditions.</small></div>
       <button className="wl-energy-budget-link" onClick={onBudget}>Review the national budget and service tradeoffs ↗</button>
     </div><div className="wl-energy-interventions"><ReserveControls g={g} dispatch={dispatch}/>
-      <details className="wl-energy-contracts"><summary>Import contracts <span>{g.importContracts.size} active</span></summary><p>Base cost $80M per resource each month. Route, bloc and embargo terms modify the total.</p>{Object.entries(RES_META).map(([id,r])=><label key={id}><span>{r.n}</span><input aria-label={`${r.n} import contract`} type="checkbox" checked={g.importContracts.has(id)} onChange={()=>dispatch({type:'toggleImportContract',payload:{resource:id}})}/></label>)}</details>
+      <details className="wl-energy-contracts"><summary>Import contracts <span>{g.importContracts.size} active</span></summary><p>Base cost {cash(E.contractCost)} per resource each month. Route, bloc and embargo terms modify the total.</p>{Object.entries(RES_META).map(([id,r])=><label key={id}><span>{r.n}</span><input aria-label={`${r.n} import contract`} type="checkbox" checked={g.importContracts.has(id)} onChange={()=>dispatch({type:'toggleImportContract',payload:{resource:id}})}/></label>)}</details>
       <details className="wl-energy-contracts"><summary>Domestic extraction</summary><p>Set the licensed extraction rate. Private operators produce from the remaining resource stock.</p>{['oil','gas','coal'].map(id=><label className="wl-energy-extraction" key={id}><span>{RES_META[id].n}<b>{g.resExtraction?.[id]||0} / 5</b></span><input aria-label={`${RES_META[id].n} extraction`} type="range" min="0" max="5" step="1" value={g.resExtraction?.[id]||0} disabled={(g.resources?.[id]?.r||0)<=0} onChange={ev=>dispatch({type:'setExtraction',payload:{resource:id,level:+ev.target.value}})}/><small>{(g.resources?.[id]?.r||0)>0?'Uses finite domestic reserves':'No reserves remaining'}</small></label>)}<button className="wl-energy-budget-link" onClick={onResources}>Generation & resource development ↗</button></details>
     </div></div>
   </section>;

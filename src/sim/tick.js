@@ -12,7 +12,7 @@ import { COMP_RESPONSES, WORLD_EVENTS, DECISIONS } from '../data/world.js';
 import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, CRISIS_FRIENDLY, CRISIS_HOSTILE, CRISIS_STOLEN } from '../data/intel.js';
 import { BLOC_TRADE } from '../data/trade.js';
 import { CHOKEPOINTS, IMPORT_ROUTES } from '../data/chokepoints.js';
-import { RES_META, CONCESSIONS } from '../data/energy.js';
+import { RES_META, CONCESSIONS, ENERGY_SECURITY } from '../data/energy.js';
 import { sumDep, isAllyOf, topHostile, wSum, navalWeight, calcSCost, getEnergyTier, isDiversified, getRefineMult, triadLegs as legsOf, airMult, interceptChance, cnExposure, forceMult, theaterWeight } from './formulas.js';
 import { stepForces, payrollOf } from './forces.js';
 import { crewOf } from '../data/forces.js';
@@ -84,7 +84,7 @@ function economy(g,S,fx,m){
   const hormuzHit=cs.hormuz==='disrupted';
   if(g.sprRelease){if(g.spr>0){g.spr-=1;S.setSpr(g.spr);}else{g.sprRelease=false;S.setSprRelease(false);fx.toast('🛢️ Strategic reserve exhausted — release ends');}}
   const sprShield=g.sprRelease&&g.spr>=0;
-  if(routeHit&&!sprShield){ns.inflation+=0.1;ns.gdpGrowth-=0.02;}
+  if(routeHit&&!sprShield){ns.inflation+=ENERGY_SECURITY.routeInflation;ns.gdpGrowth+=ENERGY_SECURITY.routeGrowth;}
   if(hormuzHit&&(trait.energyDep||0)>0&&!sprShield){ns.inflation+=(trait.energyDep)*0.15;}
   if((trait.energyDep||0)>0){const eTier=getEnergyTier(g.resources,g.resExtraction,g.importContracts);const cushioned=eTier==='nuclear'||eTier==='high';if(!cushioned){ns.inflation+=(trait.energyDep)*0.12;ns.gdpGrowth-=(trait.energyDep)*0.03;}}
   if((trait.resourceCurse||0)>0){const cycle=Math.sin(g.tickCount/40)*(trait.resourceCurse);cash('Commodity cycle',Math.round(cycle*120));ns.gdpGrowth+=cycle*0.05;}

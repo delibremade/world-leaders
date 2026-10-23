@@ -14,11 +14,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright-core install --with-deps chromium
-      - run: npm test
       - run: npm run build
-        if: always()
       - run: node scripts/capture-ui.js
-        if: always()
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -28,3 +25,4 @@ jobs:
         with:
           name: world-leaders-html
           path: dist/world-leaders.html
+      - run: npm test

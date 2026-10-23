@@ -25,7 +25,7 @@ export function MapView({ view, mode = 'sphere', onModeChange, onRegionTap, onSi
   const wide = useWide();
   const [selection,setSelection]=useState(selectionRequest||null), [previewType,setPreviewType]=useState(null);
   const pendingFocus=useRef(selectionRequest||null);
-  const inspect=(sel)=>{setSelection(sel);setPreviewType(sel?.kind==='site'?SITES[sel.id]?.types[0]:null);pendingFocus.current=sel;};
+  const inspect=(sel)=>{setSelection(sel);setPreviewType(sel?.kind==='site'?(view.bases?.nodes.find(n=>n.site===sel.id&&n.owner===view.country?.id)?.type||SITES[sel.id]?.types[0]):null);pendingFocus.current=sel;};
   const select=(kind,id)=>{if(!id){if(wide)inspect(null);return;}if(wide&&game)inspect({kind,id});else if(kind==='site')onSiteTap?.(id);else if(kind==='region')onRegionTap?.(id);else inspect({kind,id});};
   const scene = useMemo(() => buildScene({...view,selectedRegion:selection?.kind==='region'?selection.id:view.selectedRegion,selectedSite:selection?.kind==='site'?selection.id:view.selectedSite,previewType}, mode), [view, mode, selection, previewType]);
   useEffect(()=>{if(selectionRequest)inspect(selectionRequest);},[selectionRequest]);

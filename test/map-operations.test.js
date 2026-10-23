@@ -27,3 +27,13 @@ test('atlas: lenses isolate relevant networks and coverage is selection-only, in
   assert.ok(preview.rings.some(r=>r.preview&&r.site==='changi'&&r.r===+(NODE_TYPES.naval.reach/KM_PER_PX).toFixed(1)));
   assert.ok(!buildScene({...g,selectedSite:'changi',previewType:'bmd'},'military').rings.some(r=>r.preview),'unsupported type cannot preview');
 });
+
+test('atlas: world labels are separated in screen space without changing geographic anchors',async()=>{
+  const {layoutLabels}=await import('../src/ui/map/layout.js');
+  const items=Array.from({length:6},(_,i)=>({id:String(i),x:300+i*20,y:180+i*4,w:110,h:50}));
+  const positions=layoutLabels(items,{width:700,height:430});assert.equal(positions.length,6);
+  for(let i=0;i<positions.length;i++)for(let j=i+1;j<positions.length;j++){
+    const a=positions[i],b=positions[j];assert.ok(Math.abs(a.x-b.x)>=(a.w+b.w)/2+4||Math.abs(a.y-b.y)>=(a.h+b.h)/2+4,'labels must not collide');
+  }
+  assert.ok(positions.some((p,i)=>p.x!==items[i].x||p.y!==items[i].y));
+});

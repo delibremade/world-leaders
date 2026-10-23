@@ -4,12 +4,11 @@ import { REGIONS, POSTURE_LABELS } from '../../data/regions.js';
 import { NATIONS } from '../../data/nations.js';
 import { CHOKEPOINTS } from '../../data/chokepoints.js';
 import { siteView, chokesCovered, regionsCovered } from '../../sim/bases.js';
-import { navalWeight } from '../../sim/formulas.js';
 import { deploymentOptions } from '../../sim/deployment-view.js';
 import { Facility } from './Facility.jsx';
 import { buildLines } from './SiteSheet.jsx';
 import { ReserveControls } from '../energy/EnergyDesk.jsx';
-import { energySituation } from '../../sim/energy-view.js';
+import { energySituation, protectionWeight } from '../../sim/energy-view.js';
 const money=n=>`$${n.toLocaleString('en-US')}M`;
 export function Operations({mode,g,selection,previewType,onPreview,onSelect,onClose,onDetails,onNation,onJump,dispatch,ask,build}) {
   const energy=energySituation(g);
@@ -45,7 +44,7 @@ export function Operations({mode,g,selection,previewType,onPreview,onSelect,onCl
         <button className="wl-map-secondary" onClick={()=>onDetails('site',site.id)}>Manage facilities & host access ↗</button>
       </>}
       {rid&&<>
-        {cp&&<><div className="wl-corridor-state" data-corridor-state={g.chokeStatus?.[selection.id]||'open'}><i/>{g.chokeStatus?.[selection.id]||'open'}</div><p className="wl-map-muted">{cp.d}</p><div className="wl-map-facts"><div><b>{Math.round(cp.oilShare*100)}%</b><span>World oil transit</span></div><div><b>{(energy.routes.find(r=>r.id===selection.id)?.weight??navalWeight(g.forceDeployments?.[rid]||{})).toFixed(1)} / 2</b><span>Fleet + base protection</span></div></div><p className="wl-map-muted">Fleet and nearby bases contribute protection. Set Escort posture in {REGIONS[rid].n} with weight 2+ to protect access. Chokepoint state updates each month.</p></>}
+        {cp&&<><div className="wl-corridor-state" data-corridor-state={g.chokeStatus?.[selection.id]||'open'}><i/>{g.chokeStatus?.[selection.id]||'open'}</div><p className="wl-map-muted">{cp.d}</p><div className="wl-map-facts"><div><b>{Math.round(cp.oilShare*100)}%</b><span>World oil transit</span></div><div><b>{protectionWeight(g,selection.id).toFixed(1)} / 2</b><span>Fleet + base protection</span></div></div><p className="wl-map-muted">Fleet and nearby bases contribute protection. Set Escort posture in {REGIONS[rid].n} with weight 2+ to protect access. Chokepoint state updates each month.</p></>}
         {!cp&&<div className="wl-map-facts"><div><b>{Math.round(g.sphere?.[rid]?.player||0)}%</b><span>Your influence</span></div><div><b>{stationed}</b><span>Units stationed</span></div></div>}
         {cp&&energy.routes.some(r=>r.id===selection.id)&&<ReserveControls g={g} dispatch={dispatch}/>}
         <span className="wl-map-eyebrow">FORWARD DEPLOYMENT</span>

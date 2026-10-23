@@ -8,7 +8,7 @@ import { worldOptions, decisionReason, fpReason, FP_COST, pushFx, flashpointRow,
 import { PA, ISSUES, SOCIAL_PROGRAMS, SECTOR_LABELS, IP_POLICY_LABELS, BASE_SECTOR } from '../data/economy.js';
 import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, INTEL_POSTURE_LABELS } from '../data/intel.js';
 import { BLOC_TRADE, CURRENCY_LABELS } from '../data/trade.js';
-import { RES_META, CONCESSIONS } from '../data/energy.js';
+import { RES_META, CONCESSIONS, ENERGY_SECURITY } from '../data/energy.js';
 import { relOf, startRel, panamaPriorityBlock, sumDep, isAllyOf, topHostile, wSum, isrOf, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRunCost, trancheCost, devCost, recapCost, getQualMult, tier1Odds, exportEdge } from './formulas.js';
 import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups, opOddsTerms, programStage, programBlock, playerEntry, myAccess, accessGates, memberGates, shareCost, orderPrice, productionOpen } from './selectors.js';
 import { ALLIED_PROGRAMS, TIERS, TIER_ORDER, ACCESS_RULES } from '../data/alliance.js';
@@ -522,7 +522,7 @@ function modernizeSector(g,S,fx,sector){const label=SECTOR_LABELS[sector];
 }
 
 // Energy tab: strategic reserve, export shares, energy embargo, Panama deals, concessions and stewardship.
-function fillReserve(g,S,fx){const spr=g.spr;if(spr>=6){fx.toast('Reserve full');return;}if((g.stats?.treasury||0)<200){fx.toast('⚠ $200M per tranche');return;}S.setStats(p=>({...p,treasury:p.treasury-200}));g.spr=spr+1;S.setSpr(spr+1);fx.toast('🛢️ Reserve tranche filled');}
+function fillReserve(g,S,fx){const spr=g.spr;if(spr>=ENERGY_SECURITY.reserveCapacity){fx.toast('Reserve full');return;}if((g.stats?.treasury||0)<ENERGY_SECURITY.reserveCost){fx.toast(`⚠ ${ENERGY_SECURITY.reserveCost}M per tranche`);return;}S.setStats(p=>({...p,treasury:p.treasury-ENERGY_SECURITY.reserveCost}));g.spr=spr+1;S.setSpr(spr+1);fx.toast('🛢️ Reserve tranche filled');}
 function toggleReserveRelease(g,S,fx){const spr=g.spr,sprRelease=g.sprRelease;if(spr<=0){fx.toast('⚠ Reserve empty');return;}g.sprRelease=!sprRelease;S.setSprRelease(!sprRelease);fx.toast(sprRelease?'Release halted':'🛢️ Releasing reserve — 1 tranche/mo shields you from lane disruption');}
 function setExportShare(g,S,fx,k,v){S.setExportShare(p=>{const n2={...p,[k]:v};g.exportShare=n2;return n2;});}
 function toggleEmbargo(g,S,fx,tg){

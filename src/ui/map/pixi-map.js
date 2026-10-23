@@ -4,7 +4,7 @@ import { REGION_GEO } from '../../data/regions.js';
 import { parseRegions, regionAt, WORLD } from './path.js';
 import { COLOR, FONT, pixiHex } from '../tokens.js';
 import { lodFor, layersAt } from './lod.js';
-import { layoutSites, visibleLayers } from './layout.js';
+import { layoutSites, layoutLabels, visibleLayers } from './layout.js';
 import { SYMBOLS } from './symbols.js';
 export const TILT = 0.84;
 const parsed = parseRegions(REGION_GEO);
@@ -28,8 +28,9 @@ export async function createPixiMap(container, {onTap,onSiteTap,onChokeTap,onClu
   const overlay=viewport.addChild(new Container());
   const tops={};for(const id of Object.keys(parsed))tops[id]=land.addChild(new Graphics());
   let scene=null,tilt=1,level='strategic',hits=[],groups=[],phase=0,frames=0,fps=0,last=performance.now(),count=0;
+  const textPool=[];let textIndex=0;
   const text=(parent,value,x,y,size=12,color=COLOR.text.secondary,weight='600')=>{
-    const t=parent.addChild(new Text({text:value,style:{fontFamily:FONT.sans,fontSize:size,fill:color,fontWeight:weight},resolution:Math.max(2,dpr),roundPixels:true}));
+    const t=textPool[textIndex]||new Text({text:value,style:{fontFamily:FONT.sans,fontSize:size,fill:color,fontWeight:weight},resolution:Math.max(2,dpr),roundPixels:true});textPool[textIndex++]=t;parent.addChild(t);t.text=value;t.style.fontSize=size;t.style.fill=color;t.style.fontWeight=weight;
     t.anchor.set(.5);t.position.set(x,y);return t;
   };
   const pin=(x,y)=>{const c=overlay.addChild(new Container());c.position.set(x,y*tilt);c.scale.set(1/viewport.scaled);return c;};
@@ -59,28 +60,33 @@ export async function createPixiMap(container, {onTap,onSiteTap,onChokeTap,onClu
     const z=ratio(),s=viewport.scaled;level=lodFor(z).id;
     tilt=1-(1-TILT)*Math.min(1,Math.max(0,(z-1.4)/1.6));plane.scale.y=tilt;
     const show=visibleLayers(scene.mode);
+    for(const t of textPool)t.removeFromParent();textIndex=0;
     overlay.removeChildren().forEach(c=>c.destroy({children:true}));hits=[];
     grid.clear();for(let x=0;x<=1000;x+=100)grid.moveTo(x,0).lineTo(x,520);for(let y=0;y<=520;y+=52)grid.moveTo(0,y).lineTo(1000,y);grid.stroke({color:0x548b94,width:.5/s,alpha:.12});
     drawLand();rings.clear();
     for(const r of scene.rings){rings.circle(r.x,r.y,r.r).fill({color:pixiHex(r.color),alpha:.055}).stroke({color:pixiHex(r.color),alpha:r.preview ? .95 : .6,width:(r.preview?1.8:1)/s});}
+    const small=sw()<650;
+    const callouts=z<1.6?layoutLabels(scene.regions.map(r=>{const p=viewport.toScreen(r.cx,r.cy*tilt);return {id:r.rid,x:p.x,y:p.y,w:Math.max(100,r.name.length*(small?5.5:6.5)+18),h:52};}),{width:sw(),height:sh()}):[];
     // World labels form the primary interaction targets; tactical labels yield to facilities.
     for(const r of scene.regions){
       const p=viewport.toScreen(r.cx,r.cy*tilt);
-      const c=pin(r.cx,r.cy);const g=c.addChild(new Graphics());
-      const small=sw()<650;const w=small?100:136;
-      if(z<3||r.selected){
+      const label=z<1.6?callouts.find(c=>c.id===r.rid):null;
+      const dx=label?(label.x-p.x)/s:0,dy=label?(label.y-p.y)/s/tilt:0;
+      const cx=r.cx+dx,cy=r.cy+dy;
+      const c=pin(cx,cy);const g=c.addChild(new Graphics());const w=label?.w||(small?106:140);
+      if(label&&(dx||dy)){g.moveTo(0,0).lineTo(-dx*s,-dy*s*tilt).stroke({color:0x6c9296,width:.7,alpha:.65});}
+      if((z<3||r.selected)&&(z>=1.6||label)){
         g.roundRect(-w/2,-22,w,43,4).fill({color:0x0b202b,alpha:.94}).stroke({color:r.selected?0xb6f6df:0x31515d,width:1});
         text(c,r.name,0,-10,small?10:12,r.selected?'#d6fff0':'#b5d0d4');
         text(c,r.line2.replace('⚓ ',''),0,8,small?10:11,r.line2Color,'700');
         if(r.line3&&z>=1.6)text(c,r.line3,0,30,10,COLOR.text.muted);
-        pick('region',r.rid,r.cx,r.cy,Math.min(w/2,46));
+        pick('region',r.rid,cx,cy,26,{width:w,height:44});
       }
-      if(r.hatch&&z<3)text(c,'CONTESTED',0,-32,9,'#c4b381');
+      if(r.hatch&&z>=1.6&&z<3)text(c,'CONTESTED',0,-32,9,'#c4b381');
       if(r.deployed&&['military','sphere'].includes(scene.mode)){const f=pin(r.cx,r.cy+40/s/tilt);f.addChild(new Graphics()).roundRect(-32,-10,64,20,3).fill(0x193c4c).stroke({color:0x70b5ce,width:1});text(f,`${r.deployed} units`,0,0,11,'#b7e6f5');pick('region',r.rid,r.cx,r.cy+40/s/tilt,25);}
-      if(r.trend&&scene.mode==='sphere'&&z<3)text(c,`${r.trend>0?'↑':'↓'} ${Math.abs(r.trend)}`,w/2+14,6,10,r.trend>0?'#8bdbb0':'#e7ae8e');
+      if(r.trend&&scene.mode==='sphere'&&z>=1.6&&z<3)text(c,`${r.trend>0?'↑':'↓'} ${Math.abs(r.trend)}`,w/2+14,6,10,r.trend>0?'#8bdbb0':'#e7ae8e');
       if(r.intel&&scene.mode==='intel'){g.rect(-w/2-6,-16,3,29).fill(0xa5a0df);}
       if(r.flashpoint){g.poly([-7,-36,0,-48,7,-36],true).fill(0xf5b85f);text(c,`${r.flashpoint.t}mo`,22,-40,10,'#f5b85f');}
-      if(z<1.6&&!scene.build){const n=scene.sites.filter(st=>st.region===r.rid).length;if(n)text(c,`${n} sites`,0, r.deployed&&['military','sphere'].includes(scene.mode)?61:34,10,'#70959d');}
     }
     // Nearby facilities group into a numbered stack. Clicking lists every member in the inspector.
     groups=layoutSites(show.sites||scene.build?scene.sites:scene.sites.filter(x=>x.selected),{zoom:z,scale:s,tilt,build:scene.build});
@@ -103,7 +109,7 @@ export async function createPixiMap(container, {onTap,onSiteTap,onChokeTap,onClu
     drawLanes();onViewChange?.(z,level);
   };
   viewport.on('clicked',e=>{
-    let hit=null,best=Infinity;for(const h of hits){const d=Math.hypot(e.world.x-h.x,e.world.y-h.y)*viewport.scaled;if(d<h.r&&d<best){hit=h;best=d;}}
+    let hit=null,best=Infinity;for(const h of hits){const d=Math.hypot(e.world.x-h.x,e.world.y-h.y)*viewport.scaled;if((h.width?Math.abs(e.world.x-h.x)*viewport.scaled<h.width/2&&Math.abs(e.world.y-h.y)*viewport.scaled<h.height/2:d<h.r)&&d<best){hit=h;best=d;}}
     if(hit?.kind==='site')onSiteTap?.(hit.id);
     else if(hit?.kind==='cluster')onClusterTap?.(hit.ids);
     else if(hit?.kind==='choke')onChokeTap?.(hit.id);
@@ -120,5 +126,5 @@ export async function createPixiMap(container, {onTap,onSiteTap,onChokeTap,onClu
     pan(dx,dy){viewport.x+=dx;viewport.y+=dy;layout();},zoom:z=>zoomTo(z),zoomBy:f=>zoomTo(viewport.scaled*f),fit:()=>zoomTo(fitScale(),500,260),
     level:()=>level,layers:()=>({...layersAt(ratio()),rings:!!scene?.rings.length}),scale:()=>viewport.scaled,relativeZoom:ratio,
     visibleSites:()=>groups.map(g=>g.ids),projection:()=>tilt,screenPoint:(x,y)=>viewport.toScreen(x,y*tilt),
-    fps:()=>fps,frames:()=>frames,destroy(){ro.disconnect();app.destroy(true,{children:true,texture:true});}};
+    fps:()=>fps,frames:()=>frames,destroy(){ro.disconnect();for(const t of textPool){t.removeFromParent();t.destroy();}app.destroy(true,{children:true,texture:true});}};
 }
