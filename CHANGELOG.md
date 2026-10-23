@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.91.0 (2026-10-22) — #89: Host nations and base sites (F15 tenure)
+- Rule change (spec Parts 11, 13 F15). 18 host nations are now in `NATIONS` with `host` data (terms, status_source): Singapore, Philippines, Australia, South Korea, UK, Italy, Spain, Greece, Turkey, Poland, Romania, Qatar, UAE, Kuwait, Bahrain, Djibouti, Iceland, Greenland. 10 are new entries; none are `dip`, so the v57 relations map is untouched (relations start from the bloc rule via `relOf`).
+- 19 new real sites (Paya Lebar, four EDCA sites, Tindal, Pine Gap, Camp Humphreys, Lakenheath, Aviano, Sigonella, Moron, Alexandroupolis, Poznan, Lask, MK, Ali Al Salem, Jebel Ali, Kurecik); Changi, Subic, Souda, Deveselu, Bahrain, Al Udeid, Arifjan, Djibouti, Keflavik, Pituffik move from local hosts to their registry host.
+- New verb `basingAgreement` ($250M, needs relations 20, a pact or an ally): a host nation consents to an ally, a pact partner, or under an agreement. It lapses below relations 0, under your sanctions or embargo; ending it closes agreement nodes next month.
+- F15 tenure on every node (own, lease, treaty, agreement, access). Leases and treaty/SOFA sites persist through sanctions and relations collapse (Ramstein, Kadena, Osan, Lemonnier now stay open); agreement and access nodes close as before.
+- Nation sheet: host nations show terms and candidate sites with chokepoints in reach; a site opens the site sheet, whose host chip opens the nation sheet. State visit and aid work on host-only nations.
+- Invariants: tenure known and `own` only on home soil; agreements name host nations, never the player; relations name real nations within [-100, 100].
+- Tests: `hosts.test.js` +6 (done-when: US to Changi covering Malacca, +1.5 control weight; tenure; verbs; 240-month fuzz x 8; jsdom sheet flow). `bases.test.js` and `bases-effects.test.js` updated for F15. Parity: all five pinned cases re-baselined citing #89 (firstDivergence unchanged).
+
 ## Unreleased — FIX 3: Operations list
 - Engine fix (rule-visible, no design ruling touched). A standing program's monthly relaunch carried no id and no odds, so it resolved as `rng() < NaN`: never a success, never discovered, and the row rendered `(undefined || 0)` = 0% success / 0% exposure. Relaunches are stamped like hand launches (`id`, `successRate`, `discoverRate`, `type`) through the one `opOddsTerms` implementation; an unstamped op from an old save resolves on today's odds (`opOdds`, shared by the resolver and the UI). Parity: the pinned event-system hashes for the two verb cases (seed 10, 11, which toggle a standing program) are re-baselined citing this fix; the three play cases are untouched.
 - Invariant: every intel op carries an id, a known op, a target, integer months and finite odds in [0,1].

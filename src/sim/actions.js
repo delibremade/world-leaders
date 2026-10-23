@@ -1,4 +1,4 @@
-import { NATIONS, BUYERS, DIP_TARGETS, NATION_BLOC, RD_MODS } from '../data/nations.js';
+import { NATIONS, BUYERS, DIP_TARGETS, HOST_NATIONS, NATION_BLOC, RD_MODS } from '../data/nations.js';
 import { setPermanent, RENEWABLE_DAMPER } from './effects.js';
 import { REGIONS, POSTURE_LABELS } from '../data/regions.js';
 import { DOCTRINES, WORLD_EVENTS, DECISIONS } from '../data/world.js';
@@ -9,7 +9,7 @@ import { PA, ISSUES, SOCIAL_PROGRAMS, SECTOR_LABELS, IP_POLICY_LABELS, BASE_SECT
 import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, INTEL_POSTURE_LABELS } from '../data/intel.js';
 import { BLOC_TRADE, CURRENCY_LABELS } from '../data/trade.js';
 import { RES_META, CONCESSIONS } from '../data/energy.js';
-import { panamaPriorityBlock, sumDep, isAllyOf, topHostile, wSum, isrOf, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRunCost, trancheCost, devCost, recapCost, getQualMult, tier1Odds, exportEdge } from './formulas.js';
+import { relOf, startRel, panamaPriorityBlock, sumDep, isAllyOf, topHostile, wSum, isrOf, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRunCost, trancheCost, devCost, recapCost, getQualMult, tier1Odds, exportEdge } from './formulas.js';
 import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups, opOddsTerms, programStage, programBlock, playerEntry, myAccess, accessGates, memberGates, shareCost, orderPrice, productionOpen } from './selectors.js';
 import { ALLIED_PROGRAMS, TIERS, TIER_ORDER, ACCESS_RULES } from '../data/alliance.js';
 import { rng } from './rng.js';
@@ -310,9 +310,10 @@ function respondIntelCrisis(g,S,fx,responseId,intelCrisis){
 
 function diplomaticAction(g,S,fx,nid,action){
   const s=g.stats;if(!s||!nid)return;
-  const nat=DIP_TARGETS.find(d=>d.id===nid);if(!nat)return;
-  const rel=g.nationRelations[nid]||0;const reg=nat.region;
-  const bump=(d)=>{S.setNationRelations(p=>({...p,[nid]:Math.max(-100,Math.min(100,(p[nid]||0)+d))}));};
+  // #89: a host-only nation (NATIONS[*].host, no `dip`) takes state visits and aid; its relations start from the bloc rule (relOf).
+  const nat=DIP_TARGETS.find(d=>d.id===nid)||(['visit','aid'].includes(action)?HOST_NATIONS.find(d=>d.id===nid&&nid!==g.country?.id):null);if(!nat)return;
+  const rel=relOf(g,nid);const reg=nat.region;
+  const bump=(d)=>{S.setNationRelations(p=>({...p,[nid]:Math.max(-100,Math.min(100,(p[nid]??startRel(g.country?.id,nid))+d))}));};
   const sphereBump=(d)=>{S.setSphere(p=>{const ns={...p};if(ns[reg])ns[reg]={...ns[reg],player:Math.min(100,(ns[reg].player||0)+d)};return ns;});};
   if(action==='visit'){
     const cd=g.actionCooldowns[`visit_${nid}`]||0;if(cd>0){fx.toast(`State visit on cooldown — ${cd}mo`);return;}

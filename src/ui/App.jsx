@@ -742,7 +742,7 @@ function WorldLeadersInner({resumeSignal}){
     </div>;
   };
 
-  const nationView={country,stats,nationRelations,embassies,defensePacts,tradeAgreements,sanctions,embargoes,embassyMissions,influenceAlloc,influenceBudget,dominance:domR.current,doctrine,defLevels,defExports,intelOps,continuousOps,rivalTension,actionCooldowns,embassyLocks:embLockR.current,resExtraction,platforms,blackPrograms,blackResearch,arsenal,intelInfra,covertPrograms,intelBudget,absorbBonus:absorbR.current};
+  const nationView={bases,country,stats,nationRelations,embassies,defensePacts,tradeAgreements,sanctions,embargoes,embassyMissions,influenceAlloc,influenceBudget,dominance:domR.current,doctrine,defLevels,defExports,intelOps,continuousOps,rivalTension,actionCooldowns,embassyLocks:embLockR.current,resExtraction,platforms,blackPrograms,blackResearch,arsenal,intelInfra,covertPrograms,intelBudget,absorbBonus:absorbR.current};
   // V2d command cards: one runner for every card (escalatory through the confirm sheet, UI side effects, else the verb).
   const runCmd=(a)=>runCommand(a,{dispatch,ask:setAct,ui:(u)=>{if(u.build!=null)setBuildMode(u.build);if(u.site){setSelNation(null);setSelSite(u.site);}if(u.nation)setSelNation(u.nation);}});
   const cmdView={country,stats,nationRelations,sanctions,embargoes,actionCooldowns,influenceAlloc,platforms,platformsImported,blackPrograms,forceDeployments,resExtraction,bases,intelOps,sphere};
@@ -1740,8 +1740,8 @@ function WorldLeadersInner({resumeSignal}){
       <Feed open={feedOpen} onClose={closeFeed} entries={feed} routes={routes} onRoute={setRoute} onJump={jumpTo}/>
       <Sheet open={!!selectedRegion||!!selNation||!!selSite} onClose={()=>{setSelectedRegion(null);setSelNation(null);setSelSite(null);}} back={(!!selNation||!!selSite)&&!!selectedRegion} onBack={()=>{setSelNation(null);setSelSite(null);}}
         title={selSite?`${SITES[selSite]?.n||''}`:selNation?`${NATIONS[selNation]?.flag||''} ${nationName(selNation)}`:selectedRegion?REGIONS[selectedRegion]?.n:''} subtitle={selSite?(buildMode?'Build here · tap a node type':'Base site · nodes here and what you can build'):selNation?'Every action on this nation':selectedRegion?`${Math.round(sphere[selectedRegion]?.player||0)}% your sphere · tap a nation for its actions`:''}>
-        {selSite?<SiteSheet g={liveState()} site={siteView(liveState(),selSite)} country={country} dispatch={dispatch} ask={(a)=>{setSelSite(null);setAct(a);}}/>
-        :selNation?<NationSheet nation={selNation} dispatch={dispatch} view={nationView}/>
+        {selSite?<SiteSheet g={liveState()} site={siteView(liveState(),selSite)} country={country} dispatch={dispatch} ask={(a)=>{setSelSite(null);setAct(a);}} onNation={(n)=>{setSelSite(null);setSelNation(n);}}/>
+        :selNation?<NationSheet nation={selNation} dispatch={dispatch} view={nationView} onSite={(sid)=>{setSelNation(null);setSelSite(sid);}}/>
         :<>
           {!wide&&regionCard}
           {selectedRegion&&<div data-region-nations><div className="wl-label" style={{margin:'4px 0 2px'}}>Nations here · tap for every action</div>

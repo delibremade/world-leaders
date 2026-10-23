@@ -7,7 +7,7 @@ import { checkV57 } from '../src/sim/invariants.js';
 import { COUNTRIES, NATIONS } from '../src/data/nations.js';
 import { REGION_GEO } from '../src/data/regions.js';
 import { CHOKEPOINTS } from '../src/data/chokepoints.js';
-import { NODE_TYPES, NODE_IDS, SITES, SITE_IDS, REAL_BASES, BASE_RULES as R, project, unproject, distanceKm, KM_PER_PX } from '../src/data/bases.js';
+import { NODE_TYPES, NODE_IDS, SITES, SITE_IDS, REAL_BASES, TENURES, BASE_RULES as R, project, unproject, distanceKm, KM_PER_PX } from '../src/data/bases.js';
 import { MINERAL_RULES as MR } from '../src/data/minerals.js';
 import { leverCost } from '../src/sim/minerals.js';
 import { newBases, portOutlook, nodeId, nodesOf, activeNodes, consent, siteOptions, siteView, basesView, coversChoke, coversRegion, chokesCovered, regionsCovered, kmToRegion, nodeCost, aiCandidates, AI_OWNERS, findNode } from '../src/sim/bases.js';
@@ -77,7 +77,8 @@ test('data: every playable nation starts with real bases (status_source each); t
   for (const s of ['djibouti', 'ream']) assert.ok(has('china', s), `china ${s}`);
   assert.ok(has('russia', 'tartus'));
   assert.equal(new Set(REAL_BASES.map((b) => nodeId(b.owner, b.site, b.type))).size, REAL_BASES.length, 'no duplicate pre-placed node');
-  assert.ok(REAL_BASES.find((b) => b.site === 'guantanamo').lease, 'Guantanamo is a lease');
+  assert.equal(REAL_BASES.find((b) => b.site === 'guantanamo').tenure, 'lease', 'Guantanamo is a lease');
+  for (const b of REAL_BASES) assert.ok(TENURES[b.tenure] && (b.tenure === 'own') === (SITES[b.site].host === b.owner), `${b.owner} ${b.site}: F15 tenure ${b.tenure}`);
 });
 
 test('new campaign: g.bases holds every real base active; the player owns its nation\'s; invariants hold; the phase runs after forces; plain JSON', () => {
@@ -106,29 +107,35 @@ test('consent: own soil and allies always; a neutral registry host needs relatio
   const h = headless('usa'); const g = h.g;
   assert.ok(consent(g, 'norfolk').ok && consent(g, 'rota').ok, 'own soil, allied Spain');
   g.nationRelations.turkey = 0; assert.ok(!consent(g, 'incirlik').ok && !consent(g, 'incirlik').lost); assert.match(consent(g, 'incirlik').reason, /need 20/);
-  g.nationRelations.turkey = 25; assert.ok(consent(g, 'incirlik').ok);
+  g.nationRelations.turkey = 25; assert.ok(!consent(g, 'incirlik').ok, '#89: a host nation needs a basing agreement'); assert.equal(h.run('basingAgreement', { nation: 'turkey' }), true); assert.ok(consent(g, 'incirlik').ok);
+  g.bases = { ...g.bases, agreements: {} };
   g.nationRelations.turkey = 0; g.defensePacts.add('turkey'); assert.ok(consent(g, 'incirlik').ok, 'a pact consents'); g.defensePacts.delete('turkey');
   g.nationRelations.turkey = -5; assert.ok(consent(g, 'incirlik').lost);
   g.nationRelations.turkey = 50; g.sanctions.add('turkey'); assert.ok(consent(g, 'incirlik').lost); assert.match(consent(g, 'incirlik').reason, /sanction/); g.sanctions.delete('turkey');
-  g.sphere.AF = { ...g.sphere.AF, player: 20 }; assert.ok(consent(g, 'djibouti').ok);
-  g.sphere.AF = { ...g.sphere.AF, player: 10 }; assert.ok(!consent(g, 'djibouti').ok && !consent(g, 'djibouti').lost, 'hysteresis band: the start position keeps Lemonnier but opens nothing new');
-  g.sphere.AF = { ...g.sphere.AF, player: 5 }; assert.ok(consent(g, 'djibouti').lost);
+  g.sphere.SEA = { ...g.sphere.SEA, player: 20 }; assert.ok(consent(g, 'camranh').ok, 'a local host (Vietnam) reads your sphere');
+  g.sphere.SEA = { ...g.sphere.SEA, player: 10 }; assert.ok(!consent(g, 'camranh').ok && !consent(g, 'camranh').lost, 'hysteresis band: nothing new opens, nothing closes');
+  g.sphere.SEA = { ...g.sphere.SEA, player: 5 }; assert.ok(consent(g, 'camranh').lost);
+  // #89: Djibouti is a host nation now; Lemonnier is a lease and outlives any relations collapse (F15)
+  g.nationRelations.djibouti = -60; assert.ok(consent(g, 'djibouti').lost); assert.ok(consent(g, 'djibouti', findNode(g, 'usa', 'djibouti', 'sof')).ok, 'the 2014 lease');
   g.nationRelations.cuba = -40; g.sanctions.add('cuba');
   assert.ok(consent(g, 'guantanamo', findNode(g, 'usa', 'guantanamo', 'naval')).ok, 'the 1903 lease'); assert.ok(consent(g, 'guantanamo').lost, 'but you could not build anew there');
 });
 
-test('host collapse closes a base and consent restored reopens it after the wait; closure is logged and toasted', () => {
+// A node of the player's built on an access arrangement, already operational (test setup, not a verb).
+const accessNode = (g, site, type) => { g.bases = { ...g.bases, nodes: [...g.bases.nodes, { id: nodeId('usa', site, type), owner: 'usa', site, type, status: 'active', mo: 0, since: 0, tenure: 'access' }] }; };
+test('host collapse closes an access base and consent restored reopens it after the wait; closure is logged and toasted; treaty sites stay (F15)', () => {
   const h = headless('usa'); const g = h.g; rich(g);
-  const dj = findNode(g, 'usa', 'djibouti', 'sof'); assert.equal(dj.status, 'active');
-  g.sphere.AF = { ...g.sphere.AF, player: 5 };
+  accessNode(g, 'camranh', 'naval');
+  g.sphere.SEA = { ...g.sphere.SEA, player: 5 };
   months(h, 1);
-  assert.equal(findNode(g, 'usa', 'djibouti', 'sof').status, 'closed'); assert.ok(h.toasts.some((t) => /Djibouti closes your SOF forward staging/.test(t)), h.toasts.join('|')); assert.ok(h.ui.log.some((l) => /Base closed by host/.test(l.msg)));
-  assert.ok(basesView(g).closed.length === 1 && activeNodes(g).every((n) => n.site !== 'djibouti'));
-  g.sphere.AF = { ...g.sphere.AF, player: 40 };
-  for (let i = 0; i < R.reopenMo; i++) { g.sphere.AF = { ...g.sphere.AF, player: 40 }; months(h, 1); }
-  assert.equal(findNode(g, 'usa', 'djibouti', 'sof').status, 'active', 'reopened'); assert.ok(h.toasts.some((t) => /reopened/.test(t)));
-  // a sanctioned registry host closes a base too (Osan, South Korea)
-  g.sanctions.add('skorea'); months(h, 1); assert.equal(findNode(g, 'usa', 'osan', 'air').status, 'closed');
+  assert.equal(findNode(g, 'usa', 'camranh', 'naval').status, 'closed'); assert.ok(h.toasts.some((t) => /Vietnam closes your Naval base/.test(t)), h.toasts.join('|')); assert.ok(h.ui.log.some((l) => /Base closed by host/.test(l.msg)));
+  assert.ok(basesView(g).closed.length === 1 && activeNodes(g).every((n) => n.site !== 'camranh'));
+  for (let i = 0; i < R.reopenMo; i++) { g.sphere.SEA = { ...g.sphere.SEA, player: 40 }; months(h, 1); }
+  assert.equal(findNode(g, 'usa', 'camranh', 'naval').status, 'active', 'reopened'); assert.ok(h.toasts.some((t) => /reopened/.test(t)));
+  // a sanctioned registry host closes an access node (Darwin) but not the treaty-held Osan (F15: SOFA sites persist)
+  accessNode(g, 'darwin', 'garrison');
+  g.sanctions.add('skorea'); g.sanctions.add('australia'); months(h, 1);
+  assert.equal(findNode(g, 'usa', 'osan', 'air').status, 'active', 'treaty site persists'); assert.equal(findNode(g, 'usa', 'darwin', 'garrison').status, 'closed');
   assert.ok(!g.bases.nodes.some((n) => n.owner !== 'usa' && n.status === 'closed'), 'AI nodes never close');
 });
 
@@ -139,8 +146,9 @@ test('costs: upkeep on active nodes and basing agreements on foreign soil hit th
   assert.equal(h.ui.ledger['Base upkeep'], -v.upkeep); assert.equal(h.ui.ledger['Basing agreements'], -v.hostPay);
   assert.equal(nodeCost('naval', 'norfolk', 'usa').host, 0, 'no agreement on own soil'); assert.equal(nodeCost('naval', 'bahrain', 'usa').host, NODE_TYPES.naval.host);
   const cuba = headless('cuba'); months(cuba, 1); assert.equal(cuba.ui.ledger['Basing agreements'], undefined, 'Cuba holds only home bases'); assert.ok(cuba.ui.ledger['Base upkeep'] < 0);
-  g.sphere.AF = { ...g.sphere.AF, player: 5 }; months(h, 1); const v2 = basesView(g);
-  assert.equal(h.ui.ledger['Base upkeep'], -v2.upkeep); assert.ok(v2.upkeep < v.upkeep, 'the closed Djibouti compound stopped costing');
+  accessNode(g, 'camranh', 'naval'); months(h, 1); const v1 = basesView(g); assert.equal(v1.upkeep, v.upkeep + NODE_TYPES.naval.upkeep);
+  g.sphere.SEA = { ...g.sphere.SEA, player: 5 }; months(h, 1); const v2 = basesView(g);
+  assert.equal(h.ui.ledger['Base upkeep'], -v2.upkeep); assert.equal(v2.upkeep, v.upkeep, 'the closed Cam Ranh base stopped costing');
 });
 
 test('verb buildNode: refusals name the reason (type, consent, treasury); success charges capex, builds for mo months, then pays upkeep; closeNode decommissions', () => {
@@ -150,9 +158,9 @@ test('verb buildNode: refusals name the reason (type, consent, treasury); succes
   g.stats = { ...g.stats, treasury: 100 }; assert.equal(h.run('buildNode', { site: 'norfolk', type: 'radar' }), false); assert.match(h.toasts.at(-1), /Need \$350M/);
   assert.equal(g.bases.nodes.length, REAL_BASES.length, 'nothing placed');
   g.stats = { ...g.stats, treasury: t0 };
-  assert.match(siteOptions(g, 'subic').find((o) => o.type === 'naval').reason, /sphere in Southeast Asia is 10%/, 'a local host wants two points of sphere first');
-  g.sphere.SEA = { ...g.sphere.SEA, player: 20 };
-  const opts = siteOptions(g, 'subic'); assert.ok(opts.find((o) => o.type === 'naval').ok, 'Subic opens at sphere 20');
+  assert.match(siteOptions(g, 'camranh').find((o) => o.type === 'naval').reason, /sphere in Southeast Asia is 10%/, 'a local host wants two points of sphere first');
+  g.sphere.SEA = { ...g.sphere.SEA, player: 20 }; assert.ok(siteOptions(g, 'camranh').find((o) => o.type === 'naval').ok, 'Cam Ranh opens at sphere 20');
+  const opts = siteOptions(g, 'subic'); assert.ok(opts.find((o) => o.type === 'naval').ok, 'Subic: the Philippines is a treaty ally (#89)');
   assert.equal(h.run('buildNode', { site: 'subic', type: 'naval' }), true);
   assert.equal(g.stats.treasury, t0 - NODE_TYPES.naval.capex);
   const n = findNode(g, 'usa', 'subic', 'naval'); assert.equal(n.status, 'building'); assert.equal(n.mo, NODE_TYPES.naval.mo);

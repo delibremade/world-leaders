@@ -151,11 +151,15 @@ test('reach: the Horn of Africa fragment tagged EE no longer puts Eastern Europe
   assert.ok(!regionsCovered({ site: 'djibouti', type: 'radar' }).includes('EE') || NODE_TYPES.radar.reach >= 2500, 'a 2500 km radar legitimately reaches the Caucasus');
 });
 
-test('relations collapse closes a base and removes every effect at once; 120 months x 8 nations with effects live keep the invariants', () => {
+test('relations collapse closes an agreement base and removes every effect at once; treaty sites stay (F15, #89); 120 months x 8 nations with effects live keep the invariants', () => {
   const h = headless('usa'); const g = h.g; rich(g);
-  assert.ok(theaterMult(g, 'EA', 'air') > 0 && responseAt(g, 'EA') > 0);
-  g.sanctions.add('skorea'); g.nationRelations.japan = -10; months(h, 1);
-  for (const id of ['kadena:air', 'osan:air', 'yokosuka:naval']) assert.equal(findNode(g, 'usa', ...id.split(':')).status, 'closed', id);
-  assert.equal(theaterMult(g, 'EA', 'air'), 0); assert.equal(responseAt(g, 'EA'), 0); assert.ok(theaterMult(g, 'EA', 'sea') < NODE_TYPES.naval.mult.sustain);
+  // Singapore: sign, build air at Paya Lebar, then the relations collapse closes it
+  g.nationRelations.singapore = 30; assert.equal(h.run('basingAgreement', { nation: 'singapore' }), true);
+  assert.equal(h.run('buildNode', { site: 'payalebar', type: 'air' }), true); months(h, NODE_TYPES.air.mo);
+  assert.equal(findNode(g, 'usa', 'payalebar', 'air').status, 'active'); const on = theaterMult(g, 'SEA', 'air'); assert.ok(on > 0);
+  g.sanctions.add('skorea'); g.nationRelations.japan = -10; g.nationRelations.singapore = -10; months(h, 1);
+  for (const id of ['kadena:air', 'osan:air', 'yokosuka:naval']) assert.equal(findNode(g, 'usa', ...id.split(':')).status, 'active', `${id}: treaty/SOFA persists`);
+  assert.equal(findNode(g, 'usa', 'payalebar', 'air').status, 'closed'); assert.ok(!g.bases.agreements.singapore, 'agreement suspended');
+  assert.ok(theaterMult(g, 'SEA', 'air') < on, 'its sortie bonus is gone');
   for (const c of COUNTRIES) { const x = headless(c.id, 11); x.g.gracePeriod = 0; rich(x.g); months(x, 120); }
 });
