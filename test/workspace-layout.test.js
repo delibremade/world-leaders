@@ -6,13 +6,15 @@ let browser;
 before(async () => { browser = await launch(); });
 after(async () => { await browser?.close(); });
 
-for (const [W,H] of [[1440,900],[1920,1080],[390,844]]) {
+for (const [W,H] of [[1280,800],[1440,900],[1920,1080],[390,844]]) {
   test(`${W}px: workspace controls fit, budget is immediately reachable, reserve updates and supply map opens`, async () => {
     const {ctx,page,errors} = await openGame(browser,{width:W,height:H,svg:false});
     const shot=async name=>{if(process.env.WL_SHOTS){await mkdir(process.env.WL_SHOTS,{recursive:true});await page.screenshot({path:`${process.env.WL_SHOTS}/${name}-${W}.png`});}};
     try {
       assert.match(await page.locator('[data-pulse=forces] .wl-pulse-value').innerText(), new RegExp('^85\\s*Strength / 100$'));
       if(W>=1100){
+        const hud=await page.evaluate(()=>({wellRight:Math.max(...[...document.querySelectorAll('[data-wells] [data-why]')].map(e=>e.getBoundingClientRect().right)),pauseLeft:document.querySelector('[data-pause-reason]').getBoundingClientRect().left}));
+        assert.ok(hud.wellRight<=hud.pauseLeft,`national figures overlap pause status: ${JSON.stringify(hud)}`);
         const rects=await page.locator('[data-national-pulse],.wl-queue-deck,.wl-mv-stage').evaluateAll(es=>es.map(e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,right:r.right,bottom:r.bottom};}));
         for(const r of rects)assert.ok(r.x>=0&&r.y>=0&&r.right<=W&&r.bottom<=H,JSON.stringify(r));
       }

@@ -102,6 +102,7 @@ export const WORKSPACE_CSS = `
 @media(max-width:899px){.wl-energy-production{grid-template-columns:minmax(0,1fr)}.wl-energy-details>summary span{float:none;display:block;margin-top:5px}}
 @media(min-width:1100px){
  .wl-app{grid-template-columns:168px minmax(0,1fr) 240px}
+ .wl-hud:has(.wl-alerts):has([data-allocate]) .wl-hud-figs{grid-template-columns:repeat(3,minmax(0,1fr))}
  .wl-ov-col{grid-template-rows:auto minmax(0,1fr) auto;gap:10px!important}
  .wl-ov-col>.wl-national-pulse{order:0}.wl-ov-col>.wl-map-card{order:1}.wl-ov-col>.wl-queue-deck{order:2}
  .wl-economy-layout{display:grid!important;grid-template-columns:minmax(0,1fr) 250px;min-height:0}

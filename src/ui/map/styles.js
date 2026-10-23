@@ -41,6 +41,7 @@ export const atlasStyles=`
  .wl-mv>.wl-atlas-workspace{display:flex}
 }
 @media(min-width:1680px){.wl-operations{width:310px;flex-basis:310px}.wl-operations-scroll{padding:20px}.wl-atlas-workspace .wl-mv-dock kbd{display:inline-block}}
+@media(min-width:1100px) and (max-width:1679px){.wl-facility-preview{display:grid;grid-template-columns:90px minmax(0,1fr);column-gap:8px;text-align:left;padding:8px}.wl-facility-preview .wl-facility-large{width:90px;height:65px;grid-row:1 / 3}.wl-facility-preview span{align-self:end}.wl-facility-preview b{font-size:12px;align-self:start}}
 .wl-sheet-body .wl-operations{width:100%;border:0}.wl-sheet-body .wl-operations-scroll{padding:12px 0}.wl-map-inspector .wl-reserve-desk{margin:16px 0}
 @media(max-width:1099px){.wl-atlas-workspace{display:block}.wl-atlas-workspace .wl-mv-stage{width:100%}}
 `;

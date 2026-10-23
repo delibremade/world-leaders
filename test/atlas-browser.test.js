@@ -13,6 +13,9 @@ for(const width of [1440,1920])test(`${width}px: atlas selection, facility previ
     await page.locator('[data-map-inspector] .wl-map-row').first().click();await settle(page,500);
     await page.locator('[data-preview-type=air]').click();await settle(page);
     assert.match(await page.locator('[data-map-inspector]').innerText(),/\$1,000M/);
+    const facts=await page.locator('[data-map-inspector] .wl-map-facts').boundingBox();
+    const inspector=await page.locator('[data-map-inspector]').boundingBox();
+    assert.ok(facts.y+facts.height<=inspector.y+inspector.height,'cost and timing visible before scrolling');
     assert.ok(await page.evaluate(()=>window.__wlMap.scene().rings.every(r=>r.site==='darwin')));
     assert.deepEqual(await page.locator('.wl-mv-stage').boundingBox(),frame);
     await page.evaluate(()=>window.__wl.fund(10000));await settle(page);
