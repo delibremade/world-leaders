@@ -6,8 +6,12 @@
 import { LineChart, Line } from 'recharts';
 import { Why } from './Why.jsx';
 import { COLOR } from '../tokens.js';
-import { MONTHS, SC } from '../../data/stats.js';
+import { MONTHS, SC, ss } from '../../data/stats.js';
 import { groupEffects, clockLabel } from './effects.js';
+
+// FIX 1: the nation vitals live in the HUD tooltip tables at desktop (docs/DESIGN-SYSTEM-V2.md §4), not in a side column.
+const vital = (stats, k) => { const c = SC[k]; const v = stats?.[k]; if (c == null || v == null) return null; const st = ss(k, v); return { key: k, label: c.label, text: c.fmt(v), color: st === 'critical' ? COLOR.accent.alert : st === 'warning' ? COLOR.accent.warn : COLOR.text.primary }; };
+const vitals = (stats, keys) => keys.map((k) => vital(stats, k)).filter(Boolean);
 
 export function Spark({ data, k, color, w = 52, h = 20 }) {
   if (!data || data.length < 2) return <svg width={w} height={h} aria-hidden="true" />;
@@ -55,11 +59,11 @@ export function Hud({ version, country, date, stats, ledger = {}, history = [], 
         <button type="button" className="wl-btn wl-btn-sm" title="New nation" aria-label="Quit to nation select" onClick={onQuit} style={{ minWidth: 36 }}>✕</button>
       </div>
       {stats && <div className="wl-hud-figs" data-wells>
-        <Why title="Treasury: this month's ledger" subtitle={`Income ${money(income)} · spending ${money(spend)} · net ${net >= 0 ? '+' : '−'}${money(net)} per month`} terms={Object.entries(ledger).map(([k, v]) => ({ key: k, label: k, value: v }))} total={net} totalLabel="Net / month" fmt={(v) => `$${v >= 1000 ? (v / 1000).toFixed(1) + 'B' : Math.round(v) + 'M'}`} note="Engine ledger categories (cash). Updated each month." data-well="treasury">
+        <Why title="Treasury: this month's ledger" facts={vitals(stats, ['gdpGrowth', 'debtGdp', 'military'])} subtitle={`Income ${money(income)} · spending ${money(spend)} · net ${net >= 0 ? '+' : '−'}${money(net)} per month`} terms={Object.entries(ledger).map(([k, v]) => ({ key: k, label: k, value: v }))} total={net} totalLabel="Net / month" fmt={(v) => `$${v >= 1000 ? (v / 1000).toFixed(1) + 'B' : Math.round(v) + 'M'}`} note="Engine ledger categories (cash). Updated each month." data-well="treasury">
           <Spark data={history} k="treasury" color={COLOR.accent.good} />
           <div><div className="wl-fig-l">Treasury</div><div className="wl-fig-v" style={{ color: stats.treasury < 0 ? COLOR.accent.alert : COLOR.text.primary }}>{SC.treasury.fmt(stats.treasury)}<span className="wl-fig-d" style={{ color: net >= 0 ? COLOR.accent.good : COLOR.accent.alert }}>{net >= 0 ? '▲' : '▼'}{Math.abs(Math.round(net))}</span></div></div>
         </Why>
-        <Why title="Stability: active effects" subtitle={`${Math.round(stab)}/100 · ${stabTerms.length} active effect${stabTerms.length === 1 ? '' : 's'} · ${stabNet >= 0 ? '+' : '−'}${Math.abs(stabNet).toFixed(2)} per month`} terms={stabTerms} total={stabNet} totalLabel="Per month" fmt={(v) => v.toFixed(2)} note="Policy and event effects the engine applies to stability each month. Base drift from unemployment, inflation and inequality is not itemised by the engine yet." data-well="stability">
+        <Why title="Stability: active effects" facts={vitals(stats, ['healthcare', 'education', 'foodSecurity', 'inequality', 'unemployment', 'inflation'])} subtitle={`${Math.round(stab)}/100 · ${stabTerms.length} active effect${stabTerms.length === 1 ? '' : 's'} · ${stabNet >= 0 ? '+' : '−'}${Math.abs(stabNet).toFixed(2)} per month`} terms={stabTerms} total={stabNet} totalLabel="Per month" fmt={(v) => v.toFixed(2)} note="Policy and event effects the engine applies to stability each month. Base drift from unemployment, inflation and inequality is not itemised by the engine yet." data-well="stability">
           <Spark data={history} k="stability" color={stabColor} />
           <div><div className="wl-fig-l">Stability</div><div className="wl-fig-v" style={{ color: stabColor }}>{Math.round(stab)}<span className="wl-fig-d" style={{ color: COLOR.text.dim }}>/100</span></div></div>
         </Why>

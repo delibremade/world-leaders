@@ -10,6 +10,9 @@ import { PANES, FOLDED, TABS } from './util/harness.js';
 let browser;
 before(async () => { browser = await launch(); });
 after(async () => { await browser?.close(); });
+// Four CI runs died with "runner received a shutdown signal" right after the 1920-wide WebGL tests above, at the next context (three PRs,
+// one changelog-only; local max RSS 1.2 GB). Relaunching Chromium here releases the swiftshader memory those contexts held.
+const relaunch = async () => { await browser?.close(); browser = await launch(); };
 const go = async (page, t) => {
   await page.evaluate((t) => document.querySelector(`[data-tab=${t}]`).click(), FOLDED[t] || t); await settle(page, 250);
   if (FOLDED[t]) { await page.evaluate((t) => document.querySelector(`[data-seg=${t}]`).click(), t); await settle(page, 250); }
@@ -80,10 +83,15 @@ test('1440px: shortcuts switch verticals, change speed, step a month, and Escape
 });
 
 test('1440px: hovering a HUD figure opens its breakdown without a click; leaving closes it', async () => {
-  const { ctx, page } = await openGame(browser, { svg: true, width: 1440, height: 900 });
+  await relaunch();
+  // default (WebGL) renderer like every other desktop test here: the SVG map under a hover popover is where three CI runners died
+  // (runner shutdown after this suite's "shortcuts" test, on three different PRs, one changelog-only); the test is about the HUD, not the map.
+  const { ctx, page } = await openGame(browser, { width: 1440, height: 900 });
   try {
-    await page.hover('[data-why^="Treasury"]'); await settle(page, 500);
-    assert.ok(await page.$('[data-why-content^="Treasury"]'), 'hover opens');
+    await page.hover('[data-why^="Treasury"]');
+    // the breakdown opens 150ms after pointerenter; poll instead of a fixed wait (CI runners are slow), and say what the page saw if it never opens
+    const opened = await page.waitForSelector('[data-why-content^="Treasury"]', { timeout: 4000 }).then(() => true, () => false);
+    if (!opened) { const diag = await page.evaluate(() => { const w = document.querySelector('[data-why^="Treasury"]'); const r = w?.getBoundingClientRect(); return { well: r && { x: r.x, y: r.y, w: r.width, h: r.height }, fine: matchMedia('(hover:hover) and (pointer:fine)').matches, popovers: [...document.querySelectorAll('[data-why-content]')].map((e) => e.getAttribute('data-why-content')), under: (() => { const e = r && document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return e && `${e.tagName.toLowerCase()}.${e.className}`; })() }; }); assert.ok(opened, `hover opens ${JSON.stringify(diag)}`); }
     await page.mouse.move(700, 600); await settle(page, 600);
     assert.equal(await page.$('[data-why-content^="Treasury"]'), null, 'leave closes');
     await page.click('[data-why^="Treasury"]'); await settle(page, 400);
@@ -91,19 +99,21 @@ test('1440px: hovering a HUD figure opens its breakdown without a click; leaving
   } finally { await ctx.close(); }
 });
 
-// D2 Overview: the map is the centerpiece. It is the largest block on the screen, shows the whole world (no crop,
-// 1000:520), and the situation cards sit under it rather than beside it.
+// D2 Overview, FIX 1 frame: the map is the whole center column (no situation cards under it, no vitals column at desktop),
+// the right column holds the card dock over the outliner, and the Overview body does not scroll.
 for (const [W, H, minW] of [[1280, 800, 560], [1440, 900, 700], [1920, 1080, 960]]) {
-  test(`${W}px: Overview map is dominant (>= ${minW}px wide, whole world, cards below, vitals and outliner flank)`, async () => {
+  test(`${W}px: Overview map fills the center column (>= ${minW}px wide, full height, nothing under it, dock and outliner right)`, async () => {
     const { ctx, page } = await openGame(browser, { width: W, height: H });
     try {
       await page.evaluate(() => document.querySelector('[data-tab=overview]').click()); await settle(page, 600);
-      const r = await page.evaluate(() => { const q = (s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, r: b.right, b: b.bottom, w: b.width, h: b.height }; }; return { host: q('.wl-mv-host') || q('[data-map] svg'), vitals: q('.wl-vitals'), outliner: q('[data-outliner]'), flank: q('.wl-flank'), card: q('.wl-map-card') }; });
-      assert.ok(r.host.w >= minW, `map ${Math.round(r.host.w)}px < ${minW}`);
-      assert.ok(Math.abs(r.host.w / r.host.h - 1000 / 520) < 0.08, `whole world, aspect ${(r.host.w / r.host.h).toFixed(2)}`);
-      assert.ok(r.vitals.r <= r.card.x + 1 && r.card.x + r.card.w <= r.outliner.x + 1, 'vitals left, outliner right of the map');
-      assert.ok(r.flank.y >= r.card.b - 1, 'situation cards sit under the map');
-      for (const k of ['vitals', 'outliner', 'flank', 'card']) assert.ok(r[k].r <= W + 0.5 && r[k].b <= H + 0.5, `${k} inside the viewport`);
+      const r = await page.evaluate(() => { const q = (s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, r: b.right, b: b.bottom, w: b.width, h: b.height }; }; const col = document.querySelector('.wl-ov-col'); return { stage: q('.wl-mv-stage'), host: q('.wl-mv-host') || q('[data-map] svg'), vitals: q('.wl-vitals'), flank: q('.wl-ov-col .wl-flank'), outliner: q('[data-outliner]'), dock: q('[data-dock]'), card: q('.wl-map-card'), col: q('.wl-ov-col'), nav: q('[data-nav]'), scroll: col.scrollHeight - col.clientHeight, bodyScroll: document.documentElement.scrollHeight - innerHeight }; });
+      assert.ok(r.stage.w >= minW, `map ${Math.round(r.stage.w)}px < ${minW}`);
+      assert.ok(r.stage.h >= r.col.h * 0.7, `map takes the column height: ${Math.round(r.stage.h)} of ${Math.round(r.col.h)}`);
+      assert.ok(!r.vitals || r.vitals.w === 0, 'no vitals column: the vitals ride in the HUD tables'); assert.equal(r.flank, null, 'nothing stacks under the map');
+      assert.ok(r.nav.r <= r.card.x + 1 && r.card.r <= r.outliner.x + 1, 'rail left, outliner right of the map');
+      assert.ok(r.dock && r.dock.x >= r.card.r - 1 && r.dock.b <= r.outliner.y + 1, 'the card dock sits over the outliner in the right column');
+      assert.ok(r.scroll <= 1 && r.bodyScroll <= 1, `no vertical scroll (column ${r.scroll}, page ${r.bodyScroll})`);
+      for (const k of ['outliner', 'dock', 'card']) assert.ok(r[k].r <= W + 0.5 && r[k].b <= H + 0.5, `${k} inside the viewport`);
     } finally { await ctx.close(); }
   });
 }
@@ -162,6 +172,7 @@ test('1440px: Arsenal Procurement shows every platform in one table; Exports sho
 // four sub-tabs flow into columns. Every table column is reachable without sideways scrolling at 1440 and 1920.
 for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
   test(`${W}px: Forces Equipment is a type table beside a detail pane; select, sort, retire through confirm`, async () => {
+    if (W === 1280) await relaunch();
     const { ctx, page, errors } = await openGame(browser, { svg: true, width: W, height: H });
     try {
       await page.evaluate(() => { const h = window.__wl; h.field('f47', 2); h.forces({ crews: { land: 6, air: 0, sea: 6 } }); });

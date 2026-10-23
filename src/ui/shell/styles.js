@@ -173,7 +173,7 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
 .wl-mv-zoom>button:disabled{opacity:.4}
 .wl-mv-zoom>.wl-btn{padding:0 ${SPACE[4]}px;font-size:${SIZE.small}px;background:${c.bg.panel}e6}
 .wl-mv-dock{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px;padding:2px;margin-top:${SPACE[3]}px;border:1px solid ${c.border.strong};border-radius:${RADIUS.lg}px;background:${c.bg.inset}}
-.wl-mv-dock button{min-height:${TAP}px;min-width:0;padding:${SPACE[2]}px 0;border-radius:${RADIUS.md}px;border:1px solid transparent;background:transparent;color:${c.text.muted};font:inherit;font-size:${SIZE.micro}px;font-weight:500;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1.1}
+.wl-mv-dock button{min-height:${TAP}px;min-width:0;padding:${SPACE[2]}px 0;border-radius:${RADIUS.md}px;border:1px solid transparent;background:transparent;color:${c.text.muted};font:inherit;font-size:${SIZE.micro}px;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1.1} /* always bold: a mode switch must not change the dock's width (FIX 1 frame test) */
 .wl-mv-dock button[aria-selected=true]{border-color:${c.accent.command};background:rgba(79,184,255,.2);color:${c.text.primary};font-weight:700}
 .wl-mv-dock-i{font-size:16px}
 .wl-mv-dock-l{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -312,18 +312,31 @@ kbd{font:inherit;font-size:${SIZE.micro}px;color:${c.text.dim};border:1px solid 
   .wl-hud:has(.wl-pause-chip) .wl-hud-nation{flex-basis:160px}
   /* Nation vitals live on Overview (their drill-down renders there); every other vertical gets the width. */
   .wl-body:not([data-vertical=overview]) .wl-vitals{display:none}
+  /* FIX 1 Overview frame (docs/DESIGN-SYSTEM-V2.md Main board): rail left, map filling the center at full height, right column =
+     one reserved dock for event and decision cards (fixed height, scrolls inside) over the outliner. Vitals ride in the HUD
+     tooltip tables; the situation cards sit on the Situation segment. Nothing stacks under the map, nothing reflows. */
+  .wl-app{grid-template-rows:auto minmax(220px,32vh) minmax(0,1fr);grid-template-areas:"hud hud hud" "nav main dock" "nav main outliner"}
+  .wl-body .wl-vitals{display:none}
+  .wl-cards.wl-dock{grid-area:dock;flex-direction:column;overflow-y:auto;overflow-x:hidden;scroll-snap-type:none;gap:${SPACE[3]}px;padding:${SPACE[3]}px ${SPACE[4]}px;border-left:1px solid ${c.border.base};border-bottom:1px solid ${c.border.strong};min-height:0}
+  .wl-cards.wl-dock:empty{display:flex}
+  .wl-dock>.wl-card-ev{flex:0 0 auto;width:100%;min-width:0;scroll-snap-align:none;padding:${SPACE[4]}px ${SPACE[5]}px}
+  .wl-dock .wl-opts{grid-template-columns:repeat(auto-fit,minmax(104px,1fr))}
+  .wl-dock-head{display:flex;justify-content:space-between;align-items:center;padding:0 2px;flex:0 0 auto}
+  .wl-dock-empty{color:${c.text.dim};font-size:${SIZE.small}px;padding:${SPACE[4]}px 2px}
+  .wl-outliner{grid-area:outliner}
   /* Trade: nation desk on top (full width), the v57 blocs, influence, sanctions and imports flow into two columns under it. */
   .wl-nation-desk{height:min(640px,66vh);margin-bottom:${SPACE[6]}px}
   .wl-trade{column-count:2;column-gap:${SPACE[7]}px}
   .wl-trade>*{break-inside:avoid}
   /* Overview: the map owns the main column; the situation cards flank it in their own scroll column. */
-  .wl-ov-col{display:grid!important;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;gap:${SPACE[6]}px!important;overflow:hidden!important}
+  .wl-ov-col{display:grid!important;grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:0!important;overflow:hidden!important}
   .wl-ov-col>.wl-map-card{order:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
   .wl-ov-col>.wl-flank{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));align-items:start;max-height:clamp(150px,24vh,260px);overflow-y:auto;padding-right:2px}
   .wl-mv{flex:1;min-height:0;display:flex;flex-direction:column}
   /* the whole world (1000x520) fits the stage with no crop; bars take the ocean colour */
   .wl-mv-stage{flex:1;min-height:240px;container-type:size;background:${c.bg.ocean};border-radius:${RADIUS.lg}px}
-  .wl-mv-host{position:absolute!important;left:50%;top:50%;transform:translate(-50%,-50%);width:min(100cqw,192.3cqh);height:min(100cqh,52cqw)!important}
+  .wl-mv-host{position:absolute!important;inset:0;width:100%;height:100%!important} /* the stage is the map: the renderer letterboxes the plane in ocean */
+  .wl-mv [data-map] svg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(100%,192.3cqh)}
   .wl-mv [data-map-legend]{font-size:${SIZE.small}px!important}
   .wl-mv [data-map-modes] button{min-height:36px!important}
   .wl-mv>div:last-child{display:none} /* mode hint: each chip carries it as a hover title */
