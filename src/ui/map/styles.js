@@ -1,7 +1,7 @@
 export const atlasStyles=`
 .wl-atlas-workspace{min-height:0;flex:1;display:flex;gap:0}
 .wl-atlas-workspace>.wl-mv-stage{min-width:0;width:100%}
-.wl-operations{width:278px;flex:0 0 278px;min-height:0;background:#0c1b24;border-left:1px solid #29434d;color:#d2e6e8;display:flex;flex-direction:column;font-size:12px}
+.wl-operations{width:254px;flex:0 0 254px;min-height:0;background:#0c1b24;border-left:1px solid #29434d;color:#d2e6e8;display:flex;flex-direction:column;font-size:12px}
 .wl-map-search{display:block;padding:16px;border-bottom:1px solid #233d47}
 .wl-map-search span,.wl-map-eyebrow{display:block;color:#7ca0a7;font-size:10px;font-weight:700;letter-spacing:1.3px;line-height:1.5}
 .wl-map-search input{margin-top:7px;width:100%;min-height:38px;border-radius:5px;border:1px solid #34515c;background:#08161f;color:#ddf2ed;padding:8px;font:inherit}

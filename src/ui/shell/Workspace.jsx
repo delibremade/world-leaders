@@ -101,7 +101,7 @@ export const WORKSPACE_CSS = `
 .wl-energy-production{display:grid;grid-template-columns:minmax(200px,1fr) minmax(0,2fr);gap:20px;margin:12px 0}.wl-energy-production>div{margin:0!important;border:1px solid ${c.border.base}!important;border-radius:8px;padding:14px!important;background:${SURFACE.L1}}.wl-reserve-controls{display:flex;align-items:center;align-content:start;gap:8px;flex-wrap:wrap}.wl-reserve-controls>span{width:100%;font-size:13px!important;margin-bottom:10px}.wl-reserve-controls button{min-height:44px;padding:8px 12px!important;font-size:12px!important}.wl-energy-production input[type=range]{min-height:32px}
 @media(max-width:899px){.wl-energy-production{grid-template-columns:minmax(0,1fr)}.wl-energy-details>summary span{float:none;display:block;margin-top:5px}}
 @media(min-width:1100px){
- .wl-app{grid-template-columns:168px minmax(0,1fr) 264px}
+ .wl-app{grid-template-columns:168px minmax(0,1fr) 240px}
  .wl-ov-col{grid-template-rows:auto minmax(0,1fr) auto;gap:10px!important}
  .wl-ov-col>.wl-national-pulse{order:0}.wl-ov-col>.wl-map-card{order:1}.wl-ov-col>.wl-queue-deck{order:2}
  .wl-economy-layout{display:grid!important;grid-template-columns:minmax(0,1fr) 250px;min-height:0}

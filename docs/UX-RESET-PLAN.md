@@ -1,6 +1,6 @@
 # World Leaders: playable command interface
 
-Status: proposal following the owner's request for a root-cause review, 2026-10-23. The map experiment is local and unmerged. It builds, but has not passed the full test gate or visual acceptance. No live deployment has changed.
+Status: first milestone implemented in draft PR #96, version 0.93.0 (2026-10-23). Nation, the energy decision loop and the operational atlas are connected to the existing engine. The full gate and browser captures run on each revision; the PR records the final result. No live deployment has changed.
 
 ## Diagnosis
 
@@ -47,6 +47,8 @@ G1-G4 remain necessary for the full Tropico-inspired domestic ecosystem: populat
 Keep React, PixiJS, the existing simulation, Playwright and GitHub CI. No new framework, rendering service, asset subscription or design plugin is needed. Generated images are optional style exploration; the acceptance artifact is a running build.
 
 The local Chrome process currently aborts before a page opens. Use a working isolated Playwright browser or the repository's existing CI browser setup for visual and interaction verification; do not call source inspection or a successful bundle a visual review.
+
+Implemented checks cover construction preview/confirmation, a real canvas corridor click, held budget allocation, reserve purchase/release and exhaustion, pixel density, month progression and the existing save/replay suite. CI captures Nation, World, facility selection, energy disruption and its corridor at desktop and phone widths. Browser review caught a narrow map at 1280/1440px; the surrounding panels were reduced while keeping the established map-width gate. The second and third milestones and G1-G4 are not part of this release.
 
 Acceptance:
 - At 1440 and 1920px, the player can diagnose and address the energy scenario without searching unrelated screens. Selection does not shift or cover the map.

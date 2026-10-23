@@ -1202,7 +1202,7 @@ function WorldLeadersInner({resumeSignal}){
               <div style={{marginTop:'9px',paddingTop:'9px',borderTop:'1px solid #1c2a42'}}>
                 <div style={{fontSize:'9px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'4px'}}>Supply to market · how much of your production you sell abroad</div>
                 {['oil','gas'].map(k=>{const sh=exportShare[k]??0.6;const ext=resExtraction[k]||0;return <div key={k} style={{marginBottom:'6px'}}>
-                  <div style={{display:'flex',justifyContent:'space-between',fontSize:'10px'}}><span style={{color:'#c3cddc'}}>{k==='oil'?'🛢️ Crude oil':'🔥 Natural gas'} — extraction {ext}/4</span><span style={{color:'#f5c451',fontWeight:700}}>{Math.round(sh*100)}% exported</span></div>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:'10px'}}><span style={{color:'#c3cddc'}}>{k==='oil'?'🛢️ Crude oil':'🔥 Natural gas'} — extraction {ext}/5</span><span style={{color:'#f5c451',fontWeight:700}}>{Math.round(sh*100)}% exported</span></div>
                   <input type="range" min="0" max="100" step="5" value={Math.round(sh*100)} onChange={e=>dispatch({type:'setExportShare',payload:{resource:k,share:parseInt(e.target.value)/100}})} style={{width:'100%',accentColor:'#f5c451'}}/>
                   <div style={{fontSize:'8px',color:'#7c8aa3'}}>Export revenue ×{(0.45+0.55*sh).toFixed(2)} · domestic retention: inflation −{(0.03*(1-sh)).toFixed(3)}/mo{ext===0?' · (no extraction — set it in Resources)':''}</div>
                 </div>;})}

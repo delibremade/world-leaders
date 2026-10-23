@@ -105,7 +105,7 @@ export async function createPixiMap(container, {onTap,onSiteTap,onChokeTap,onClu
       }
       pick(st.ids.length>1?'cluster':'site',st.id,st.x,st.y,22,{ids:st.ids});
     }
-    if(show.chokepoints)for(const cp of scene.chokepoints){const c=pin(cp.x,cp.y),g=c.addChild(new Graphics());g.poly([0,-9,9,0,0,9,-9,0],true).fill({color:pixiHex(cp.color)}).stroke({color:0x081923,width:2});if(z>=1.6)text(c,cp.name,0,20,11,'#d7cba5');pick('choke',cp.k,cp.x,cp.y,14);}
+    if(show.chokepoints)for(const cp of scene.chokepoints){const c=pin(cp.x,cp.y),g=c.addChild(new Graphics());g.poly([0,-9,9,0,0,9,-9,0],true).fill({color:pixiHex(cp.color)}).stroke({color:0x081923,width:2});if(z>=1.6)text(c,cp.name,0,20,11,'#d7cba5');pick('choke',cp.k,cp.x,cp.y,22);}
     drawLanes();onViewChange?.(z,level);
   };
   viewport.on('clicked',e=>{
