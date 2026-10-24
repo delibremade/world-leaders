@@ -1,4 +1,4 @@
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
 import {ECONOMIC_HUBS,ECONOMIC_SECTORS,economicHubs} from '../../data/economic-hubs.js';
 import {economicSectorView} from '../../sim/economic-view.js';
 import {Allocation} from '../economy/Allocation.jsx';
@@ -7,6 +7,7 @@ import {SOCIAL_PROGRAMS} from '../../data/economy.js';
 export function EconomicInspector({g,selection,sector,onSector,onSelect,onClose,onJump,dispatch,allocation}){
   const [query,setQuery]=useState('');
   const hub=selection?.kind==='hub'?ECONOMIC_HUBS[selection.id]:null;
+  useEffect(()=>{if(selection?.kind==='hub')setQuery('');},[selection?.kind,selection?.id]);
   const current=hub?(hub.sectors.includes(sector)?sector:hub.sectors[0]):sector==='all'?null:sector;
   const v=current?economicSectorView(g,current):null;
   const hubs=economicHubs(g.country.id,sector).filter(h=>(selection?.kind!=='hubCluster'||selection.ids.includes(h.id))&&`${h.name} ${h.role}`.toLowerCase().includes(query.trim().toLowerCase()));

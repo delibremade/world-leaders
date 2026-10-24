@@ -23,6 +23,19 @@ for(const [width,height] of [[1280,800],[1440,900],[1920,1080],[390,844]]){
     else assert.match(await page.locator('[data-economic-inspector]').innerText(),/National controls/);
     if(width<1100){await page.locator('[data-sheet-close]').click();await page.locator('[data-sheet]').waitFor({state:'detached'});}
     else await page.getByLabel('Clear city selection').click();
+    if(width>=1100){
+      // A map selection must restore city actions even when the browser had a search filter.
+      await page.getByLabel('Find a city or economic activity').fill('no matching city');
+      const searchedHit=await page.evaluate(()=>{const m=window.__wlMap,box=document.querySelector('canvas').getBoundingClientRect();for(const h of m.visibleHubs()){const p=m.screenPoint(h.x,h.y);if(p.x>25&&p.x<box.width-25&&p.y>60&&p.y<box.height-110)return {x:box.x+p.x,y:box.y+p.y,ids:h.ids};}return null;});
+      assert.ok(searchedHit,'a civilian marker remains selectable while searching');
+      await page.mouse.click(searchedHit.x,searchedHit.y);await settle(page);
+      if(searchedHit.ids.length>1){
+        await page.getByLabel('Find a city or economic activity').fill('');
+        await page.locator('[data-locate-hub]').first().click();await settle(page);
+      }
+      assert.ok(await page.locator('[data-economy-route]').first().isVisible(),'city actions appear after map selection');
+      await page.getByLabel('Clear city selection').click();
+    }
     await page.getByLabel('Economic sector',{exact:true}).selectOption('technology');await browse();
     await page.getByLabel('Find a city or economic activity').fill('Seattle');await page.locator('[data-locate-hub=seattle]').click();await settle(page);
     assert.match(await page.locator('[data-economic-inspector] h3').innerText(),/Seattle/);
