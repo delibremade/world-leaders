@@ -1,3 +1,4 @@
+import {intelResolutionOdds,intelOrder} from './intel-operations.js';
 import { foreignFlashpoint, flashpointEligible } from './flashpoints.js';
 import { importCost } from './energy-view.js';
 import { applyAction } from './actions.js';
@@ -15,7 +16,7 @@ import { BLOC_TRADE } from '../data/trade.js';
 import { CHOKEPOINTS, IMPORT_ROUTES } from '../data/chokepoints.js';
 import { RES_META, CONCESSIONS, ENERGY_SECURITY } from '../data/energy.js';
 import { sumDep, isAllyOf, topHostile, wSum, navalWeight, calcSCost, getEnergyTier, isDiversified, getRefineMult, triadLegs as legsOf, airMult, interceptChance, cnExposure, forceMult, theaterWeight } from './formulas.js';
-import { stepForces, payrollOf } from './forces.js';
+import { stepForces, payrollOf, commitPlan } from './forces.js';
 import { crewOf } from '../data/forces.js';
 import { naturalDrift } from './economy.js';
 import { rng } from './rng.js';
@@ -602,9 +603,10 @@ function intelOps(g,S,fx,m){
   const newOps=[];
   g.intelOps.forEach(op=>{
     if(op.monthsLeft<=1){
-      const tRg=NATIONS[op.targetId]?.region;const misB=(g.embassyMissions[op.targetId]==='intel'?0.12:0)+((tRg&&g.forcePosture[tRg]==='isr'&&sumDep(g.forceDeployments?.[tRg])>0)?0.25:0);
-      const odds=opOdds(g,op); // FIX 3: one odds implementation; a rate-less op from an old save resolves on today's terms instead of NaN
-      const success=rng()<Math.min(0.95,odds.successRate+misB);
+      // A domestic defensive sweep expires quietly. It cannot be discovered as a foreign operation.
+      if(op.opId==='counter_int')return;
+      const odds=intelResolutionOdds(g,op);
+      const success=rng()<odds.successRate;
       const discovered=rng()<odds.discoverRate;
       if(success&&op.opId==='tech_acq'){
         // Find the vertical where target leads and player is most behind
@@ -865,12 +867,14 @@ function counterIntel(g,S,fx,m){
   if(Object.keys(g.continuousOps||{}).length){
     Object.entries(g.continuousOps).forEach(([opKey,on])=>{
       if(!on)return;const [opId,targetId]=opKey.split('@');
-      const op=INTEL_OPS.find(o=>o.id===opId);if(!op)return;
+      const op=INTEL_OPS.find(o=>o.id===opId);if(!op||op.type!=='covert')return;
       const running=g.intelOps.some(o=>o.opId===opId&&o.targetId===targetId);
       if(!running){
         const monthlyCost=Math.round((op.cost/Math.max(1,op.mo))*1.6); // ~1.6x premium for standing posture
-        if((ns.treasury)>=monthlyCost){
+        const order=intelOrder({...g,stats:ns},opId,targetId,{cost:monthlyCost});
+        if(!order.block){
           cash('Intel operations',-monthlyCost);
+          if(order.plan)commitPlan(g,S,fx,order.plan,targetId);
           const {successRate,discoverRate}=opOddsTerms(g,opId); // FIX 3: a relaunch is stamped like a hand launch (id, odds, type); unstamped it resolved as NaN and never succeeded
           S.setIntelOps(p=>[...p,{id:`${opId}_${targetId}_c${g.tickCount}`,opId,targetId,monthsLeft:op.mo,totalMonths:op.mo,successRate,discoverRate,type:op.type,continuous:true}]);
         }

@@ -3,7 +3,7 @@ import { useClockHold } from './ClockGate.jsx';
 
 // Native top-layer dialog: the activity rail cannot cover it, and background controls are inert.
 // Doctrine already has an engine clock gate; ordinary card reading uses the existing sheet hold.
-export function DecisionDialog({ title, eyebrow, required = false, onClose, children, className = '' }) {
+export function DecisionDialog({ title, eyebrow, required = false, onClose, children, className = '', modalPriority }) {
   const ref = useRef(null), heading = useId();
   useClockHold(!required, 'sheet');
   useEffect(() => {
@@ -13,7 +13,7 @@ export function DecisionDialog({ title, eyebrow, required = false, onClose, chil
     dialog.querySelector('[data-dialog-title]')?.focus();
     return () => { if (typeof dialog.close === 'function') dialog.close(); if (previous?.isConnected) previous.focus?.(); };
   }, []);
-  return <dialog ref={ref} className={`wl-decision-dialog ${className}`} data-decision-dialog role="dialog" aria-modal="true" aria-labelledby={heading}
+  return <dialog ref={ref} className={`wl-decision-dialog ${className}`} data-decision-dialog data-modal={modalPriority} role="dialog" aria-modal="true" aria-labelledby={heading}
     onCancel={e => { e.preventDefault(); if (!required) onClose(); }} onKeyDown={e => {
       e.stopPropagation();
       if (e.key !== 'Tab') return;

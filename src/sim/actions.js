@@ -1,3 +1,4 @@
+import {intelOrder} from './intel-operations.js';
 import { NATIONS, BUYERS, DIP_TARGETS, HOST_NATIONS, NATION_BLOC, RD_MODS } from '../data/nations.js';
 import { setPermanent, RENEWABLE_DAMPER } from './effects.js';
 import { REGIONS, POSTURE_LABELS } from '../data/regions.js';
@@ -284,12 +285,10 @@ function runIntelOp(g,S,fx,opId,targetId){
   const s=g.stats;if(!s)return;
   const op=INTEL_OPS.find(o=>o.id===opId);const c=g.country;
   if(!op||!c)return;
-  if(opId==='sabotage'&&!(g.intelInfra.paramilitary>0)){fx.toast('⚠ Requires Special Activities Wing (Intel infrastructure)');return;}
-  if(opId==='mole'&&(g.intelInfra.overseas_stations||0)<3){fx.toast('⚠ Requires 3+ Overseas Stations');return;}
-  const opCost=Math.round(op.cost*(g.doctrine==='shadow'?0.75:1));
-  const plan=intelPlan(g,op);if(plan&&!plan.picks.length){fx.toast('⚠ No Tier 2 element free — every sub-unit is deployed or recovering');return;} // F8 (#56)
-  if(s.treasury<opCost){fx.toast('⚠ Insufficient treasury');return;}
-  const {successRate,discoverRate,cyberLvl,budgetBonus,lpD}=opOddsTerms(g,opId); // one implementation with the op card why-breakdown
+  const order=intelOrder(g,opId,targetId);
+  if(order.block){fx.toast(`⚠ ${order.block}`);return;}
+  targetId=order.target;
+  const {cost:opCost,plan,odds:{successRate,discoverRate}}=order;
   if(g.absorbBonus>0)g.absorbBonus--;
   S.setStats(p=>({...p,treasury:p.treasury-opCost}));if(plan)commitPlan(g,S,fx,plan,targetId);
   S.setIntelOps(p=>[...p,{id:`${opId}_${targetId}_${fx.now()}`,opId,targetId,monthsLeft:op.mo,successRate,discoverRate,type:op.type}]);

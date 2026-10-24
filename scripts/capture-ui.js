@@ -1,3 +1,4 @@
+import {CRISIS_STOLEN} from '../src/data/intel.js';
 // Review artifacts from the same browser and fonts as the gate. Does not deploy anything.
 import {mkdir,writeFile} from 'node:fs/promises';
 import {launch,openGame,settle,overflow} from '../test/util/browser.js';
@@ -22,6 +23,13 @@ try{
    await page.locator('[data-nav] [data-tab=resources]').click();await page.locator('[data-seg=deals]').click();await shot('trade-desk');
    await page.locator('[data-nav] [data-tab=arsenal]').click();await page.locator('[data-open-faxx]').click();await shot('faxx-acquisition');
    if(width>=1100){await page.locator('[data-nav] [data-tab=overview]').click();await page.locator('[aria-label="Clear map selection"]').click();await page.locator('[data-map-mode-btn=sphere]').click();await page.locator('[data-locate-region=EA]').click();await page.getByLabel('Force package',{exact:true}).selectOption('fleet:usa:cvn');await shot('starting-carrier');}
+   await page.locator('[data-nav] [data-tab=overview]').click();
+   await page.evaluate(()=>window.__wl.sphere({NA:{player:5,competitors:{germany:90}},WE:{player:5,competitors:{germany:90}}}));await shot('home-theater');
+   await page.locator('[data-seg=sitroom]').click();await page.locator('[data-covert-target]').selectOption('china');await page.locator('[data-covert-op=influence]').click();await shot('situation-desk');
+   await page.evaluate(()=>window.__wl.nukes([{actor:'usa',target:'russia',region:'EE',type:'demonstration',mo:9,yr:2026},{actor:'russia',target:'usa',region:'NA',type:'ultimatum',mo:10,yr:2026}]));
+   await page.locator('[data-situation-panel=nukes]').scrollIntoViewIfNeeded();await shot('nuclear-register');
+   await page.evaluate(responses=>window.__wl.crisis({type:'stolen',targetId:'china',opId:'tech_acq',responses}),CRISIS_STOLEN);await shot('intel-response');
+
   }catch(e){results.push({width,error:String(e)});await page.screenshot({path:`${out}/error-${width}.png`}).catch(()=>{});}
   finally{await ctx.close();}
  }

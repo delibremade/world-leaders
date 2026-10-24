@@ -62,7 +62,7 @@ test('scene: six modes, ten regions each, valid fills, legend per mode, every v5
     assert.ok(s.regions.find((r) => r.rid === 'EA').intel, 'intel dot from op on china');
   }
   const sphere = buildScene(v, 'sphere');
-  assert.equal(sphere.regions.find((r) => r.rid === 'NA').line2, 'YOU 80%'); assert.equal(sphere.regions.find((r) => r.rid === 'EA').line2, 'CHINA 70%');
+  assert.equal(sphere.regions.find((r) => r.rid === 'NA').line2, 'HOME · USA'); assert.equal(sphere.regions.find((r) => r.rid === 'EA').line2, 'CHINA 70%');
   assert.ok(sphere.regions.find((r) => r.rid === 'ME').hatch, 'contested within 15'); assert.ok(!sphere.regions.find((r) => r.rid === 'NA').hatch);
   const tension = buildScene(v, 'tension');
   assert.equal(tension.regions.find((r) => r.rid === 'EE').line2, 'RUSSIA 82'); assert.equal(tension.regions.find((r) => r.rid === 'EE').fill, COLOR.ramp.tension[3]);

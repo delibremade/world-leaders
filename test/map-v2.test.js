@@ -24,7 +24,7 @@ test('App (jsdom, SVG fallback): dock carries six modes with keys Q to Y; pressi
     // typing in a field never switches the map
     const inp = doc.createElement('input'); doc.body.appendChild(inp); inp.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'w', bubbles: true })); await flush();
     assert.equal(q('[data-map]').getAttribute('data-map-mode'), 'sphere'); inp.remove();
-    assert.match(q('[data-map-legend]').textContent, /Affiliation/);
+    assert.match(q('[data-map-legend]').textContent, /Regional influence/);
     assert.ok(!g.faulted());
   } finally { console.error = origErr; g.close(); }
 });
