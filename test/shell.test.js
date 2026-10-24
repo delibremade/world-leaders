@@ -101,7 +101,7 @@ test('App: shell renders (HUD, speed, nav badges, doctrine card, sheet, outliner
     g.tabBtn('overview').click(); await flush();
     // region tap -> sheet with the v57 panel + nations; nation row -> nation sheet listing verbs; dispatch one
     q('svg g[data-region=WE]').dispatchEvent(new w.MouseEvent('click', { bubbles: true })); await flush(); await flush();
-    assert.ok(q('[data-sheet]') && q('[data-region-panel]'), 'region sheet open'); assert.match(q('[data-sheet]').textContent, /Your Influence/);
+    assert.ok(q('[data-sheet]') && q('[data-region-panel]'), 'region sheet open'); assert.match(q('[data-sheet]').textContent, /(Your|Regional) [Ii]nfluence/);
     assert.ok(qa('[data-nation-row]').length >= 2, 'nations listed');
     q('[data-nation-row=france]').click(); await flush(); await flush();
     assert.ok(q('[data-nation-sheet=france]'), 'nation sheet open');

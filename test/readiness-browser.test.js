@@ -7,10 +7,15 @@ for(const [width,height] of [[1280,800],[1440,900],[390,844]]){
   const {ctx,page,errors}=await openGame(browser,{width,height,svg:true});
   try{
    await page.evaluate(()=>window.__wl.decision('crew_shortfall','Sea needs qualified personnel for newly ordered hulls'));
+   await page.evaluate(()=>window.__wl.event('panama_drought',6));
    await settle(page);
    if(width>=1100){
-    const geometry=await page.locator('[data-card-summary]').first().evaluate(el=>{const r=el.getBoundingClientRect(),d=el.closest('[data-dock]').getBoundingClientRect();const b=el.querySelector('[data-review-card]'),q=b.getBoundingClientRect();return {top:r.top,bottom:r.bottom,dockTop:d.top,dockBottom:d.bottom,clickable:b.contains(document.elementFromPoint(q.x+q.width/2,q.y+q.height/2)),options:el.querySelectorAll('.wl-opt').length};});
-    assert.ok(geometry.top>=geometry.dockTop&&geometry.bottom<=geometry.dockBottom,JSON.stringify(geometry));assert.ok(geometry.clickable);assert.equal(geometry.options,0);
+    for(const card of await page.locator('[data-card-summary]').all()){
+     const geometry=await card.evaluate(el=>{const r=el.getBoundingClientRect(),d=el.closest('[data-dock]').getBoundingClientRect();const b=el.querySelector('[data-review-card]'),q=b.getBoundingClientRect();return {top:r.top,bottom:r.bottom,dockTop:d.top,dockBottom:d.bottom,clickable:b.contains(document.elementFromPoint(q.x+q.width/2,q.y+q.height/2)),options:el.querySelectorAll('.wl-opt').length};});
+     assert.ok(geometry.top>=geometry.dockTop&&geometry.bottom<=geometry.dockBottom,JSON.stringify(geometry));assert.ok(geometry.clickable);assert.equal(geometry.options,0);
+    }
+   }else{
+    assert.ok(await page.locator('[data-event-cards]').evaluate(el=>el.getBoundingClientRect().height<180),'compact cards leave room for the phone workspace');
    }
    await page.locator('[data-review-card=decision]').click();
    const reader=page.locator('[data-decision-dialog]');await reader.locator('.wl-opt').last().scrollIntoViewIfNeeded();

@@ -139,7 +139,7 @@ function Equipment({ fv, v, ask, dispatch, toast }) {
   const crewsPanel = (
     <Panel id="crews" title="Crews vs airframes and hulls" figure={fv.branches.some((b) => b.gap > 0) ? 'gap' : 'covered'} tone={fv.branches.some((b) => b.gap > 0) ? 'alert' : 'good'} data-forces-crews>
       {fv.branches.map((b) => (
-        <Row key={b.id} title={b.n} sub={`${hc(b.crews)} personnel / ${hc(b.need)} needed · ${hc(b.deployed)} stationed${b.pipe ? ` · ${b.pipe} training` : ''}`} value={b.gap > 0 ? `gap ${b.gap}` : 'covered'} tone={b.gap > 0 ? 'alert' : 'good'}>
+        <Row key={b.id} title={b.n} sub={`${hc(b.crews)} personnel / ${hc(b.need)} needed · ${hc(b.deployed)} stationed${b.pipe ? ` · ${b.pipe} training` : ''}`} value={b.gap > 0 ? `gap ${hc(b.gap)}` : 'covered'} tone={b.gap > 0 ? 'alert' : 'good'}>
           <Bar pct={b.need ? (b.crews / b.need) * 100 : 100} tone={b.gap > 0 ? 'alert' : 'good'} />
         </Row>))}
       <div className="wl-note">A unit without free crews cannot be stationed. Raise training or pay to close a gap.</div>
@@ -303,10 +303,10 @@ function Specialized({ fv, v, ask, dispatch }) {
       <Row title="ISR score" sub="Kinetic damage and Tier-1 intel read it" value={<WhyV title="ISR score" terms={terms} total={isr}>{isr}</WhyV>} />
     </Panel>
     <Panel id="cyber" title="Cyber" figure={cyber ? `${cyber} command` : 'none'} tone={cyber ? 'good' : 'warn'}>
-      <Row title="Cyber Command" sub={`Cyber R&D level ${v.defLevels.cyber || 0} · crews ${crewOf('cyber_command').n} each, land branch`} value={`×${cyber}`} />
+      <Row title="Cyber Command" sub={`Cyber R&D level ${v.defLevels.cyber || 0} · crews ${hc(unitCrew(v,'cyber_command').n)} personnel each, land branch`} value={`×${cyber}`} />
     </Panel>
     <Panel id="nuclear" title="Nuclear crews" figure={`${legs}/3 legs`} tone={legs === 3 ? 'good' : legs ? 'warn' : undefined}>
-      {nuke.map(([pid, n]) => { const ct = (v.platforms[pid] || 0) + (v.platformsImported[pid] || 0); const c = crewOf(pid); const b = fv.branches.find((x) => x.id === c.b); return <Row key={pid} title={n} sub={`${c.n * ct} ${BRANCH_N[c.b]} crew sets${b.gap > 0 ? ` · ${BRANCH_N[c.b]} gap ${b.gap}` : ''}`} value={`×${ct}`} tone={ct ? 'good' : undefined} />; })}
+      {nuke.map(([pid, n]) => { const ct = (v.platforms[pid] || 0) + (v.platformsImported[pid] || 0); const c = unitCrew(v,pid); const b = fv.branches.find((x) => x.id === c.b); return <Row key={pid} title={n} sub={`${hc(c.n * ct)} ${BRANCH_N[c.b]} personnel${b.gap > 0 ? ` · ${BRANCH_N[c.b]} gap ${b.gap}` : ''}`} value={`×${ct}`} tone={ct ? 'good' : undefined} />; })}
       {(v.blackPrograms.b21 || v.blackPrograms.h20 || v.blackPrograms.pakda || v.blackPrograms.x_bomber) ? <Row title="Stealth bomber (deterrent)" sub="Counts as the air leg" value="✓" tone="good" /> : null}
       <div className="wl-note">Triad legs and MAD parity are in the Arsenal vertical (Deterrence).</div>
     </Panel>

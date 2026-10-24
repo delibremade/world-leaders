@@ -1,7 +1,7 @@
 # Changelog
 
 ## 0.94.0 (2026-10-24) — Deployable starting forces and a usable trade desk
-- Desktop activity rail shows complete summaries; full briefings and response choices open in the existing accessible reader.
+- Activity cards show compact summaries on every screen size; full briefings and response choices open in the existing accessible reader, leaving room for the game controls.
 - Fleet readiness and deployment share trained personnel. Existing saves migrate from the obsolete crew-set cap using their real manpower allocation; training classes scale with the force, retain their lead times, and remain bounded by active personnel.
 - Existing order-of-battle aircraft, ships and formations deploy from the map and selected fleet type. Packages retain their real identities and move the same physical inventory.
 - Foreign regional flashpoints exclude the home theater; invalid old home crises clear without a rival penalty. Regional influence is labeled as diplomatic alignment rather than domestic sovereignty.

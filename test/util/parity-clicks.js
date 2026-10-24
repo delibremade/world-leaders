@@ -59,7 +59,7 @@ export function clickDriver(g) {
     if (!gEl) throw new Error('region not found: ' + name);
     gEl.dispatchEvent(new w.MouseEvent('click', { bubbles: true })); await flush();
   };
-  const closeRegion = async () => { const x = all('button').find((b) => b.textContent === '✕' && !/border/.test(b.getAttribute('style') || '') && /Your Influence/.test(b.parentElement?.parentElement?.textContent || '')); if (!x) throw new Error('region close not found'); x.click(); await flush(); };
+  const closeRegion = async () => { const x = all('button').find((b) => b.textContent === '✕' && !/border/.test(b.getAttribute('style') || '') && /(Your|Regional) [Ii]nfluence/.test(b.parentElement?.parentElement?.textContent || '')); if (!x) throw new Error('region close not found'); x.click(); await flush(); };
   return { tab, seg, forces, arsenal, resources, stationFirst, recallFirst, find, click, tryClick, div, clickDiv, range, mm, region, closeRegion, hits };
 }
 
@@ -198,7 +198,7 @@ export const verbScript = (g, shocks) => {
       fp.parentElement.dispatchEvent(new g.w.MouseEvent('click', { bubbles: true })); await flush();
       const bs = [...g.doc.querySelectorAll('button')].filter((b) => /Intervene|Mediate \$300M|Diplomatic/.test(b.textContent));
       if (bs.length) { bs[m % bs.length].click(); d.hits.push('flashpoint'); await flush(); }
-      if (/Your Influence/.test(g.doc.body.textContent)) await closeRegion();
+      if (/(Your|Regional) [Ii]nfluence/.test(g.doc.body.textContent)) await closeRegion();
     }
     // Issue briefs: deploy the first option of a ready brief, else commission the first unexamined issue.
     const cards = [...g.doc.querySelectorAll('div')].filter((x) => x.style.cursor === 'pointer' && x.style.borderRadius === '7px' && x.querySelector('span'));

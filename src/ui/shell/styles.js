@@ -42,6 +42,9 @@ export const SHELL_CSS = `
 .wl-card-ev{flex:0 0 min(86vw,420px);scroll-snap-align:start;background:${c.bg.raised};border:1px solid ${c.border.strong};border-left:3px solid var(--ev,${c.accent.command});border-radius:${RADIUS.xxl}px;padding:${SPACE[5]}px ${SPACE[6]}px;animation:wl-rise ${MOTION.slow} ${MOTION.ease}}
 .wl-card-ev h4{margin:0 0 2px;font-size:${SIZE.lg}px;color:${c.text.primary}}
 .wl-card-ev .wl-label{color:var(--ev,${c.accent.command})}
+.wl-card-ev[data-card-summary]{padding:10px 12px}
+.wl-card-ev[data-card-summary] h4{font-size:14px;line-height:18px}
+.wl-card-ev[data-card-summary] .wl-card-review{margin:6px 0 0;min-height:44px}
 .wl-why-now{margin:${SPACE[2]}px 0 0;font-size:${SIZE.caption}px;color:var(--ev,${c.accent.command});line-height:1.4}
 .wl-card-ev p{margin:${SPACE[2]}px 0 ${SPACE[4]}px;font-size:${SIZE.body}px;color:${c.text.muted};line-height:1.5}
 .wl-opts{display:grid;gap:${SPACE[3]}px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
@@ -340,6 +343,7 @@ kbd{font:inherit;font-size:${SIZE.micro}px;color:${c.text.dim};border:1px solid 
   .wl-cards.wl-dock{grid-area:dock;flex-direction:column;overflow-y:auto;overflow-x:hidden;scroll-snap-type:none;gap:${SPACE[3]}px;padding:${SPACE[3]}px ${SPACE[4]}px;border-left:1px solid ${c.border.base};border-bottom:1px solid ${c.border.strong};min-height:0}
   .wl-cards.wl-dock:empty{display:flex}
   .wl-dock>.wl-card-ev{flex:0 0 auto;width:100%;min-width:0;scroll-snap-align:none;padding:10px 12px}
+  .wl-dock [data-card-summary] .wl-card-review{min-height:32px}
   .wl-dock .wl-opts{grid-template-columns:repeat(auto-fit,minmax(104px,1fr))}
   .wl-dock-head{display:flex;justify-content:space-between;align-items:center;padding:0 2px;flex:0 0 auto}
   .wl-dock-empty{color:${c.text.dim};font-size:${SIZE.small}px;padding:${SPACE[4]}px 2px}

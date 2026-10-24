@@ -18,3 +18,14 @@ test('Nation connects the shared allocation pool and service outcomes to energy 
     await click('[data-sheet-close]');assert.equal(g.faulted(),false);
   }finally{g.close();}
 });
+
+test('starting fleet is available to the theater command card and the shared phone picker',async()=>{
+ const g=await mount(BUNDLES.app,{testHook:true,seed:18});
+ try{
+  await g.pickCountry(0);g.doc.querySelector('[data-doctrine=fortress]').click();await flush();await flush();
+  g.w.__wl.region('EA');await flush();await flush();
+  const deploy=g.doc.querySelector('[data-command-card=region] [data-cmd=deploy]');
+  assert.ok(deploy);assert.notEqual(deploy.getAttribute('aria-disabled'),'true','starting forces enable the command');
+  const pick=g.doc.querySelector('[data-deployment-picker] select');assert.ok([...pick.options].some(o=>o.value==='fleet:usa:cvn'));
+ }finally{g.close();}
+});

@@ -92,7 +92,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
   test(`${W}px: Forces vertical, five sub-tabs inside the screen; every Part 7 mechanic reachable`, async () => {
     const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
     try {
-      await page.evaluate(() => { const h = window.__wl; h.field('f47', 2); h.forces({ crews: { land: 6, air: 0, sea: 6 } }); });
+      await page.evaluate(() => { const h = window.__wl; h.field('f47', 2); h.forces({ crewVersion: 2, crews: { land: 300000, air: 0, sea: 150000 } }); });
       await go(page, 'forces');
       const segs = await page.evaluate(() => [...document.querySelectorAll('[data-segbar=forces] [data-seg]')].map((b) => { const r = b.getBoundingClientRect(); return { id: b.dataset.seg, w: r.width, h: r.height, r: r.right }; }));
       assert.deepEqual(segs.map((x) => x.id), ['manpower', 'quality', 'training', 'equipment', 'specialized']);
@@ -101,7 +101,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
         manpower: [/Strength/, /Retention/, /Personnel pay/, /Recruits/, /1,283,000/, /Population bound/], // F7 (#55): headcounts
         quality: [/Force quality index/, /Education/, /Healthcare/, /Food security/, /Stability/, /Equality/],
         training: [/Unfunded/, /Intensive/, /Readiness by branch/, /Crew pipelines/, /Fleet crews and readiness/, /Air: [\d,]+ of [\d,]+ ready/],
-        equipment: [/Crews vs airframes/, /gap 4/, /Theater summary/, /Maintenance/, /F-47/, /Order of battle/, /F-22A Raptor/, /Depot throughput/],
+        equipment: [/Crews vs airframes/, /gap 69,378/, /Theater summary/, /Maintenance/, /F-47/, /Order of battle/, /F-22A Raptor/, /Depot throughput/],
         specialized: [/Train Tier 2/, /Tier 1 selection/, /1st SFOD-D/, /DEVGRU/, /24th Special Tactics/, /75th Ranger Regiment/, /MARSOC/, /SEAL Teams/, /300 operators/, /4\/4 squadrons free/, /ISR score/, /Cyber Command/, /Nuclear crews/],
       };
       for (const [id, res] of Object.entries(want)) {
@@ -141,7 +141,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       for (const x of segs) assert.ok(x.h >= (W < 900 ? 44 : 30) && x.w >= 44 && x.r <= W + 0.5, `segment ${JSON.stringify(x)}`);
       const want = {
         programs: [/Pipeline/, /SAP office|Establish SAP Office/, /B-21/, /F-47/, /CCA/, /SR-72/, /SSN\(X\)/, /F-35/, /Tranche #|Produce/, /Prototype|R&D/],
-        procurement: [/Force structure/, /Acquisition policy/, /Surge/, /Platforms/, /Build \$/, /R&D readiness/],
+        procurement: [/New procurements/, /Acquisition policy/, /Surge/, /Platforms/, /Build \$/, /R&D readiness/],
         supply: [/Mineral supply/, /Open Resources/, /Programs: inputs and coverage/, /Platforms: inputs and coverage/],
         partnerships: [/Security compliance/, /Counter-intelligence/, /F-47/, /B-21/, /CCA/],
         exports: [/Export marketplace/, /Buyers/, /Your exportable platforms/, /Material Science/],
@@ -227,18 +227,21 @@ test('Overview: map leads on phone; desktop indicators frame the map; tips stay 
   }
 });
 
-// E2 (#14): world-event and flashpoint cards carry their responses inline. Every response button sits inside its
-// card, is at least 44px tall, and its text is not clipped, at phone and desktop width.
+// Event summaries open the full decision reader. Every response is reachable, at least 44px tall,
+// and its text fits at phone and desktop width; choosing it still invokes the original engine action.
 for (const [W, H] of [[390, 844], [1280, 800]]) {
-  test(`${W}px: event cards show inline responses that fit (world event + flashpoint)`, async () => {
+  test(`${W}px: event summaries open complete responses that fit (world event + flashpoint)`, async () => {
     const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
     try {
       await page.evaluate(() => { const h = window.__wl; h.fund(20000); h.deploy('ME', 'carrier_group', 2); h.platforms({ carrier_group: 2 }); h.event('hormuz_closure', 6); h.flashpoint('ME', 'coup', 5); });
       await settle(page, 600);
       const cards = await page.evaluate(() => [...document.querySelectorAll('[data-event-card=world],[data-event-card=flashpoint]')].map((c) => ({ kind: c.dataset.eventCard, n: c.querySelectorAll('[data-response]').length })));
       assert.deepEqual(cards.map((c) => c.kind).sort(), ['flashpoint', 'world']);
-      assert.equal(cards.find((c) => c.kind === 'world').n, 3); assert.equal(cards.find((c) => c.kind === 'flashpoint').n, 4);
-      const bad = await page.evaluate(() => [...document.querySelectorAll('[data-event-card] [data-response]')].flatMap((b) => {
+      assert.ok(cards.every(c => c.n === 0), 'rail contains summaries, responses live in the reader');
+      for (const [kind, key, count, response] of [['world','we',3,'escort'],['flashpoint','fp',4,'mediate']]) {
+      await page.locator(`[data-review-card=${key}]`).click(); await settle(page, 300);
+      assert.equal(await page.locator('[data-decision-dialog] [data-response]').count(), count);
+      const bad = await page.evaluate(() => [...document.querySelectorAll('[data-decision-dialog] [data-response]')].flatMap((b) => {
         const c = b.closest('[data-event-card]').getBoundingClientRect(); const r = b.getBoundingClientRect(); const out = [];
         if (r.left < c.left - 0.5 || r.right > c.right + 0.5) out.push(`${b.dataset.response} outside its card`);
         if (r.height < 44) out.push(`${b.dataset.response} ${Math.round(r.height)}px tall`);
@@ -246,11 +249,10 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
         return out; }));
       assert.deepEqual(bad, []);
       const o = await overflow(page, W); assert.ok(o.scrollWidth <= W, `scrollWidth ${o.scrollWidth}`); assert.deepEqual(o.bad, []);
-      // answering closes the card in place and the outliner says what is in effect
-      await page.evaluate(() => document.querySelector('[data-event-card=world] [data-response=escort]').click()); await settle(page, 300);
-      assert.equal(await page.evaluate(() => !!document.querySelector('[data-event-card=world]')), false, 'world card closed');
-      await page.evaluate(() => document.querySelector('[data-event-card=flashpoint] [data-response=mediate]').click()); await settle(page, 300);
-      assert.equal(await page.evaluate(() => !!document.querySelector('[data-event-card=flashpoint]')), false, 'flashpoint card closed');
+      await page.locator(`[data-decision-dialog] [data-response=${response}]`).click(); await settle(page, 300);
+      assert.equal(await page.locator(`[data-event-card=${kind}]`).count(), 0, `${kind} card closed`);
+      assert.equal(await page.locator('[data-decision-dialog]').count(), 0, 'reader closed after responding');
+      }
       await page.evaluate(() => document.querySelector('[data-outliner-handle]').click()); await settle(page, 400);
       const rows = await page.evaluate(() => [...document.querySelectorAll('[data-outliner-row]')].map((r) => r.textContent));
       assert.ok(rows.some((t) => /in effect: Escort convoys/.test(t)), 'world row: ' + rows.join(' | '));
