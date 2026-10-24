@@ -13,20 +13,20 @@ The US has 25 anchors: Seattle–Tacoma, Portland, San Francisco Bay Area, Los A
 | Sector | Existing readouts | Existing controls |
 | --- | --- | --- |
 | Technology | Education and IP portfolio | Technology/education funding; research and IP policy; material suppliers |
-| Industry | Power tier and material-delayed orders | Technology/energy funding; private processing investment; research and supply |
+| Industry | Power tier and processing projects | Technology/energy funding; private processing investment; research and supply |
 | Food | Food security and assistance status | Food assistance; social programs; trade agreements |
 | Energy | Power tier and import bill | Energy funding; generation, extraction, imports and reserves |
-| Materials | Processing projects and material-delayed orders | Private processing investment and supplier contracts |
+| Materials | Processing projects and supply agreements | Private processing investment and supplier contracts |
 | Trade & logistics | Trade agreements and disrupted import routes | Diplomacy, supplier contracts, routes and reserves |
 | Services | Healthcare and education | Healthcare/education funding; social programs and tax policy |
 
 The same national allocation component serves the map and Economy, including pool holds, locks, cost preview and a single action on slider release. Hubs never multiply the budget. Costs use `calcSCost`; energy readouts use `energySituation`. Food assistance dispatches the existing policy verb. City and cluster selection never dispatch economic actions automatically.
 
-Nation and Economy both link to the lens. Sector filters narrow the map and searchable city list together. Clustering retains every hub ID. The SVG fallback supports keyboard selection; the city browser works independently of WebGL and is reachable on phones. Relevant links close the phone dialog before opening their destination.
+Nation and Economy both link to the lens. Sector filters narrow the map and searchable city list together. Clustering retains every hub ID. The SVG fallback supports keyboard selection; the city browser works independently of WebGL and is reachable on phones. Relevant links close the phone dialog before opening their destination. Opening the layer on a phone resets the previous workspace scroll position so the map is immediately in view.
 
 ## What these numbers mean
 
-All numeric readouts and controls are **national**, explicitly labeled in the inspector. Hub sector tags describe representative economic activity, not a measured share of local GDP. Coordinates are approximate metropolitan anchors, not building footprints or municipal boundaries. No city GDP, workforce, local inventory, transportation flow, productive capacity or dependency is fabricated. Existing material-delayed orders currently describe the platform-production system; they are not civilian factory output.
+All numeric readouts and controls are **national**, explicitly labeled in the inspector. Hub sector tags describe representative economic activity, not a measured share of local GDP. Coordinates are approximate metropolitan anchors, not building footprints or municipal boundaries. No city GDP, workforce, local inventory, transportation flow, productive capacity or dependency is fabricated. Platform production remains in Arsenal; its orders are not presented as civilian output.
 
 This is the geographic and interaction foundation for `CORE-LOOP-SPEC.md`, not completion of G1–G4. There is no new campaign state or save migration.
 

@@ -29,6 +29,8 @@ export function MapView({ view, mode = 'sphere', onModeChange, onRegionTap, onSi
   const wide = useWide();
   const economy=mode==='economy';
   const [economicSector,setEconomicSector]=useState('all');
+  const frame=useRef(null);
+  useEffect(()=>{if(economy&&!wide){const body=frame.current?.closest('.wl-body');if(body)body.scrollTop=0;}},[mode,wide]);
   const [selection,setSelection]=useState(selectionRequest||null), [previewType,setPreviewType]=useState(null);
   const pendingFocus=useRef(selectionRequest||null);
   const inspect=(sel)=>{setSelection(sel);setPreviewType(sel?.kind==='site'?(view.bases?.nodes.find(n=>n.site===sel.id&&n.owner===view.country?.id)?.type||SITES[sel.id]?.types[0]):null);pendingFocus.current=sel;};
@@ -75,7 +77,7 @@ export function MapView({ view, mode = 'sphere', onModeChange, onRegionTap, onSi
   const zoomBy = (f) => map.current?.zoomBy?.(f); const fit = () => economy?map.current?.focusEconomy?.():map.current?.fit?.();
   const economicInspector=<EconomicInspector g={game||view} selection={selection} sector={economicSector} onSector={chooseSector} onSelect={inspect} onClose={()=>inspect(null)} onJump={route=>{inspect(null);onJump?.(route);}} dispatch={dispatch} allocation={allocation}/>;
   return (
-    <div className="wl-mv" data-map data-map-mode={mode} data-map-renderer={renderer} data-map-level={level}>
+    <div ref={frame} className="wl-mv" data-map data-map-mode={mode} data-map-renderer={renderer} data-map-level={level}>
       {economy&&<div className="wl-economy-map-bar" data-economic-layer><label>Sector<select aria-label="Economic sector" value={economicSector} onChange={e=>chooseSector(e.target.value)}><option value="all">All sectors</option>{Object.entries(ECONOMIC_SECTORS).map(([k,s])=><option key={k} value={k}>{s.name}</option>)}</select></label><span>{view.country?.name} · {economicHubs(view.country?.id,economicSector).length} hubs</span><button className="wl-btn" data-browse-hubs onClick={()=>inspect({kind:'hubList'})}>Browse cities</button></div>}
       <div className="wl-atlas-workspace"><div className="wl-mv-stage" style={{ position: 'relative' }}>
         {renderer === 'pixi'

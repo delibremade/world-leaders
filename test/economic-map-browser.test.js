@@ -12,6 +12,7 @@ for(const [width,height] of [[1280,800],[1440,900],[1920,1080],[390,844]]){
     await page.waitForFunction(()=>window.__wlMap?.renderer==='pixi'&&window.__wlMap.scene().mode==='economy');await settle(page);
     assert.equal(await page.locator('[data-build-toggle]').count(),0);
     assert.equal(await page.evaluate(()=>window.__wlMap.scene().hubs.length),25);
+    if(width<1100)assert.equal(await page.locator('.wl-body').evaluate(el=>el.scrollTop),0,'opening the layer clears the old workspace scroll position');
     await fits();
     // Use real canvas hit-testing, not a selection hook. Every cluster remains addressable.
     const hit=await page.evaluate(()=>{const m=window.__wlMap,box=document.querySelector('canvas').getBoundingClientRect();for(const h of m.visibleHubs()){const p=m.screenPoint(h.x,h.y);if(p.x>25&&p.x<box.width-25&&p.y>60&&p.y<box.height-110)return {x:box.x+p.x,y:box.y+p.y,ids:h.ids};}return null;});

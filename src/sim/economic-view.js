@@ -10,10 +10,10 @@ export function economicSectorView(g,id){
   const score=k=>Number.isFinite(s[k])?`${Math.round(s[k])}/100`:'—';
   const metrics={
     technology:[['Education',score('education')],['IP portfolio',Math.round(g.ipPortfolio||0).toLocaleString('en-US')]],
-    industry:[['Power tier',e.tier],['Material-delayed orders',String(g.minerals?.queue?.length||0)]],
+    industry:[['Power tier',e.tier],['Processing projects',String(Object.keys(g.minerals?.proj||{}).length)]],
     food:[['Food security',score('foodSecurity')],['Food assistance',g.socialPrograms?.has('food_assistance')?'Active':'Off']],
     energy:[['Power tier',e.tier],['Import bill',`$${e.imports}M/mo`]],
-    materials:[['Processing projects',String(Object.keys(g.minerals?.proj||{}).length)],['Material-delayed orders',String(g.minerals?.queue?.length||0)]],
+    materials:[['Processing projects',String(Object.keys(g.minerals?.proj||{}).length)],['Supply agreements',String(g.minerals?.deals?.length||0)]],
     trade:[['Trade agreements',String(g.tradeAgreements?.size||0)],['Import routes disrupted',String(e.routes.filter(r=>r.status==='disrupted').length)]],
     services:[['Healthcare',score('healthcare')],['Education',score('education')]],
   };
