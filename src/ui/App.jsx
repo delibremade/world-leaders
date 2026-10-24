@@ -1099,7 +1099,7 @@ function WorldLeadersInner({resumeSignal}){
                 </div>);})())}
 </details>
         </div></div>}
-        {activeTab==='economy'&&<div className="wl-pane-wrap" data-sentinel="economy"><div className="wl-economy-heading"><div className="wl-workspace-title"><div><span className="wl-eyebrow">Domestic policy</span><h2>Economy & living standards</h2><button className="wl-btn" data-open-economic-map onClick={()=>jumpTo({tab:'overview',mode:'economy'})}>Cities & economic sectors ↗</button><p>Allocate the budget. Fund public services. Track the monthly result.</p></div></div><ServiceStrip stats={stats}/></div><div className="wl-economy-layout" style={{flex:1,display:'flex',overflow:'hidden'}}>
+        {activeTab==='economy'&&<div className="wl-pane-wrap" data-sentinel="economy"><div className="wl-economy-heading"><div className="wl-workspace-title"><div><span className="wl-eyebrow">Domestic policy</span><h2>Economy & living standards</h2><p>Allocate the budget. Fund public services. Track the monthly result.</p></div><button className="wl-btn" data-open-economic-map onClick={()=>jumpTo({tab:'overview',mode:'economy'})}>Cities & economic sectors ↗</button></div><ServiceStrip stats={stats}/></div><div className="wl-economy-layout" style={{flex:1,display:'flex',overflow:'hidden'}}>
           <div className="wl-policy-panel" style={{width:'230px',background:'#070b14',borderRight:'1px solid #1c2a42',overflowY:'auto',padding:'13px',flexShrink:0}}>
             <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'12px'}}>Monetary Policy</div>
             <div style={{marginBottom:'16px'}}>
