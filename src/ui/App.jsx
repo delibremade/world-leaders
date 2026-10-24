@@ -761,6 +761,7 @@ function WorldLeadersInner({resumeSignal}){
   // V2d command cards: one runner for every card (escalatory through the confirm sheet, UI side effects, else the verb).
   const runCmd=(a)=>runCommand(a,{dispatch,ask:setAct,ui:(u)=>{if(u.build!=null)setBuildMode(u.build);if(u.site){setSelNation(null);setSelSite(u.site);}if(u.nation)setSelNation(u.nation);}});
   const energyGame={country,stats,resources,resExtraction,importContracts,spr,sprRelease,chokeStatus,chokeDeals,forceDeployments,forcePosture,bases,blocTrade,dominanceLeverage:domLevR.current,stewardship,embargoedBy,ledger};
+  const openDeploymentMap=rid=>{setCommandView('world');setMapMode('military');setMapSelection({kind:'region',id:rid});setSelNation(null);setSelSite(null);setSelectedRegion(wide?null:rid);setActiveTab('overview');};
   const openSupplyMap=(choke)=>{setCommandView('world');setMapSelection(choke?{kind:'choke',id:choke}:null);setSelNation(null);setSelSite(null);setSelectedRegion(null);setMapMode('energy');setActiveTab('overview');};
   const cmdView={country,stats,forces,nationRelations,sanctions,embargoes,actionCooldowns,influenceAlloc,platforms,platformsImported,blackPrograms,forceDeployments,resExtraction,bases,intelOps,sphere};
   const regionCard=selectedRegion&&!selNation&&!selSite?<CommandCard id="region" placement={wide?'map':'sheet'} title={REGIONS[selectedRegion]?.n} sub={`${REGIONS[selectedRegion]?.homeFor?.includes(country.id)?'HOME THEATER · ':''}${Math.round(sphere[selectedRegion]?.player||0)}% diplomatic influence · keys A S D F Z X C V`} color={country?.color||'#6ee7a8'} actions={regionCommands(cmdView,selectedRegion)} onRun={runCmd} onClose={()=>setSelectedRegion(null)}/>:null;
@@ -990,15 +991,15 @@ function WorldLeadersInner({resumeSignal}){
             {/* ── Situation Room: live prompted decisions ── */}
             {(()=>{const items=[];
               Object.entries(blockades).forEach(([rid,b])=>{items.push({i:'⚓',c:'#8fdfff',t:`Blockading ${b.target} in ${REGIONS[rid]?.n}${b.half?' (porous)':''}`,d:`$120M/mo · their sphere ${b.half?'−0.15':'−0.30'}/mo · lanes cut both ways.`,acts:[
-                  {lane:'🪖',l:'Reinforce cordon (carrier)',f:()=>dispatch({type:'deployUnit',payload:{region:rid,unit:'carrier_group'}})},{lane:'🪖',l:'Reinforce cordon (SSN(X))',f:()=>dispatch({type:'deployUnit',payload:{region:rid,unit:'ssnx'}})},
+                  {lane:'🪖',l:'Assign naval forces',region:rid,f:()=>openDeploymentMap(rid)},
                   {lane:'🤝',l:'Back-channel ($250M · −8)',f:()=>{dispatch({type:'backChannel',payload:{nation:b.target}});}},
                   {lane:'⚓',l:'Lift blockade',f:()=>{dispatch({type:'liftBlockade',payload:{region:rid,from:'sitroom'}});}}]});});
               Object.entries(chokeStatus).forEach(([k,st])=>{if(st!=='disrupted')return;const cp=CHOKEPOINTS[k];const home=Object.entries(REGIONS).find(([,r])=>r.homeFor?.includes(country?.id))?.[0];const mine=(IMPORT_ROUTES[home]||[]).includes(k);
                 items.push({i:'⚓',c:'#ff7a45',t:`${cp.n} DISRUPTED${mine?' — on your import route':''}`,d:`${cp.d} ${mine?'Your fossil imports cost ×1.5 and inflation climbs until the lane reopens.':'Downstream exports −25%.'}`,acts:[
-                  {lane:'🪖',l:`Station carrier in ${REGIONS[cp.region]?.n}`,f:()=>dispatch({type:'deployUnit',payload:{region:cp.region,unit:'carrier_group'}})},{lane:'🪖',l:`Station SSN(X) in ${REGIONS[cp.region]?.n}`,f:()=>dispatch({type:'deployUnit',payload:{region:cp.region,unit:'ssnx'}})},
+                  {lane:'🪖',l:`Assign forces in ${REGIONS[cp.region]?.n}`,region:cp.region,f:()=>openDeploymentMap(cp.region)},
                   {lane:'🚢',l:'Set Escort posture there',f:()=>{dispatch({type:'setPosture',payload:{region:cp.region,posture:'escort',from:'sitroom'}});}},
                   {lane:'🛢️',l:sprRelease?'Reserve releasing':`Release strategic reserve (${spr})`,f:()=>{dispatch({type:'releaseReserve',payload:{from:'chokepoint'}});}}]});});
-              Object.entries(stewardship).forEach(([ck,st])=>{const cp=CONCESSIONS[ck];const nw=navalWeight(forceDeployments[cp.region]);if(nw<2)items.push({i:'🛢️',c:'#f5c451',t:`${NATIONS[cp.nation]?.n} stewardship exposed — no fleet offshore`,d:'Shipping runs at half and unrest brews without naval weight 2+ in the region.',acts:[{lane:'🪖',l:`Station carrier in ${REGIONS[cp.region]?.n}`,f:()=>dispatch({type:'deployUnit',payload:{region:cp.region,unit:'carrier_group'}})},{lane:'🪖',l:`Station SSN(X)`,f:()=>dispatch({type:'deployUnit',payload:{region:cp.region,unit:'ssnx'}})}]});});
+              Object.entries(stewardship).forEach(([ck,st])=>{const cp=CONCESSIONS[ck];const nw=navalWeight(forceDeployments[cp.region]);if(nw<2)items.push({i:'🛢️',c:'#f5c451',t:`${NATIONS[cp.nation]?.n} stewardship exposed — no fleet offshore`,d:'Shipping runs at half and unrest brews without naval weight 2+ in the region.',acts:[{lane:'🪖',l:`Assign forces in ${REGIONS[cp.region]?.n}`,region:cp.region,f:()=>openDeploymentMap(cp.region)}]});});
               if(embargoedBy)items.push({i:'⛽',c:'#ff7a45',t:`${embargoedBy.by.toUpperCase()} energy embargo — ${embargoedBy.mo}mo`,d:'Imports ×1.3, inflation and growth bleed unless you are diversified.',acts:[{lane:'🛢️',l:sprRelease?'Reserve releasing':`Release strategic reserve (${spr})`,f:()=>{dispatch({type:'releaseReserve'});}},{lane:'🤝',l:'Back-channel Russia ($250M · −8)',f:()=>{dispatch({type:'embargoBackChannel'});}}]});
               if(pariah>0)items.push({i:'☢️',c:'#ff7a45',t:`Pariah state — ${pariah}mo`,d:'No nation will sign arms contracts; bloc doors are frozen. The taboo you broke is the price you pay.'});
               Object.entries(rivalTension).forEach(([cid,t])=>{if(t>=85&&cid!==country?.id&&!isAllyOf(country?.id,cid))items.push({i:'☢',c:'#f472b6',t:`${cid.charAt(0).toUpperCase()+cid.slice(1)} at the BRINK (${Math.round(t)})`,d:'Final options are unlocked in the Intel dossier. Any act of yours that pushes tension to 100 ends the world — and the game.'});});
@@ -1008,13 +1009,13 @@ function WorldLeadersInner({resumeSignal}){
                   {lane:'🪖',l:'Ready the triad (Arsenal)',f:()=>{setActiveTab('arsenal');setArsenalSub('deterrence');}}]});});
               if(flashpoint){const fp=FLASHPOINTS[flashpoint.type];const rid=flashpoint.rid;const embHere=DIP_TARGETS.some(d=>d.region===rid&&embassies.has(d.id));
                 items.push({i:fp.i,c:'#ff7a45',t:`${fp.n} in ${REGIONS[rid]?.n}`,d:`A crisis is unfolding — ${flashpoint.t}mo to respond.`,acts:[
-                  {lane:'🪖',l:'Station fighter wing',f:()=>dispatch({type:'deployUnit',payload:{region:rid,unit:'fighter_wing'}})},{lane:'🪖',l:'Station carrier group',f:()=>dispatch({type:'deployUnit',payload:{region:rid,unit:'carrier_group'}})},
+                  {lane:'🪖',l:'Assign response forces',region:rid,f:()=>openDeploymentMap(rid)},
                   {lane:'🕵️',l:'Deploy intel ($600M)',f:()=>dispatch({type:'regionIntel',payload:{region:rid}})},
                   {lane:'🤝',l:embHere?'Open region panel → Diplomatic':'Establish embassy in region',f:()=>{if(embHere){setSelectedRegion(rid);}else dispatch({type:'establishRegionEmbassy',payload:{region:rid}});}}]});}
               // Rival hegemony threat
               Object.entries(rivalHolds||{}).forEach(([cid,mo])=>{if(mo>0&&cid!==country?.id){const topRg=Object.entries(sphere).map(([r2,s2])=>[r2,s2.competitors?.[cid]||0]).sort((a,b)=>b[1]-a[1])[0];
                 items.push({i:'⚠',c:'#ff7a45',t:`${cid.charAt(0).toUpperCase()+cid.slice(1)} nearing hegemony`,d:`Held the threshold ${mo}/24 months. Break their strongest position (${REGIONS[topRg?.[0]]?.n||'—'}).`,acts:[
-                  {lane:'🪖',l:`Station SSN(X)/sub in ${REGIONS[topRg?.[0]]?.n||'their region'}`,f:()=>{if(topRg)dispatch({type:'stationHunterKiller',payload:{region:topRg[0]}});}},
+                  {lane:'🪖',l:`Assign forces in ${REGIONS[topRg?.[0]]?.n||'their region'}`,region:topRg?.[0],f:()=>{if(topRg)openDeploymentMap(topRg[0]);}},
                   {lane:'🕵️',l:'Destabilization op',f:()=>dispatch({type:'runIntelOp',payload:{op:'destab',nation:cid}})},{lane:'🕵️',l:'Deploy intel to their region',f:()=>{if(topRg)dispatch({type:'regionIntel',payload:{region:topRg[0]}});}},
                   {lane:'🤝',l:sanctions.has(cid)?'Sanctions active':'Impose sanctions',f:()=>{dispatch({type:'imposeSanctions',payload:{nation:cid}});}}]});}});
               // Diplomatic openings (near pact / trade-ready)
@@ -1037,7 +1038,7 @@ function WorldLeadersInner({resumeSignal}){
                   {items.map((it,idx)=><div key={idx} data-situation-issue style={{display:'flex',gap:'9px',padding:'8px',background:'#111a2c',borderRadius:'6px',borderLeft:`3px solid ${it.c}`}}>
                     <span style={{fontSize:'16px'}}>{it.i}</span>
                     <div style={{flex:1}}><div style={{fontSize:'11px',fontWeight:700,color:it.c}}>{it.t}</div><div style={{fontSize:'10px',color:'#9aa8bf',lineHeight:'1.45',marginTop:'2px'}}>{it.d}</div>
-                      {it.acts&&<div style={{display:'flex',flexWrap:'wrap',gap:'4px',marginTop:'6px'}}>{it.acts.map((a,ai)=><button key={ai} onClick={a.f} style={{background:'#0c1424',border:'1px solid #2e3f5c',color:'#c3cddc',padding:'4px 8px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>{a.lane} {a.l}</button>)}</div>}
+                      {it.acts&&<div style={{display:'flex',flexWrap:'wrap',gap:'4px',marginTop:'6px'}}>{it.acts.map((a,ai)=><button key={ai} data-assign-forces={a.region} onClick={a.f} style={{background:'#0c1424',border:'1px solid #2e3f5c',color:'#c3cddc',padding:'4px 8px',borderRadius:'4px',fontSize:'10px',fontWeight:600}}>{a.lane} {a.l}</button>)}</div>}
                     </div>
                   </div>)}
                 </div>

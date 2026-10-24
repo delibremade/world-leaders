@@ -37,9 +37,14 @@ for(const [width,height] of [[1280,800],[1440,900],[390,844]]){
    assert.equal(await page.locator('[data-intel-response=denounce]').evaluate(el=>el===document.activeElement),true,'focus stays in crisis reader');
    await last.click();await settle(page);assert.equal(await page.locator('[data-intel-crisis]').count(),0);
    await page.locator('[data-nav] [data-tab=arsenal]').click();await page.locator('[data-seg=deterrence]').click();await settle(page);
+   await page.evaluate(()=>window.__wl.flashpoint('ME','coup',4));
    const register=page.locator('[data-panel=register]');await register.scrollIntoViewIfNeeded();
    assert.equal(await register.locator('[data-nuke-entry]').count(),2);
    assert.equal(await register.locator('.wl-p-title').evaluate(el=>el.scrollWidth>el.clientWidth+1),false,'full nuclear heading wraps in Arsenal too');
+   await page.locator('[data-nav] [data-tab=overview]').click();await page.locator('[data-seg=sitroom]').click();await settle(page);
+   await page.locator('[data-assign-forces=ME]').first().click();await settle(page);
+   await page.getByLabel('Force package',{exact:true}).selectOption('fleet:usa:cvn');await settle(page);
+   assert.equal(await page.locator('[data-map-deploy="fleet:usa:cvn"]').isDisabled(),false);
    const o=await overflow(page,width);assert.equal(o.scrollWidth,width);assert.deepEqual(o.bad,[]);assert.deepEqual(errors,[]);
   }finally{await ctx.close();}
  });

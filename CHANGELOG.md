@@ -3,6 +3,7 @@
 ## 0.95.0 (2026-10-24) — Actionable Situation Room and clear homeland identity
 - Home theaters retain their identity even when a foreign diplomatic influence index is higher. The map now distinguishes regional influence from sovereignty without rewriting campaign progress.
 - Situation Room has a permanent covert planning desk: foreign targets, six mission types, shared eligibility/cost/odds, confirmation, national counter-intelligence, response doctrine and active operations. All live issues are accessible; the five-item truncation is removed.
+- Situation deployment shortcuts open the shared force picker in the affected theater, including the existing starting fleet.
 - Intelligence crises use the accessible, scrolling decision reader. Consequence text reports actual engine effects; old narrative promises of unimplemented effects are no longer presented as results.
 - Situation panels no longer shrink and clip their contents. Nuclear records and headings wrap completely in both Situation and Arsenal.
 - Manual and standing covert orders share requirements. Invalid/self targets, duplicate missions and multiple national sweeps cannot spend funds. Defensive sweeps expire without creating a foreign discovery crisis.

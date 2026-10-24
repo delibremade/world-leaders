@@ -73,3 +73,12 @@ test('shared mission gate and command agree on discounted price, facilities and 
   assert.match(intelOrder(h.g,'sabotage','china').block,/No Tier 2/);
  }finally{h.done();}
 });
+
+test('Situation deployment shortcuts open the existing-force picker for the affected theater',async()=>{
+ const g=await mount(BUNDLES.app,{testHook:true,seed:61});try{
+  await g.pickCountry(0);g.answerModal();await flush();g.w.__wl.flashpoint('ME','coup',4);await flush();
+  g.tabBtn('sitroom').click();await flush();await flush();
+  const assign=g.doc.querySelector('[data-assign-forces=ME]');assert.ok(assign,'assignment shortcut exists');assign.click();await flush();await flush();
+  assert.ok(g.doc.querySelector('[data-map]'));const picker=g.doc.querySelector('[data-deployment-picker] select');assert.ok(picker);picker.value='fleet:usa:cvn';picker.dispatchEvent(new g.w.Event('change',{bubbles:true}));await flush();assert.ok(g.doc.querySelector('[data-map-deploy="fleet:usa:cvn"]'),'starting carrier available without buying another');
+ }finally{g.close();}
+});
