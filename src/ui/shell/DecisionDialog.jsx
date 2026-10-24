@@ -14,7 +14,15 @@ export function DecisionDialog({ title, eyebrow, required = false, onClose, chil
     return () => { if (typeof dialog.close === 'function') dialog.close(); if (previous?.isConnected) previous.focus?.(); };
   }, []);
   return <dialog ref={ref} className={`wl-decision-dialog ${className}`} data-decision-dialog role="dialog" aria-modal="true" aria-labelledby={heading}
-    onCancel={e => { e.preventDefault(); if (!required) onClose(); }} onKeyDown={e => e.stopPropagation()}>
+    onCancel={e => { e.preventDefault(); if (!required) onClose(); }} onKeyDown={e => {
+      e.stopPropagation();
+      if (e.key !== 'Tab') return;
+      const controls = [...e.currentTarget.querySelectorAll('button:not(:disabled),[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]')].filter(el => !el.hidden && el.getClientRects().length);
+      const first = controls[0], last = controls.at(-1), active = document.activeElement;
+      if (!first) { e.preventDefault(); e.currentTarget.querySelector('[data-dialog-title]')?.focus(); }
+      else if (e.shiftKey && (active === first || !controls.includes(active))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+    }}>
     <header className="wl-decision-head">
       <div>{eyebrow && <span className="wl-eyebrow">{eyebrow}</span>}<h2 id={heading} tabIndex={-1} data-dialog-title>{title}</h2></div>
       {!required && <button className="wl-btn" type="button" data-decision-close aria-label="Close decision" onClick={onClose}>✕</button>}

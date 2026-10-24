@@ -13,6 +13,7 @@ test('App (jsdom, SVG fallback): dock carries six modes with keys Q to Y; pressi
   try {
     await g.pickCountry(0);
     const { doc, w } = g; const q = (s) => doc.querySelector(s), qa = (s) => [...doc.querySelectorAll(s)];
+    q('[data-doctrine=fortress]').click(); await flush(); await flush();
     assert.deepEqual(qa('[data-map-modes] [data-map-mode-btn]').map((b) => b.dataset.key), MODE_KEYS);
     assert.deepEqual(qa('[data-map-modes] kbd').map((k) => k.textContent), MODE_KEYS, 'each chip shows its key');
     assert.equal(q('[data-map-lod]').textContent, 'Strategic'); assert.equal(q('[data-map]').getAttribute('data-map-level'), 'strategic');

@@ -22,6 +22,7 @@ for (const [width, height] of [[1280, 800], [1440, 900], [1920, 1080], [390, 844
       await page.keyboard.press('Escape'); assert.equal(await dialog.count(), 1, 'required decision cannot be accidentally dismissed');
       await page.keyboard.press('3'); assert.equal(await page.locator('[data-tab=overview]').getAttribute('aria-current'), 'page', 'background shortcuts are held');
       for (let i = 0; i < 7; i++) { await page.keyboard.press('Tab'); assert.equal(await dialog.evaluate(d => d.contains(document.activeElement)), true); }
+      for (let i = 0; i < 7; i++) { await page.keyboard.press('Shift+Tab'); assert.equal(await dialog.evaluate(d => d.contains(document.activeElement)), true); }
       const o = await overflow(page, width); assert.equal(o.scrollWidth, width); assert.deepEqual(o.bad, []);
       await dialog.locator('[data-doctrine=shadow]').click(); await settle(page);
       assert.equal(await dialog.count(), 0); assert.match(await page.locator('.wl-hud-nation').innerText(), /Shadow Power/);
