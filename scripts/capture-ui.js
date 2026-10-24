@@ -16,11 +16,12 @@ try{
    await page.locator('[data-reserve-fill]').click();await shot('energy');
    await page.locator('[data-review-card=we]').click();await shot('event-reader');await page.locator('[data-decision-close]').click();
    await page.locator('[data-supply-route=panama]').click();await shot('corridor');
+   if(width<1100){await page.keyboard.press('Escape');await settle(page);}
    await page.evaluate(()=>window.__wl.decision('crew_shortfall','Sea needs qualified personnel for newly ordered hulls'));await shot('brief-summary');
    await page.locator('[data-review-card=decision]').click();await shot('brief-reader');await page.locator('[data-decision-close]').click();
    await page.locator('[data-nav] [data-tab=resources]').click();await page.locator('[data-seg=deals]').click();await shot('trade-desk');
    await page.locator('[data-nav] [data-tab=arsenal]').click();await page.locator('[data-open-faxx]').click();await shot('faxx-acquisition');
-   if(width>=1100){await page.locator('[data-nav] [data-tab=overview]').click();await page.locator('[aria-label="Clear map selection"]').click();await page.locator('[data-locate-region=EA]').click();await page.getByLabel('Force package',{exact:true}).selectOption('fleet:usa:cvn');await shot('starting-carrier');}
+   if(width>=1100){await page.locator('[data-nav] [data-tab=overview]').click();await page.locator('[aria-label="Clear map selection"]').click();await page.locator('[data-map-mode-btn=sphere]').click();await page.locator('[data-locate-region=EA]').click();await page.getByLabel('Force package',{exact:true}).selectOption('fleet:usa:cvn');await shot('starting-carrier');}
   }catch(e){results.push({width,error:String(e)});await page.screenshot({path:`${out}/error-${width}.png`}).catch(()=>{});}
   finally{await ctx.close();}
  }

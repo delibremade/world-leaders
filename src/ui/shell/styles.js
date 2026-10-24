@@ -192,6 +192,7 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
 .wl-mv-glyphs{color:${c.text.dim};flex-basis:100%}
 .wl-mv-hint{font-size:${SIZE.caption}px;color:${c.text.dim};margin-top:${SPACE[2]}px}
 
+.wl-btn:disabled{opacity:.48;cursor:not-allowed;filter:saturate(.45)}
 .wl-field{display:grid;gap:6px;margin:10px 0;font-size:12px;color:#b8c7d8}
 .wl-field input,.wl-field select{width:100%;min-width:0;box-sizing:border-box;padding:10px;background:#101c2b;color:#e6edf5;border:1px solid #344860;border-radius:6px;font:inherit}
 .wl-trade-desk{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-width:0}
@@ -338,7 +339,7 @@ kbd{font:inherit;font-size:${SIZE.micro}px;color:${c.text.dim};border:1px solid 
   .wl-body .wl-vitals{display:none}
   .wl-cards.wl-dock{grid-area:dock;flex-direction:column;overflow-y:auto;overflow-x:hidden;scroll-snap-type:none;gap:${SPACE[3]}px;padding:${SPACE[3]}px ${SPACE[4]}px;border-left:1px solid ${c.border.base};border-bottom:1px solid ${c.border.strong};min-height:0}
   .wl-cards.wl-dock:empty{display:flex}
-  .wl-dock>.wl-card-ev{flex:0 0 auto;width:100%;min-width:0;scroll-snap-align:none;padding:${SPACE[4]}px ${SPACE[5]}px}
+  .wl-dock>.wl-card-ev{flex:0 0 auto;width:100%;min-width:0;scroll-snap-align:none;padding:10px 12px}
   .wl-dock .wl-opts{grid-template-columns:repeat(auto-fit,minmax(104px,1fr))}
   .wl-dock-head{display:flex;justify-content:space-between;align-items:center;padding:0 2px;flex:0 0 auto}
   .wl-dock-empty{color:${c.text.dim};font-size:${SIZE.small}px;padding:${SPACE[4]}px 2px}

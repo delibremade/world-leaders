@@ -1,3 +1,4 @@
+import { DeploymentPicker } from './DeploymentPicker.jsx';
 import { useState } from 'react';
 import { SITES, NODE_TYPES } from '../../data/bases.js';
 import { REGIONS, POSTURE_LABELS } from '../../data/regions.js';
@@ -12,7 +13,7 @@ import { energySituation, protectionWeight } from '../../sim/energy-view.js';
 const money=n=>`$${n.toLocaleString('en-US')}M`;
 export function Operations({mode,g,selection,previewType,onPreview,onSelect,onClose,onDetails,onNation,onJump,dispatch,ask,build}) {
   const energy=energySituation(g);
-  const [query,setQuery]=useState(''),[unitId,setUnitId]=useState(null);
+  const [query,setQuery]=useState('');
   const find=query.trim().toLowerCase();
   const matches=Object.entries(SITES).filter(([,s])=>`${s.n} ${NATIONS[s.host]?.n||s.local} ${REGIONS[s.region].n}`.toLowerCase().includes(find));
   const choose=(kind,id)=>{setQuery('');onSelect({kind,id});};
@@ -22,7 +23,6 @@ export function Operations({mode,g,selection,previewType,onPreview,onSelect,onCl
   const opt=site?.options.find(o=>o.type===previewType)||site?.options[0];
   const title=site?.n||cp?.n||(rid?REGIONS[rid].n:selection?.kind==='cluster'?'Nearby facilities':'Operations');
   const units=rid?deploymentOptions(g,rid):[];
-  const selectedUnit=units.find(o=>o.id===unitId)||units[0];
   const stationed=units.reduce((n,o)=>n+o.here,0);
   return <aside className="wl-operations" data-map-inspector aria-label="Map operations">
     <label className="wl-map-search"><span>LOCATE A SITE</span><input aria-label="Find a base or host nation" placeholder="Search bases or host nations…" value={query} onChange={e=>setQuery(e.target.value)}/></label>
@@ -50,10 +50,7 @@ export function Operations({mode,g,selection,previewType,onPreview,onSelect,onCl
         {cp&&energy.routes.some(r=>r.id===selection.id)&&<ReserveControls g={g} dispatch={dispatch}/>}
         {REGIONS[rid].homeFor?.includes(g.country.id)&&<p className="wl-map-muted" data-home-territory>Home territory. Regional influence measures alignment across neighboring countries; it is not control of your domestic territory.</p>}
         <span className="wl-map-eyebrow">FORWARD DEPLOYMENT</span>
-        {!units.length&&<p className="wl-map-muted">No deployable platforms owned. Build platforms and train crews in Forces.</p>}
-        {!!units.length&&<label className="wl-map-posture">Choose force package<select aria-label="Force package" value={selectedUnit?.id||''} onChange={e=>setUnitId(e.target.value)}>{units.map(o=><option key={o.id} value={o.id}>{o.name} · {o.free} available</option>)}</select></label>}
-        {[selectedUnit].filter(Boolean).map(o=><div className="wl-map-unit" key={o.id}><div><b>{o.name}</b><small>{o.here} here · {o.free} available</small>{o.free>0&&o.reason&&<small>{o.reason}</small>}</div><button aria-label={`Recall ${o.name}`} disabled={!o.here} data-map-recall={o.id} onClick={()=>dispatch({type:'adjustDeployment',payload:{region:rid,unit:o.id,delta:-1}})}>−</button><button aria-label={`Station ${o.name}`} disabled={!!o.reason} title={o.reason||`Station in ${REGIONS[rid].n}`} data-map-deploy={o.id} onClick={()=>dispatch({type:'adjustDeployment',payload:{region:rid,unit:o.id,delta:1}})}>+</button></div>)}
-        {units.filter(o=>o.here&&o.id!==selectedUnit?.id).map(o=><button className="wl-map-secondary" key={o.id} onClick={()=>setUnitId(o.id)}>{o.name} · {o.here} stationed →</button>)}
+        <DeploymentPicker key={rid} units={units} region={rid} dispatch={dispatch}/>
         <label className="wl-map-posture">Mission posture<select aria-label="Mission posture" value={g.forcePosture?.[rid]||'deter'} disabled={!stationed} onChange={e=>dispatch({type:'setPosture',payload:{region:rid,posture:e.target.value}})}>{Object.entries(POSTURE_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>
         <p className="wl-map-muted">{stationed?'Deployment is theater-wide. Basing costs $4M per unit each month.':'Station a unit to assign its mission.'}</p>
         <div className="wl-map-shortcuts"><button onClick={()=>onJump?.('forces')}>Forces & readiness ↗</button>{cp&&<button onClick={()=>onJump?.('energy')}>Energy & reserves ↗</button>}</div>

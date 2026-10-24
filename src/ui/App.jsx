@@ -1,3 +1,5 @@
+import { DeploymentPicker } from './map/DeploymentPicker.jsx';
+import { deploymentOptions } from '../sim/deployment-view.js';
 import { foreignFlashpoint } from '../sim/flashpoints.js';
 import { effectiveForces } from '../sim/forces.js';
 import { COLOR } from './tokens.js';
@@ -1789,24 +1791,15 @@ function WorldLeadersInner({resumeSignal}){
                   </div>
                 </div>;})()}
                 {(()=>{
-                                    const owned=pid=>(platforms[pid]||0)+(platformsImported[pid]||0);
-                  const deployedOf=pid=>Object.values(forceDeployments).reduce((a,r)=>a+((r&&r[pid])||0),0);
+                                    const units=deploymentOptions(liveState(),selectedRegion);
                   const hereObj=forceDeployments[selectedRegion]||{};
                   const hereTot=sumDep(hereObj);
-                  const poolTot=DEPLOYABLE.reduce((a,p)=>a+(BLACK_PROGRAMS[p]?(+blackPrograms[p]||0):owned(p)),0);
-                  const availTot=poolTot-Object.values(forceDeployments).reduce((a,r)=>a+sumDep(r),0);
+                  const availTot=units.reduce((a,u)=>a+u.free,0);
                   return <div style={{marginBottom:'8px',padding:'8px',background:'#0c1424',borderRadius:'6px',border:`1px solid ${hereTot>0?'#1c4f7a':'#1c2a42'}`}}>
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5px'}}>
                     <span style={{fontSize:'11px',color:hereTot>0?'#8fdfff':'#9aa8bf',fontWeight:600}}>⚓ Forward Deployment — {hereTot} stationed · {Math.max(0,availTot)} available fleet-wide</span>
                   </div>
-                  {DEPLOYABLE.map(pid=>BLACK_PROGRAMS[pid]?{pid,meta:BLACK_PROGRAMS[pid],own:+blackPrograms[pid]||0}:{pid,meta:PLATFORMS[pid],own:owned(pid)}).map(({pid,meta:p,own})=>{if(own<=0)return null;const hereN=hereObj[pid]||0;const avail=own-deployedOf(pid);return(
-                    <div key={pid} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 6px',background:'#111a2c',borderRadius:'4px',marginBottom:'3px'}}>
-                      <span style={{fontSize:'10px',color:'#9aa8bf'}}>{p.i} {p.n} <span style={{color:'#5b6880'}}>· {hereN} here / {avail} free / {own} owned</span></span>
-                      <div style={{display:'flex',gap:'4px'}}>
-                        <button onClick={()=>dispatch({type:'adjustDeployment',payload:{region:selectedRegion,unit:pid,delta:1}})} style={{background:'#1c4f7a',border:'none',color:'white',padding:'2px 9px',borderRadius:'4px',fontSize:'11px',fontWeight:700}}>+</button>
-                        <button onClick={()=>dispatch({type:'adjustDeployment',payload:{region:selectedRegion,unit:pid,delta:-1}})} style={{background:'transparent',border:'1px solid #2e3f5c',color:'#9aa8bf',padding:'2px 9px',borderRadius:'4px',fontSize:'11px'}}>−</button>
-                      </div>
-                    </div>);})}
+                  <DeploymentPicker key={selectedRegion} units={units} region={selectedRegion} dispatch={dispatch}/>
                   <div style={{fontSize:'10px',color:'#7c8aa3',marginTop:'3px'}}>+0.12 sphere/mo each · suppression weight: B-21/SSN(X) ×2, SR-72 ×0.6, F-47 ×1 (+up to 50% with CCA wings) · top rival −{(wSum(hereObj,blackPrograms)*0.08).toFixed(2)}/mo · halves rival pushback · unlocks Intervene & Kinetic Strike · $4M/unit/mo basing</div>
                   {hereTot>0&&(()=>{const cur=forcePosture[selectedRegion]||'deter';const cpHere=Object.entries(CHOKEPOINTS).find(([,cp])=>cp.region===selectedRegion);const nw=navalWeight(hereObj);
                     const P=[['deter',POSTURE_LABELS.deter,'+0.12/unit · suppresses top hostile'],['escort',POSTURE_LABELS.escort,cpHere?`Keeps ${cpHere[1].n} open for you (naval 2+, have ${nw}) · +tension`:'No chokepoint here — presence only'],['isr',POSTURE_LABELS.isr,'+25% op success in-region · rival pressure −30% · half suppression'],['exercise',POSTURE_LABELS.exercise,'Allies here +0.5 rel/mo · coalition ×2 · +0.06/unit'],['humanitarian',POSTURE_LABELS.humanitarian,'During crises: +1 rel/mo region-wide, +0.2/unit · $30M/unit/mo']];
