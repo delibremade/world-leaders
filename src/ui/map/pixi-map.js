@@ -107,18 +107,19 @@ export async function createPixiMap(container, {onTap,onSiteTap,onChokeTap,onClu
       pick(st.ids.length>1?'cluster':'site',st.id,st.x,st.y,22,{ids:st.ids});
     }
     hubGroups=scene.mode==='economy'?layoutSites(scene.hubs||[],{build:true,scale:s,tilt}):[];
-    const hubLabels=[];
-    for(const h of hubGroups){
+    const hubPins=hubGroups.map(h=>{const p=viewport.toScreen(h.x,h.y*tilt);return {...h,sx:p.x,sy:p.y,label:h.selected||h.ids.length===1?h.name:`${h.name.split(/[–/]/)[0].trim()} +${h.ids.length-1}`};});
+    const hubLabels=layoutLabels(hubPins.filter(h=>h.sx>=0&&h.sx<=sw()&&h.sy>=0&&h.sy<=sh()).map(h=>({id:h.id,x:h.sx,y:h.sy+33,w:Math.min(200,h.label.length*6+14),h:18})),{width:sw(),height:sh(),obstacles:[...hubPins.map(h=>({x:h.sx,y:h.sy,w:34,h:34})),{x:110,y:sh()-102,w:220,h:60},{x:sw()-30,y:75,w:60,h:150}]});
+    for(const h of hubPins){
       const p=viewport.toScreen(h.x,h.y*tilt),c=pin(h.x,h.y),g=c.addChild(new Graphics()),col=h.selected?'#e5fff3':h.color;
       g.roundRect(-16,-16,32,32,4).fill({color:0x10272b,alpha:.98}).stroke({color:pixiHex(col),width:h.selected?2:1});
-      if(h.ids.length>1)text(c,String(h.ids.length),0,0,14,col,'800');
+      if(h.ids.length>1&&!h.selected)text(c,String(h.ids.length),0,0,14,col,'800');
       else{g.poly([-10,9,-10,-1,-4,-1,-4,-10,3,-10,3,2,10,2,10,9],true).fill(pixiHex(col));}
-      const label=h.ids.length>1?`${h.ids.length} economic hubs`:h.name;
-      const w=Math.min(180,label.length*6+14),r={x:p.x-w/2,y:p.y+22,w,h:18};
-      if(h.selected||!hubLabels.some(a=>a.x<r.x+r.w&&a.x+a.w>r.x&&a.y<r.y+r.h&&a.y+a.h>r.y)){
-        g.roundRect(-w/2,22,w,18,3).fill({color:0x081923,alpha:.97});text(c,label.length>27?label.slice(0,26)+'…':label,0,31,11,col);hubLabels.push(r);
+      const label=hubLabels.find(l=>l.id===h.id);
+      if(label){const dx=label.x-p.x,dy=label.y-p.y;
+        if(Math.abs(dx)>1||Math.abs(dy)>40)g.moveTo(0,16).lineTo(dx,dy).stroke({color:pixiHex(col),alpha:.5,width:.7});
+        g.roundRect(dx-label.w/2,dy-9,label.w,18,3).fill({color:0x081923,alpha:.97});text(c,h.label.length>30?h.label.slice(0,29)+'…':h.label,dx,dy,11,col);
       }
-      pick(h.ids.length>1?'hubCluster':'hub',h.id,h.x,h.y,22,{ids:h.ids});
+      pick(h.ids.length>1&&!h.selected?'hubCluster':'hub',h.id,h.x,h.y,22,{ids:h.ids});
     }
     if(show.chokepoints)for(const cp of scene.chokepoints){const c=pin(cp.x,cp.y),g=c.addChild(new Graphics());g.poly([0,-9,9,0,0,9,-9,0],true).fill({color:pixiHex(cp.color)}).stroke({color:0x081923,width:2});if(z>=1.6)text(c,cp.name,0,20,11,'#d7cba5');pick('choke',cp.k,cp.x,cp.y,22);}
     drawLanes();onViewChange?.(z,level);

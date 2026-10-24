@@ -25,6 +25,10 @@ for(const [width,height] of [[1280,800],[1440,900],[1920,1080],[390,844]]){
     await page.getByLabel('Economic sector',{exact:true}).selectOption('technology');await browse();
     await page.getByLabel('Find a city or economic activity').fill('Seattle');await page.locator('[data-locate-hub=seattle]').click();await settle(page);
     assert.match(await page.locator('[data-economic-inspector] h3').innerText(),/Seattle/);
+    if(width>=1100){
+      const visible=await page.locator('[data-economy-route=technology]').evaluate(el=>{const r=el.getBoundingClientRect(),p=el.closest('.wl-operations-scroll').getBoundingClientRect();return r.top>=p.top&&r.bottom<=p.bottom&&el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));});
+      assert.ok(visible,'primary city action is visible and clickable without scrolling');
+    }
     await fits();
     const slider=page.locator('[data-economic-inspector] [data-sector=technology]');await slider.focus();await page.keyboard.press('End');await settle(page);
     assert.equal(await slider.inputValue(),'200');

@@ -5,7 +5,7 @@ import {economicSectorView} from '../src/sim/economic-view.js';
 import {COUNTRIES, NATIONS} from '../src/data/nations.js';
 import {newCampaign} from '../src/sim/state.js';
 import {buildScene} from '../src/ui/map/scene.js';
-import {visibleLayers, layoutSites} from '../src/ui/map/layout.js';
+import {visibleLayers, layoutSites, layoutLabels} from '../src/ui/map/layout.js';
 import {calcSCost} from '../src/sim/formulas.js';
 
 test('civilian geography covers every playable opening, West Coast and inland US, without adding nations',()=>{
@@ -39,4 +39,11 @@ test('sector readouts are national engine values, not invented city GDP or multi
   assert.ok(v.routes.some(r=>r.jump.tab==='technology'));
   for(const k of Object.keys(ECONOMIC_SECTORS)) {const s=economicSectorView(g,k);assert.ok(s.metrics.length);assert.ok(s.routes.length);assert.equal(s.scope,'National');}
   assert.equal(JSON.stringify(g),before,'read model never mutates campaign');
+});
+
+test('economic callouts avoid city markers and stay inside the map chrome',()=>{
+  const obstacles=[{x:220,y:140,w:34,h:34},{x:310,y:170,w:34,h:34}];
+  const labels=layoutLabels([{id:'a',x:220,y:170,w:130,h:18},{id:'b',x:310,y:200,w:110,h:18}],{width:540,height:350,obstacles});
+  assert.equal(labels.length,2);
+  for(const l of labels){assert.ok(l.y+l.h/2<=270);for(const o of obstacles)assert.ok(Math.abs(l.x-o.x)>=(l.w+o.w)/2+4||Math.abs(l.y-o.y)>=(l.h+o.h)/2+4);}
 });
