@@ -7,7 +7,7 @@ import { MAP_MODES, MODE_KEYS } from '../src/ui/map/scene.js';
 // V2c (docs/DESIGN-SYSTEM-V2.md §3): the 2.5D PixiJS map. Chrome in the DOM (level chip, zoom, legend, dock with keys);
 // the renderer exposes its level, layers and tilt through window.__wlMap for the real-Chromium checks.
 
-test('App (jsdom, SVG fallback): dock carries six modes with keys Q to Y; pressing a key switches the mode; level chip and zoom controls present', async () => {
+test('App (jsdom, SVG fallback): dock carries seven modes with keys Q to U; pressing a key switches the mode; level chip and zoom controls present', async () => {
   const origErr = console.error; console.error = () => {};
   const g = await mount(BUNDLES.app, { testHook: true });
   try {

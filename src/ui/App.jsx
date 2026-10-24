@@ -567,9 +567,10 @@ function WorldLeadersInner({resumeSignal}){
   // Closing the feed marks everything read (rows keep their unread dots while it is open).
   const closeFeed=()=>{setFeedOpen(false);notifierR.current.readAll();};
   // One jump for the outliner and the feed: pane, then the region/nation/site sheet it names.
-  const jumpTo=({tab,region,nation,issue,sub,site,card,pan,op,target,unit,platform,mineral,mode})=>{
+  const jumpTo=({tab,region,nation,issue,sub,site,card,pan,op,target,unit,platform,mineral,mode,sector})=>{
     setSelNation(null);setSelSite(null);setSelectedRegion(null);setVitalsDrill(null);setMapSelection(null);
     if(tab==='overview')setCommandView('world');setActiveTab(tab);
+    if(tab==='economy'&&sector)setSelBudget(sector);
     if(mode)setMapMode(mode);if(card)setDockFocus({card,at:Date.now()});
     if(pan){if(mapRef.current)mapRef.current.focus?.(pan);else panPending.current=pan;}
     if(tab==='forces'){if(sub)setForcesSub(sub);setDeploymentRequest(prev=>({region,unit,at:(prev?.at||0)+1}));}
@@ -949,8 +950,8 @@ function WorldLeadersInner({resumeSignal}){
             <NationalPulse stats={stats} energyTier={getEnergyTier(resources,resExtraction,importContracts)} spr={spr} onJump={jumpTo}/>
             {/* SVG WORLD MAP */}
             <div className="wl-map-card" style={{background:'#0a0f1a',borderRadius:'10px',border:'1px solid #1c2a42',padding:'12px'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',marginBottom:'8px'}}><div style={{fontSize:'11px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px'}}>World command · select a region</div><Help items={HELP_TIPS}/></div>
-              <MapView selectionRequest={mapSelection} game={{...cmdView,...energyGame,forcePosture,forces,defensePacts,chokeStatus,embassies,tradeAgreements}} dispatch={dispatch} ask={setAct} onNation={setSelNation} onJump={goPane} onMap={m=>{mapRef.current=m;if(m&&panPending.current){m.focus?.(panPending.current);panPending.current=null;}}} mode={mapMode} onModeChange={setMapMode} onRegionTap={rid=>setSelectedRegion(selectedRegion===rid?null:rid)} onSiteTap={sid=>{setSelNation(null);setSelectedRegion(null);setSelSite(sid);}} onBuildToggle={setBuildMode}
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',marginBottom:'8px'}}><div style={{fontSize:'11px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px'}}>{mapMode==='economy'?'National economy · cities & sectors':'World command · select a region'}</div><Help items={HELP_TIPS}/></div>
+              <MapView allocation={{age:sectorAge,locks:budgetLocks,onLock:(k,v)=>setBudgetLocks(p=>{const n2=new Set(p);if(v)n2.add(k);else n2.delete(k);return n2;}),hold:poolHold,onHold:setHold,baseline:baselineR.current||budgetAlloc}} selectionRequest={mapSelection} game={{...cmdView,...energyGame,budgetAlloc,sectorMaturity,minerals,ipPortfolio,socialPrograms,forcePosture,forces,defensePacts,chokeStatus,embassies,tradeAgreements}} dispatch={dispatch} ask={setAct} onNation={setSelNation} onJump={goPane} onMap={m=>{mapRef.current=m;if(m&&panPending.current){m.focus?.(panPending.current);panPending.current=null;}}} mode={mapMode} onModeChange={setMapMode} onRegionTap={rid=>setSelectedRegion(selectedRegion===rid?null:rid)} onSiteTap={sid=>{setSelNation(null);setSelectedRegion(null);setSelSite(sid);}} onBuildToggle={setBuildMode}
                 view={{country,sphere,selectedRegion,forceDeployments,flashpoint,sphereTrend,intelOps,defExports,doctrine,nationRelations,embassies,defensePacts,chokeStatus,rivalTension,blockades,tradeAgreements,importContracts,embargoes,embargoedBy,forcePosture,sanctions,moles,expelled:expelR.current,concessions,bases,build:buildMode,selectedSite:selSite}}/>
 
             </div>
@@ -1098,7 +1099,7 @@ function WorldLeadersInner({resumeSignal}){
                 </div>);})())}
 </details>
         </div></div>}
-        {activeTab==='economy'&&<div className="wl-pane-wrap" data-sentinel="economy"><div className="wl-economy-heading"><div className="wl-workspace-title"><div><span className="wl-eyebrow">Domestic policy</span><h2>Economy & living standards</h2><p>Allocate the budget. Fund public services. Track the monthly result.</p></div></div><ServiceStrip stats={stats}/></div><div className="wl-economy-layout" style={{flex:1,display:'flex',overflow:'hidden'}}>
+        {activeTab==='economy'&&<div className="wl-pane-wrap" data-sentinel="economy"><div className="wl-economy-heading"><div className="wl-workspace-title"><div><span className="wl-eyebrow">Domestic policy</span><h2>Economy & living standards</h2><p>Allocate the budget. Fund public services. Track the monthly result.</p></div><button className="wl-btn" data-open-economic-map onClick={()=>jumpTo({tab:'overview',mode:'economy'})}>Cities & economic sectors ↗</button></div><ServiceStrip stats={stats}/></div><div className="wl-economy-layout" style={{flex:1,display:'flex',overflow:'hidden'}}>
           <div className="wl-policy-panel" style={{width:'230px',background:'#070b14',borderRight:'1px solid #1c2a42',overflowY:'auto',padding:'13px',flexShrink:0}}>
             <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'12px'}}>Monetary Policy</div>
             <div style={{marginBottom:'16px'}}>
