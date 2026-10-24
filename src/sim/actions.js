@@ -502,7 +502,6 @@ function backChannel(g,S,fx,nation,from){
 function embargoBackChannel(g,S,fx){if((g.stats?.treasury||0)<250){fx.toast('⚠ Need $250M');return;}S.setStats(p=>({...p,treasury:p.treasury-250}));S.setRivalTension(p=>({...p,russia:Math.max(0,(p.russia||0)-8)}));fx.toast('🕊 Back-channel with Russia — tension −8');}
 function releaseReserve(g,S,fx,from){const spr=g.spr;if(spr<=0){fx.toast(from==='chokepoint'?'⚠ Reserve empty — fill it on the Energy tab':'⚠ Reserve empty');return;}g.sprRelease=true;S.setSprRelease(true);fx.toast('🛢️ Releasing reserve');}
 function establishRegionEmbassy(g,S,fx,rid){const embassies=g.embassies;const d=DIP_TARGETS.find(x=>x.region===rid&&!embassies.has(x.id));if(d)establishEmbassy(g,S,fx,d.id);else fx.toast('No embassy candidate in this region');}
-function stationHunterKiller(g,S,fx,rid){if(!deployUnit(g,S,fx,rid,'ssnx'))deployUnit(g,S,fx,rid,'sub_fleet');}
 // Rival-hegemony lane: same bloc suspension, freeze and ally cost as the Trade toggle (ruling 7, #5). Add-only.
 function imposeSanctions(g,S,fx,cid){if(!g.sanctions.has(cid))toggleSanctions(g,S,fx,cid);}
 
@@ -800,7 +799,6 @@ export const VERBS={
   embargoBackChannel:(g,S,fx)=>embargoBackChannel(g,S,fx),
   releaseReserve:(g,S,fx,{from})=>releaseReserve(g,S,fx,from),
   establishRegionEmbassy:(g,S,fx,{region})=>establishRegionEmbassy(g,S,fx,region),
-  stationHunterKiller:(g,S,fx,{region})=>stationHunterKiller(g,S,fx,region),
   imposeSanctions:(g,S,fx,{nation})=>imposeSanctions(g,S,fx,nation),
   // economy
   setInterestRate:(g,S,fx,{rate})=>setInterestRate(g,S,fx,rate),
