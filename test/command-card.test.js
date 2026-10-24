@@ -15,16 +15,16 @@ test('commands: the region card has the eight v2 actions with their keys; escala
   assert.deepEqual(a.map((x) => x.id), ['deploy', 'station', 'influence', 'visit', 'sanction', 'embargo', 'intel', 'build']);
   assert.deepEqual(a.map((x) => x.key), ['A', 'S', 'D', 'F', 'Z', 'X', 'C', 'V']); assert.deepEqual(Object.values(REGION_KEYS), a.map((x) => x.key));
   const by = Object.fromEntries(a.map((x) => [x.id, x]));
-  assert.deepEqual(a.filter((x) => x.escalate).map((x) => x.id), ['sanction', 'embargo', 'intel'], 'sanction, embargo and intel escalate');
+  assert.deepEqual(a.filter((x) => x.escalate).map((x) => x.id), ['sanction', 'embargo'], 'sanctions and embargoes escalate; intelligence opens planning');
   for (const x of a.filter((x) => x.escalate)) assert.ok(x.confirm && x.confirm.title && x.confirm.label && x.confirm.lines.length, `${x.id} confirms`);
-  assert.equal(by.deploy.disabled, true); assert.match(by.deploy.reason, /No free units/);
+  assert.equal(by.deploy.disabled, false); assert.deepEqual(by.deploy.ui,{deploy:'WE'});
   assert.equal(by.visit.target, 'United Kingdom', 'best relations, not sanctioned'); assert.deepEqual(by.visit.dispatch, { type: 'stateVisit', payload: { nation: 'uk' } });
   assert.equal(by.influence.dispatch.payload.weight, 1); assert.deepEqual(by.station.ui, { site: 'rota' }); assert.deepEqual(by.build.ui, { build: true, site: 'rota' });
   assert.equal(by.sanction.target, 'Germany', 'the rival great power present'); assert.equal(by.embargo.dispatch.type, 'toggleEmbargo');
-  assert.equal(by.intel.dispatch.type, 'runIntelOp'); assert.equal(by.intel.dispatch.payload.op, 'influence', 'cheapest covert op');
+  assert.equal(by.intel.dispatch,undefined); assert.equal(by.intel.ui.jump.tab,'sitroom','choose the mission in planning');
   // state changes the card: units free the deploy, a sanction flips to lift (no longer escalatory), cooldown gates the visit, low extraction gates the embargo
   const b = Object.fromEntries(regionCommands(view({ platforms: { carrier_group: 2 }, sanctions: new Set(['germany']), actionCooldowns: { visit_uk: 4 }, resExtraction: { oil: 1 } }), 'WE').map((x) => [x.id, x]));
-  assert.equal(b.deploy.disabled, false); assert.deepEqual(b.deploy.dispatch, { type: 'adjustDeployment', payload: { region: 'WE', unit: 'carrier_group', delta: 1 } });
+  assert.equal(b.deploy.disabled, false); assert.equal(b.deploy.dispatch,undefined); assert.deepEqual(b.deploy.ui,{deploy:'WE'});
   assert.equal(b.sanction.label, 'Lift sanctions'); assert.equal(b.sanction.escalate, false); assert.equal(b.sanction.confirm, null);
   assert.equal(b.visit.disabled, true); assert.match(b.visit.reason, /cooldown 4mo/);
   assert.equal(b.embargo.disabled, true); assert.match(b.embargo.reason, /Extraction too low/);
@@ -64,7 +64,7 @@ test('App (jsdom): region card opens on selection; F visits, Z opens an orange c
     w.__wl.region('WE'); await flush(); await flush();
     const card = q('[data-command-card=region]'); assert.ok(card, 'region card'); assert.equal(card.dataset.placement, 'sheet', 'jsdom is narrow: the card tops the region sheet');
     assert.deepEqual(qa('[data-command-card=region] [data-cmd]').map((b) => b.dataset.key), ['A', 'S', 'D', 'F', 'Z', 'X', 'C', 'V']);
-    assert.deepEqual(qa('[data-command-card=region] [data-escalate=true]').map((b) => b.dataset.cmd), ['sanction', 'embargo', 'intel']);
+    assert.deepEqual(qa('[data-command-card=region] [data-escalate=true]').map((b) => b.dataset.cmd), ['sanction', 'embargo']);
     const visitTarget = q('[data-cmd=visit] .wl-cmd-t').textContent;
     await press('f');
     assert.match(q('[data-cmd=visit]').getAttribute('title') || '', /cooldown/i, `F dispatched the state visit to ${visitTarget}; the card now shows the cooldown`);
@@ -103,7 +103,7 @@ before(async () => { browser = await launch(); });
 after(async () => { await browser?.close(); });
 
 for (const [W, H] of [[1440, 900], [390, 844]]) {
-  test(`${W}px: the region card sits ${W >= 900 ? 'bottom-center over the map' : 'at the top of the region sheet'}, every action inside the viewport and tall enough to hit`, async () => {
+  test(`${W}px: region commands sit inside the active sheet; every action is visible and receives pointer input`, async () => {
     const { ctx, page, errors } = await openGame(browser, { svg: true, width: W, height: H });
     try {
       await page.evaluate(() => window.__wl.region('WE')); await settle(page, 800);
@@ -112,8 +112,9 @@ for (const [W, H] of [[1440, 900], [390, 844]]) {
       assert.ok(r.card, 'card rendered'); assert.equal(r.btns.length, 8);
       for (const b of r.btns) assert.ok(b.h >= 44 && b.x >= -0.5 && b.r <= W + 0.5, JSON.stringify(b));
       assert.ok(r.card.x >= -0.5 && r.card.r <= W + 0.5 && r.card.b <= H + 0.5, `card inside ${JSON.stringify(r.card)}`);
-      if (W >= 900) { assert.equal(r.placement, 'map'); const cx = (r.card.x + r.card.r) / 2, mx = (r.map.x + r.map.r) / 2; assert.ok(Math.abs(cx - mx) < 4, `centered on the map ${cx} vs ${mx}`); assert.ok(r.card.b <= r.map.b + 0.5 && r.card.b > r.map.y + r.map.h * 0.5, 'in the lower half of the map card'); }
-      else { assert.equal(r.placement, 'sheet'); assert.ok(r.card.y >= r.sheet.y - 0.5 && r.card.x >= r.sheet.x - 0.5, 'inside the sheet'); }
+      assert.equal(r.placement, 'sheet'); assert.ok(r.card.y >= r.sheet.y - 0.5 && r.card.x >= r.sheet.x - 0.5, 'inside the sheet');
+      const blocked=await page.locator('[data-command-card=region] [data-cmd]').evaluateAll(buttons=>buttons.filter(b=>{const r=b.getBoundingClientRect();return !b.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}).map(b=>b.dataset.cmd));
+      assert.deepEqual(blocked,[],'dialog overlay must not intercept theater commands');
       assert.deepEqual(errors, []);
     } finally { await ctx.close(); }
   });

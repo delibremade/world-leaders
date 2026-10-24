@@ -14,7 +14,7 @@ export function NationalPulse({ stats = {}, energyTier, spr, onJump }) {
     { id:'forces', icon:'⚑', label:'Defense', value:score(stats.military), unit:'Strength / 100', detail:'Readiness & deployment →', tone:c.system.forces },
   ];
   return <div className="wl-national-pulse" data-national-pulse aria-label="National overview">
-    {cards.map(x => <button type="button" key={x.id} data-pulse={x.id} style={{'--tone':x.tone}} onClick={() => onJump({tab:x.tab || x.id})}>
+    {cards.map(x => <button type="button" key={x.id} data-pulse={x.id} style={{'--tone':x.tone}} onClick={() => onJump({tab:x.tab || x.id,...(x.id==='forces'?{sub:'deployments'}:{})})}>
       <span className="wl-pulse-label"><i aria-hidden="true">{x.icon}</i>{x.label}<span>↗</span></span>
       <span className="wl-pulse-value">{x.value}<small>{x.unit}</small></span>
       <span className="wl-pulse-detail">{x.detail}</span>
@@ -36,7 +36,7 @@ export function QueueDeck({ rows, onJump }) {
       return <button type="button" key={lane.id} data-queue={lane.id} style={{'--tone':lane.color}} onClick={() => onJump(next?.jump || lane.jump)} title={next?.sub || lane.empty}>
         <span className="wl-queue-label">{lane.icon} {lane.label}<small>{items.length ? `${items.length} active` : 'Idle'}</small></span>
         <b>{next?.title || lane.empty}</b>
-        <span className="wl-queue-time">{next ? next.months != null ? `${Math.ceil(next.months)} ${Math.ceil(next.months) === 1 ? 'month' : 'months'} remaining` : next.sub : 'Open workspace →'}</span>
+        <span className="wl-queue-time">{next ? next.id.startsWith('supply_') ? `${next.sub} · Find supply →` : next.months != null ? `${Math.ceil(next.months)} ${Math.ceil(next.months) === 1 ? 'month' : 'months'} remaining` : next.sub : 'Open workspace →'}</span>
         {next?.pct != null && <progress value={Math.max(0,Math.min(1,next.pct))} max="1" aria-label={`${next.title} progress`}/>}
       </button>;
     })}
@@ -64,7 +64,7 @@ export function EnergySummary({ tier, spr, releasing, imports, disruptions, rout
     </div>
     <div className="wl-supply-routes" aria-label="Import transit routes">
       <span className="wl-eyebrow">Your supply routes</span>
-      {routeIds.map(id => {const cp=CHOKEPOINTS[id],status=chokeStatus[id]||'open';return <button key={id} data-supply-route={id} onClick={() => onMap(cp.region)} style={{'--tone':c.choke[status]}}><span className="wl-route-dot"/><b>{cp.n}</b><small>{status}</small><span>↗</span></button>;})}
+      {routeIds.map(id => {const cp=CHOKEPOINTS[id],status=chokeStatus[id]||'open';return <button key={id} data-supply-route={id} onClick={() => onMap(id)} style={{'--tone':c.choke[status]}}><span className="wl-route-dot"/><b>{cp.n}</b><small>{status}</small><span>↗</span></button>;})}
       {!routeIds.length && <span>No transit chokepoints for your home region.</span>}
     </div>
   </section>;

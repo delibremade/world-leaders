@@ -184,11 +184,11 @@ function Controls({ rows, v, dispatch, ask }) {
   </>;
 }
 
-export function MineralsTab({ sub, view, dispatch, onOpenNation }) {
+export function MineralsTab({ sub, view, dispatch, onOpenNation, initialMineral }) {
   const [act, setAct] = useState(null);
   const rows = mineralView(view);
   const body = sub === 'processing' ? <Processing rows={rows} dispatch={dispatch} /> : sub === 'stockpile' ? <Stockpile rows={rows} dispatch={dispatch} />
-    : sub === 'deals' ? <TradeDesk rows={rows} v={view} dispatch={dispatch} onOpenNation={onOpenNation} /> : sub === 'controls' ? <Controls rows={rows} v={view} dispatch={dispatch} ask={setAct} />
+    : sub === 'deals' ? <TradeDesk key={initialMineral||"all"} initialMineral={initialMineral} rows={rows} v={view} dispatch={dispatch} onOpenNation={onOpenNation} /> : sub === 'controls' ? <Controls rows={rows} v={view} dispatch={dispatch} ask={setAct} />
     : <Reserves rows={rows} v={view} dispatch={dispatch} />;
   const wide = useWide(); const md = sub === 'reserves' || sub === 'processing' || sub === 'stockpile' || !sub;
   return <div className={`wl-tabroot${wide && !md && sub!=='deals' ? ' wl-cols' : ''}`} data-minerals data-minerals-sub={sub}>{body}<ConfirmSheet act={act} onClose={() => setAct(null)} /></div>;

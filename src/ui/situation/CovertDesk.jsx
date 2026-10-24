@@ -6,9 +6,9 @@ import {interceptChance} from '../../sim/formulas.js';
 const money=n=>`$${n.toLocaleString('en-US')}M`;
 const pct=n=>`${Math.round(n*100)}%`;
 
-export function CovertDesk({g,dispatch,ask,onIntel}){
+export function CovertDesk({g,dispatch,ask,onIntel,initialTarget}){
  const targets=INTEL_TARGETS.filter(t=>t.id!==g.country.id).sort((a,b)=>(g.rivalTension[b.id]||0)-(g.rivalTension[a.id]||0));
- const [selected,setTarget]=useState(targets[0]?.id),[mission,setMission]=useState('tech_acq');
+ const [selected,setTarget]=useState(initialTarget||targets[0]?.id),[mission,setMission]=useState('tech_acq');
  const target=targets.find(t=>t.id===selected)||targets[0];
  const q=intelOrder(g,mission,target?.id),sweep=intelOrder(g,'counter_int',g.country.id);
  const posture=RESPONSE_POSTURES.find(p=>p.id===g.intelPosture)||RESPONSE_POSTURES[0];

@@ -1,6 +1,7 @@
 // F9b (#57): the build sheet for one site. Who is here, what each node of yours reaches, and one 44px row per node type the site
 // allows; a row opens the confirm sheet (cost and consequences) and the confirm dispatches buildNode. Private ports show F5's levers.
 // Zero game logic: everything comes from siteView / basesView (src/sim/bases.js) and the lever table (src/data/minerals.js).
+import { DeploymentOrders } from './DeploymentOrders.jsx';
 import { NATIONS } from '../../data/nations.js';
 import { REGIONS } from '../../data/regions.js';
 import { CHOKEPOINTS } from '../../data/chokepoints.js';
@@ -22,7 +23,7 @@ export function buildLines(site, opt, pid) {
   return lines;
 }
 
-export function SiteSheet({ g, site, country, dispatch, ask, onNation }) {
+export function SiteSheet({ g, site, country, dispatch, ask, onNation, onJump }) {
   if (!site) return null;
   const pid = country?.id; const c = site.consent;
   const chips = [[`${REGIONS[site.region]?.n || site.region}`, ''], site.host && site.host !== pid ? null : [`Host: ${site.hostName}`, site.host === pid ? 'command' : ''],
@@ -30,6 +31,7 @@ export function SiteSheet({ g, site, country, dispatch, ask, onNation }) {
     ...site.chokes.map((k) => [`⚓ ${CHOKEPOINTS[k].n}`, 'command'])].filter(Boolean);
   return (
     <div data-site-sheet={site.id}>
+      <DeploymentOrders key={site.id} g={g} region={site.region} dispatch={dispatch} onJump={onJump}/>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 8 }}>{site.host && site.host !== pid && <button type="button" className="wl-chip wl-chip-command" data-host-nation={site.host} title={`Open ${site.hostName}: relations, basing agreement, state visit`} onClick={() => onNation?.(site.host)}>Host: {site.hostName} ›</button>}{chips.map(([l, k]) => <span key={l} className={`wl-chip${k ? ' wl-chip-' + k : ''}`}>{l}</span>)}</div>
       <div className="wl-note" style={{ marginBottom: 8 }}>{site.status_source}</div>
       {site.nodes.length > 0 && <div className="wl-label" style={{ margin: '6px 0 2px' }}>Nodes here</div>}

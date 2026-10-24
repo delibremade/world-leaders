@@ -1,6 +1,7 @@
 // Arsenal vertical (E5b, spec Part 8): the industrial side of defense. Programs | Procurement | Supply | Partnerships |
 // Exports | Deterrence. State is read through programView, programSupply, accessView (the verbs' own rules); no game logic here.
-import { useState } from 'react';
+import { canStation } from '../../data/deployment-catalog.js';
+import { useEffect, useState } from 'react';
 import { Seg } from '../shell/Seg.jsx';
 import { DataTable } from '../shell/DataTable.jsx';
 import { useWide } from '../shell/useWide.js';
@@ -23,7 +24,7 @@ export const ARSENAL_SUBS = [
 const stageName = (k) => STAGES.find(([x]) => x === k)?.[1];
 const mn = (m) => MINERALS[m]?.n || m;
 
-function ProgramCard({ r, v, dispatch }) {
+function ProgramCard({ r, v, dispatch, onJump }) {
   const { sapOffice, blackResearch, arsenal, defLevels } = v;
   const bid = r.id, bp = r.bp, n = r.n; const slotN = SLOTS.find(([k]) => k === r.slot)?.[1]; const live = r.action === 'produce'; const waiting = r.action === 'wait';
   const d = arsenal.dev?.[bid]; const rs = blackResearch?.id === bid ? blackResearch : null; const prog = d ? d.prog / d.mo : rs ? rs.prog / rs.mo : 0;
@@ -41,6 +42,8 @@ function ProgramCard({ r, v, dispatch }) {
       <button type="button" className="wl-btn wl-btn-primary" style={r.block ? { opacity: 0.55 } : undefined} aria-disabled={!!r.block} onClick={() => dispatch({ type: 'sapTranche', payload: { program: bid } })}>
         {n > 0 ? `🏭 Tranche #${n + 1} — $${r.cost}M${/industrial base/.test(r.block || '') ? ' · needs Materials L4' : ''}` : `🏭 Produce ${bp.n} — $${r.cost}M`}</button>
       {r.block && <div className="wl-note" data-tone="alert">{r.block}</div>}
+      {sp.binding&&<button className="wl-btn" data-program-supply={bid} onClick={()=>onJump({tab:"resources",sub:"deals",mineral:sp.binding})}>Secure {mn(sp.binding)} supply →</button>}
+      {n>0&&canStation(v.country?.id,bid)&&<button className="wl-btn" onClick={()=>onJump({tab:"forces",sub:"deployments",unit:bid})}>Deployment & assignments →</button>}
     </>}
     {!live && !waiting && (!sapOffice ? <div className="wl-note">🔒 Needs the SAP office · ${(r.cost / 1000).toFixed(1)}B · {r.months}mo</div>
       : <><button type="button" className="wl-btn wl-btn-primary" style={r.block ? { opacity: 0.55 } : undefined} aria-disabled={!!r.block} onClick={() => dispatch({ type: 'sapInitiate', payload: { program: bid } })}>
@@ -49,7 +52,7 @@ function ProgramCard({ r, v, dispatch }) {
   </Panel>;
 }
 
-function Programs({ v, dispatch, onConventional }) {
+function Programs({ v, dispatch, onConventional, onJump }) {
   const wide = useWide(); const [sel, setSel] = useState(null);
   const rows = programView(v); const { sapOffice, blackResearch, arsenal, defLevels, blackPrograms, stats } = v;
   const by = Object.fromEntries(STAGES.map(([k]) => [k, rows.filter((r) => r.stage === k).length]));
@@ -82,13 +85,13 @@ function Programs({ v, dispatch, onConventional }) {
     ];
     return <div className="wl-md" data-master-detail="programs">
       <div>{pipeline}<DataTable id="programs" label="Programs" title="Programs" columns={cols} rows={rows} rowId={(r) => r.id} selected={cur?.id} onSelect={setSel} /></div>
-      <div data-catalog={v.country?.id} data-detail="programs">{cur ? <ProgramCard key={cur.id} r={cur} v={v} dispatch={dispatch} /> : <div className="wl-detail-empty">No programs.</div>}</div>
+      <div data-catalog={v.country?.id} data-detail="programs">{cur ? <ProgramCard key={cur.id} r={cur} v={v} dispatch={dispatch} onJump={onJump} /> : <div className="wl-detail-empty">No programs.</div>}</div>
     </div>;
   }
   return <>
     {pipeline}
     <div data-catalog={v.country?.id} className="wl-stack">
-      {rows.map((r) => <ProgramCard key={r.id} r={r} v={v} dispatch={dispatch} />)}
+      {rows.map((r) => <ProgramCard key={r.id} r={r} v={v} dispatch={dispatch} onJump={onJump} />)}
     </div>
   </>;
 }
@@ -100,7 +103,7 @@ function Supply({ v, onJump }) {
   return <>
     <Panel id="supply-sum" title="Mineral supply" figure={blocked.length ? `${blocked.length} controlled` : 'open'} tone={blocked.length ? 'alert' : 'good'}>
       {blocked.length ? blocked.map((m) => <Row key={m.id} title={`${m.i} ${m.n}`} sub={`${m.controlledBy.join(', ')} control exports to you`} tone="alert" value="⛔" />) : <div className="wl-note">No supplier is controlling exports to you.</div>}
-      <button type="button" className="wl-btn wl-btn-primary" style={{ marginTop: 8 }} onClick={() => onJump('resources')} data-jump="resources">Open Resources: processing, stockpile, deals ›</button>
+      <button type="button" className="wl-btn wl-btn-primary" style={{ marginTop: 8 }} onClick={() => onJump({tab:'resources',sub:'deals'})} data-jump="resources">Open Resources: processing, stockpile, deals ›</button>
     </Panel>
     {['program', 'platform'].map((kind) => <Panel key={kind} id={`supply_${kind}`} title={kind === 'program' ? 'Programs: inputs and coverage' : 'Platforms: inputs and coverage'} figure={units.filter((u) => u.kind === kind).length}>
       {units.filter((u) => u.kind === kind).map((u) => {
@@ -108,6 +111,7 @@ function Supply({ v, onJump }) {
         return <Row key={u.id} data-supply-row={u.id} title={u.name} sub={`${Object.entries(inputsOf(u.id)).map(([m, n]) => `${MINERALS[m].i}${n}`).join(' ')} per ${kind === 'program' ? 'tranche' : 'unit'}${sp.binding ? ` · binding: ${mn(sp.binding)}` : ''}${q.length ? ` · ⏳ ${q.length} queued ~${q[0].months === Infinity ? '∞' : q[0].months}mo` : ''}`}
           value={<WhyV title={`${u.name} coverage`} fmt={(x) => `${x.toFixed(0)}%`} terms={sp.rows.map((r) => ({ label: `${mn(r.m)} (need ${r.need})`, value: Math.round(r.cov * 100) }))} total={pct} note="Coverage is the scarcest input: (stock + a month's inflow) / need.">{pct}%</WhyV>} tone={tone(pct, 50, 100)}>
           <Bar pct={pct} tone={tone(pct, 50, 100)} />
+          {sp.binding&&<button className="wl-btn" data-resolve-supply={u.id} onClick={()=>onJump({tab:"resources",sub:"deals",mineral:sp.binding})}>Secure {mn(sp.binding)} supply →</button>}
         </Row>;
       })}
     </Panel>)}
@@ -140,13 +144,14 @@ function Deterrence({ v }) {
   </>;
 }
 
-export function ArsenalTab({ sub, onSub, view, dispatch, toast, onJump, exportVert, onExportVert }) {
-  const [platform,setPlatform]=useState(null);
+export function ArsenalTab({ sub, onSub, view, dispatch, toast, onJump, exportVert, onExportVert, initialPlatform }) {
+  const [platform,setPlatform]=useState(initialPlatform||null);
+  useEffect(()=>setPlatform(initialPlatform||null),[initialPlatform]);
   const conventional=id=>{setPlatform(id);onSub('procurement');};
   const wide = useWide();
-  const body = sub === 'procurement' ? <Procurement v={view} dispatch={dispatch} initialPlatform={platform}/> : sub === 'supply' ? <Supply v={view} onJump={onJump} />
+  const body = sub === 'procurement' ? <Procurement key={platform||"catalog"} v={view} dispatch={dispatch} initialPlatform={platform} onJump={onJump}/> : sub === 'supply' ? <Supply v={view} onJump={onJump} />
     : sub === 'partnerships' ? <Partnerships v={view} dispatch={dispatch} /> : sub === 'exports' ? <Exports v={view} dispatch={dispatch} vert={exportVert} onVert={onExportVert} />
-    : sub === 'deterrence' ? <Deterrence v={view} /> : <Programs v={view} dispatch={dispatch} onConventional={conventional}/>;
+    : sub === 'deterrence' ? <Deterrence v={view} /> : <Programs v={view} dispatch={dispatch} onConventional={conventional} onJump={onJump}/>;
   return (
     <div className="wl-pane-wrap" data-sentinel="arsenal">
       <Seg id="arsenal" label="Arsenal" items={ARSENAL_SUBS} active={sub} onSelect={onSub} cols={3} />

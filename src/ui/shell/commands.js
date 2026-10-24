@@ -3,10 +3,7 @@
 // actions.js verb it dispatches. Nothing here computes a rule: gates are quoted from the verbs, which still enforce
 // them. runCommand() is the one place a card's action turns into a dispatch, a UI side effect or a confirm sheet.
 import { deploymentOptions } from '../../sim/deployment-view.js';
-import { unitMeta } from '../../data/deployment-catalog.js';
 import { NATIONS, DIP_TARGETS, INTEL_TARGETS } from '../../data/nations.js';
-import { INTEL_OPS } from '../../data/intel.js';
-import { PLATFORMS, BLACK_PROGRAMS, DEPLOYABLE } from '../../data/platforms.js';
 import { SITES, NODE_TYPES } from '../../data/bases.js';
 import { REGIONS } from '../../data/regions.js';
 import { SECTOR_LABELS } from '../../data/economy.js';
@@ -25,8 +22,6 @@ const partnerIn = (v, rid) => DIP_TARGETS.filter((d) => d.region === rid && d.id
 // The adversary here: a rival great power present in the region, else the nation you get on worst with.
 const adversaryIn = (v, rid) => { const ids = nationsIn(v, rid); return ids.find((n) => isRival(v, n)) || ids.sort((a, b) => rel(v, a) - rel(v, b))[0] || null; };
 const intelTargetIn = (v, rid) => INTEL_TARGETS.filter((t) => t.region === rid && t.id !== v.country?.id).sort((a, b) => rel(v, a.id) - rel(v, b.id))[0]?.id || null;
-const owned = (v, pid) => (BLACK_PROGRAMS[pid] ? +(v.blackPrograms?.[pid] || 0) : (v.platforms?.[pid] || 0) + (v.platformsImported?.[pid] || 0));
-const deployedOf = (v, pid) => Object.values(v.forceDeployments || {}).reduce((a, r) => a + ((r && r[pid]) || 0), 0);
 export const freeUnit = v => deploymentOptions(v).find(u=>u.free>0&&!u.reason)?.id||null;
 const sitesIn = (rid) => Object.entries(SITES).filter(([, s]) => s.region === rid).map(([id]) => id);
 const myNodeAt = (v, sid) => (v.bases?.nodes || []).some((n) => n.site === sid && n.owner === v.country?.id);
@@ -37,17 +32,14 @@ const act = (id, keys, icon, label, rest) => ({ id, key: keys[id], icon, label, 
 export function regionCommands(v, rid) {
   if (!rid || !REGIONS[rid]) return [];
   const K = REGION_KEYS; const region = REGIONS[rid].n;
-  const unit = freeUnit(v); const unitName = unit ? unitMeta(unit).n : null;
   const partner = partnerIn(v, rid); const adversary = adversaryIn(v, rid); const spy = intelTargetIn(v, rid);
   const sites = sitesIn(rid); const stationSite = sites.find((s) => myNodeAt(v, s)) || sites[0] || null; const buildSite = sites.find((s) => !myNodeAt(v, s)) || sites[0] || null;
   const sanctioned = adversary ? v.sanctions?.has(adversary) : false; const embargoed = adversary ? v.embargoes?.has(adversary) : false;
   const canEmbargo = (v.resExtraction?.oil || 0) >= 2 || (v.resExtraction?.gas || 0) >= 2;
-  const running = new Set((v.intelOps || []).filter((o) => o.targetId === spy).map((o) => o.opId));
-  const op = spy ? INTEL_OPS.filter((o) => o.type !== 'defensive').sort((a, b) => a.cost - b.cost).find((o) => !running.has(o.id)) || null : null; // counter-intel is run at home, not against a target
   const infl = partner ? (v.influenceAlloc?.[partner] || 0) : 0;
   const visitCd = partner ? cd(v, `visit_${partner}`) : 0;
   return [
-    act('deploy', K, '🪖', 'Deploy', { target: unitName ? `${unitName} → ${region}` : region, hint: '+1 unit here · +0.12 sphere/mo · $4M/mo basing', disabled: !unit, reason: unit ? '' : 'No free units: build or recall first', dispatch: unit ? { type: 'adjustDeployment', payload: { region: rid, unit, delta: 1 } } : null }),
+    act('deploy', K, '🪖', 'Deploy / recall', { target: region, hint: 'Choose the force package, review availability and set its mission', ui: {deploy:rid} }),
     act('station', K, '◎', 'Station base', { target: stationSite ? SITES[stationSite].n : 'no site', hint: 'Open the site: nodes here and what you can build', disabled: !stationSite, reason: stationSite ? '' : 'No base site in this region', ui: stationSite ? { site: stationSite } : null }),
     act('influence', K, '📡', 'Influence', { target: partner ? `${nationName(partner)} · weight ${infl} → ${Math.min(3, infl + 1)}` : 'no partner', hint: 'Raise the influence weight one step (from the pool)', disabled: !partner || infl >= 3, reason: !partner ? 'No diplomatic target here' : infl >= 3 ? 'Already at the top weight' : '', dispatch: partner ? { type: 'setInfluence', payload: { nation: partner, weight: Math.min(3, infl + 1) } } : null }),
     act('visit', K, '🤝', 'State visit', { target: partner ? nationName(partner) : 'no partner', hint: '$150M · relations +8 · 6-month cooldown', disabled: !partner || visitCd > 0 || money(v) < 150, reason: !partner ? 'No diplomatic target here' : visitCd > 0 ? `On cooldown ${visitCd}mo` : money(v) < 150 ? 'Need $150M' : '', dispatch: partner ? { type: 'stateVisit', payload: { nation: partner } } : null }),
@@ -55,8 +47,7 @@ export function regionCommands(v, rid) {
       confirm: adversary && !sanctioned ? { title: `Impose sanctions on ${nationName(adversary)}`, cost: 'trade income with them stops', label: 'Impose sanctions', lines: ['Relations fall and their bloc hardens. An ally costs −10 standing, a bloc reset and a 12-month freeze (ruling 7).', 'Lift them from this card or the nation sheet at any time.'] } : null }),
     act('embargo', K, '⛽', embargoed ? 'Lift embargo' : 'Embargo', { escalate: !embargoed, target: adversary ? nationName(adversary) : 'no nation', hint: 'Needs oil or gas extraction ≥2 · price ×1.15, your volume ×0.8 · they may embargo back', disabled: !adversary || (!embargoed && !canEmbargo), reason: !adversary ? 'No nation here' : !embargoed && !canEmbargo ? 'Extraction too low to embargo (need oil or gas ≥2)' : '', dispatch: adversary ? { type: 'toggleEmbargo', payload: { nation: adversary } } : null,
       confirm: adversary && !embargoed ? { title: `Energy embargo on ${nationName(adversary)}`, cost: 'your export volume ×0.8', label: 'Declare embargo', lines: ['Their import price ×1.15 and tension rises. They may answer with an embargo of their own.', 'Lift it from this card or the nation sheet at any time.'] } : null }),
-    act('intel', K, '🕵️', 'Intel op', { escalate: true, target: spy && op ? `${op.i} ${op.n} → ${nationName(spy)}` : spy ? nationName(spy) : 'no target', hint: 'Cheapest op not already running against the target; odds on the nation sheet', disabled: !spy || !op || money(v) < op.cost, reason: !spy ? 'No intel target here' : !op ? 'Every op is already running' : money(v) < op.cost ? `Need $${op.cost}M` : '', dispatch: spy && op ? { type: 'runIntelOp', payload: { op: op.id, nation: spy } } : null,
-      confirm: spy && op ? { title: `${op.n} against ${nationName(spy)}`, cost: `$${op.cost}M · ${op.mo} months`, label: 'Launch', lines: ['Discovery triggers an intelligence crisis; an ally found out costs more than an adversary.', 'Success odds and exposure are on the nation sheet (tap a figure for the why).'] } : null }),
+    act('intel', K, '🕵️', 'Plan intel', { target: spy ? nationName(spy) : 'no target', hint: 'Choose a mission in Situation Room; review its requirements, cost and consequences', disabled: !spy, reason: spy ? '' : 'No foreign intelligence target here', ui: spy ? {jump:{tab:'sitroom',target:spy}} : null }),
     act('build', K, '🏗️', 'Build node', { target: buildSite ? SITES[buildSite].n : 'no site', hint: buildSite ? `Build mode on, then ${SITES[buildSite].types.map((t) => NODE_TYPES[t].n).join(' / ')}` : '', disabled: !buildSite, reason: buildSite ? '' : 'No candidate site in this region', ui: buildSite ? { build: true, site: buildSite } : null }),
   ];
 }
