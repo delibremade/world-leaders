@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.94.0 (2026-10-24) — Deployable starting forces and a usable trade desk
+- Desktop activity rail shows complete summaries; full briefings and response choices open in the existing accessible reader.
+- Fleet readiness and deployment share trained personnel. Existing saves migrate from the obsolete crew-set cap using their real manpower allocation; training classes scale with the force, retain their lead times, and remain bounded by active personnel.
+- Existing order-of-battle aircraft, ships and formations deploy from the map and selected fleet type. Packages retain their real identities and move the same physical inventory.
+- Foreign regional flashpoints exclude the home theater; invalid old home crises clear without a rival penalty. Regional influence is labeled as diplomatic alignment rather than domestic sovereignty.
+- F/A-XX acquisition is linked from Programs, searchable in Procurement, and exposes development, mineral delivery and deployment. Engine gates prevent duplicate development and production before the first article.
+- Mineral trade compares every processor for the selected mineral, including smaller suppliers, with real contract terms and shared restriction checks. Active contracts, production needs, secure supply, the allied pact and diplomacy are accessible together.
+- Regression checks exposed premature random selection of queued follow-ups; queued events now respect their scheduled chain. Five deterministic replay goldens updated for the intentional mechanics changes; no prefix or verb checks relaxed.
+
 ## 0.93.1 (2026-10-24) — Decisions get room to read
 - Mandatory doctrine selection moves out of the narrow Cards rail into a dedicated, keyboard-accessible decision dialog. Desktop shows all four choices together, with each benefit and tradeoff stated once. Change nation remains available.
 - Every ongoing event, cabinet decision and ready brief can open in a full-size reader. The clock holds while reading; existing actions and requirements are preserved, and the map stays in place.

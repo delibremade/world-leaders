@@ -191,6 +191,18 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
 .wl-mv-swatch{width:11px;height:11px;border-radius:2px;border:1px solid}
 .wl-mv-glyphs{color:${c.text.dim};flex-basis:100%}
 .wl-mv-hint{font-size:${SIZE.caption}px;color:${c.text.dim};margin-top:${SPACE[2]}px}
+
+.wl-field{display:grid;gap:6px;margin:10px 0;font-size:12px;color:#b8c7d8}
+.wl-field input,.wl-field select{width:100%;min-width:0;box-sizing:border-box;padding:10px;background:#101c2b;color:#e6edf5;border:1px solid #344860;border-radius:6px;font:inherit}
+.wl-trade-desk{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-width:0}
+.wl-trade-desk>*{min-width:0}
+.wl-trade-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:14px 0}
+.wl-trade-metrics b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.wl-trade-metrics small{display:block;margin-top:5px;line-height:1.4;color:#a8b9cb}
+.wl-acquisition-path{display:grid;gap:6px;margin:10px 0;padding:12px;background:#152a3e;border-left:3px solid #5cb8ed}
+.wl-procurement-station{display:grid;gap:8px;margin-top:14px}
+.wl-map-posture select{width:100%;min-width:0;max-width:100%}
+@media (min-width:1200px){.wl-trade-desk{grid-template-columns:minmax(0,1.3fr) minmax(275px,1fr)}}
 @media (min-width:${BREAK.tablet}px){
   .wl-mv-dock{position:absolute;right:${SPACE[3]}px;bottom:${SPACE[3]}px;z-index:2;margin:0;display:flex;background:${c.bg.panel}e6;box-shadow:0 8px 24px rgba(0,0,0,.6)}
   .wl-mv-dock button{min-width:56px;padding:${SPACE[2]}px ${SPACE[2]}px}

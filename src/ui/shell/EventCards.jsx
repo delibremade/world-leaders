@@ -69,7 +69,12 @@ export function EventCards({ dock = false, focus = null, doctrine, activeDecisio
       <button type="button" className="wl-btn" onClick={() => onOpenBrief(b.type)}>Open brief · {b.n} options</button>
     </div>);
   const selected = cards.find(card => card.key === expanded);
-  const readable = cards.map(card => cloneElement(card, {}, ...[card.props.children].flat().flatMap(child => child?.type === 'h4' ? [child, <button key="review" type="button" className="wl-card-review" data-review-card={card.key} onClick={() => setExpanded(card.key)}>Read full card ↗</button>] : [child])));
+  const readable = cards.map(card => {
+    const children=[card.props.children].flat();
+    const review=<button key="review" type="button" className="wl-card-review" data-review-card={card.key} onClick={()=>setExpanded(card.key)}>Read full card · choose response ↗</button>;
+    if(dock)return cloneElement(card,{'data-card-summary':true},...children.filter(child=>child?.type==='h4'||child?.props?.className==='wl-label'),review);
+    return cloneElement(card,{},...children.flatMap(child=>child?.type==='h4'?[child,review]:[child]));
+  });
   return <>
     {!doctrine && <DoctrineChoice country={country} dispatch={dispatch} onBack={onBack}/>}
     <div ref={root} className={dock ? 'wl-cards wl-dock' : 'wl-cards'} data-event-cards data-dock={dock || undefined} data-dock-count={dock ? cards.length : undefined}>

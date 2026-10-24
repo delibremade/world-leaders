@@ -34,7 +34,7 @@ export const DECISION_WHY = {
   controls_review: (c) => `${c.g.minerals.controls.length} export control(s) in force`,
   processing_pact_offer: (c) => { const t = tightest(c.g); return squeezed(c.g) ? `${mineralName(squeezed(c.g))} is being withheld from you` : `${mineralName(t.m)} is tight and ${rival(c)}`; },
   pay_dispute: (c) => `Retention ${n0(c.g.forces.retention)}%, pay at ${n0(c.g.personnelPay ?? 100)}%`,
-  crew_shortfall: (c) => { const b = Object.entries(crewStatus(c.g)).find(([, s]) => s.gap > 0); return `${cap1(b?.[0])} is ${n0(b?.[1].gap)} crew short of its hulls`; },
+  crew_shortfall: (c) => { const b = Object.entries(crewStatus(c.g)).find(([, s]) => s.gap > 0); return `${cap1(b?.[0])} is ${n0(b?.[1].gap)} crew and maintenance personnel short of its fleet`; },
   quality_warning: (c) => `Force quality ${n0(c.g.forces.quality)}, below 48`,
   joint_exercise: (c) => `${c.g.defensePacts?.size || 0} defense pact(s) and readiness down to ${n0(lowestReadiness(c.g))}`,
   sof_raid: (c) => `${rival(c)} and ${sofFree(c.g.forces, 1)} Tier-1 sub-unit(s) free`,

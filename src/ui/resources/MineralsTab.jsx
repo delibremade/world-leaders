@@ -1,3 +1,4 @@
+import { TradeDesk } from './TradeDesk.jsx';
 // Resources > minerals (E5c, spec Part 3 + Part 8): Reserves | Processing | Stockpile | Deals | Controls. Processing shows private builds and levers (F5, #37).
 // Every row comes from mineralView / mineralFlows (the month's own rules). The v57 rare-earth export extraction lives
 // on the Reserves screen next to the rare-earth ore it is not to be confused with.
@@ -159,50 +160,6 @@ function Stockpile({ rows, dispatch }) {
   </Panel>;
 }
 
-function Deals({ rows, v, dispatch }) {
-  const nb = NATIONS[v.country?.id]?.bloc; const canPact = nb === 'west' || nb === 'east'; const pact = v.minerals?.pact;
-  const wide = useWide();
-  const deals = rows.flatMap((r) => r.deals.map((d) => ({ ...d, r })));
-  const pactPanel = (
-    canPact && <Panel id="pact" title="Allied processing pact" figure={pact ? 'active' : 'off'} tone={pact ? 'good' : undefined}>
-      <button type="button" className={`wl-btn ${pact ? 'wl-btn-warn' : 'wl-btn-primary'}`} style={{ width: '100%' }} onClick={() => dispatch({ type: 'toggleProcessingPact', payload: {} })}>{pact ? `🤝 Processing pact active · $${R.pact.cost}M/mo — end` : `🤝 Processing pact · bloc partners supply you first — $${R.pact.cost}M/mo`}</button>
-      <div className="wl-note">Bloc partners sell you ×{R.pact.share} their open-market share and never control exports against you.</div>
-    </Panel>
-  );
-  const dealsPanel = (
-    <Panel id="deals" title="Offtake deals" figure={deals.length}>
-      {deals.length === 0 && <div className="wl-note">No offtake deals. Sign one from Available partners: a fixed {R.offtake.term}-month supply at a relation-priced rate.</div>}
-      {deals.map((d) => <Row key={`${d.m}_${d.n}`} data-deal={`${d.m}_${d.n}`} title={`📄 ${d.r.n} · ${d.name}`} sub={`${d.units}/mo · ${d.mo}mo left${d.paused ? ' · paused: they control exports' : ''}`} value={`$${d.price}M/mo`} tone={d.paused ? 'alert' : undefined}
-        trailing={<button type="button" className="wl-btn wl-btn-alert" onClick={() => dispatch({ type: 'cancelOfftake', payload: { mineral: d.m, nation: d.n } })}>Cancel</button>} />)}
-    </Panel>
-  );
-  const partnersPanel = (
-    <Panel id="partners" title="Available partners" figure={rows.reduce((a, r) => a + r.partners.length, 0)}>
-      {rows.map((r) => <Row key={r.id} data-mineral={r.id} title={`${r.i} ${r.n}`} sub={r.partners.length ? undefined : 'No willing processor (none refines it, or all control exports)'} stack>
-        <div className="wl-row" style={{ flexWrap: 'wrap', marginTop: 4 }}>{r.partners.map((pn) => <button key={pn.id} type="button" className="wl-btn wl-btn-primary" onClick={() => dispatch({ type: 'signOfftake', payload: { mineral: r.id, nation: pn.id } })}>📄 Offtake · {pn.n} {pn.units}/mo ${pn.price}M/mo</button>)}</div>
-      </Row>)}
-    </Panel>
-  );
-  if (wide) {
-    const pr = rows.flatMap((r) => r.partners.map((pn) => ({ r, pn })));
-    const cols = [
-      { id: 'n', label: 'Mineral', get: (x) => x.r.n, cell: (x) => `${x.r.i} ${x.r.n}` },
-      { id: 'who', label: 'Partner', get: (x) => x.pn.n },
-      { id: 'u', label: 'Units /mo', num: true, get: (x) => x.pn.units },
-      { id: 'price', label: 'Price', num: true, get: (x) => x.pn.price, cell: (x) => `$${x.pn.price}M/mo` },
-      { id: 'act', label: '', get: (x) => x.pn.n, cell: (x) => <button type="button" className="wl-btn wl-btn-sm wl-btn-primary" onClick={() => dispatch({ type: 'signOfftake', payload: { mineral: x.r.id, nation: x.pn.id } })}>📄 Offtake · {x.pn.n}</button> },
-    ];
-    return <div className="wl-md" data-master-detail="deals">
-      <div><DataTable id="partners" label="Available partners" title="Available partners" columns={cols} rows={pr} rowId={(x) => `${x.r.id}_${x.pn.id}`} />{rows.filter((r) => !r.partners.length).map((r) => <div key={r.id} className="wl-note">{r.i} {r.n}: no willing processor (none refines it, or all control exports)</div>)}</div>
-      <div data-detail="deals">{pactPanel}{dealsPanel}</div>
-    </div>;
-  }
-  return <>
-    {pactPanel}
-    {dealsPanel}
-    {partnersPanel}
-  </>;
-}
 
 function Controls({ rows, v, dispatch, ask }) {
   const rivals = Object.keys(v.globalDef).filter((id) => id !== v.country?.id && NATIONS[id]);
@@ -227,12 +184,12 @@ function Controls({ rows, v, dispatch, ask }) {
   </>;
 }
 
-export function MineralsTab({ sub, view, dispatch }) {
+export function MineralsTab({ sub, view, dispatch, onOpenNation }) {
   const [act, setAct] = useState(null);
   const rows = mineralView(view);
   const body = sub === 'processing' ? <Processing rows={rows} dispatch={dispatch} /> : sub === 'stockpile' ? <Stockpile rows={rows} dispatch={dispatch} />
-    : sub === 'deals' ? <Deals rows={rows} v={view} dispatch={dispatch} /> : sub === 'controls' ? <Controls rows={rows} v={view} dispatch={dispatch} ask={setAct} />
+    : sub === 'deals' ? <TradeDesk rows={rows} v={view} dispatch={dispatch} onOpenNation={onOpenNation} /> : sub === 'controls' ? <Controls rows={rows} v={view} dispatch={dispatch} ask={setAct} />
     : <Reserves rows={rows} v={view} dispatch={dispatch} />;
   const wide = useWide(); const md = sub === 'reserves' || sub === 'processing' || sub === 'stockpile' || !sub;
-  return <div className={`wl-tabroot${wide && !md ? ' wl-cols' : ''}`} data-minerals data-minerals-sub={sub}>{body}<ConfirmSheet act={act} onClose={() => setAct(null)} /></div>;
+  return <div className={`wl-tabroot${wide && !md && sub!=='deals' ? ' wl-cols' : ''}`} data-minerals data-minerals-sub={sub}>{body}<ConfirmSheet act={act} onClose={() => setAct(null)} /></div>;
 }

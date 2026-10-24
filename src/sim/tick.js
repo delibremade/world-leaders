@@ -1,3 +1,4 @@
+import { foreignFlashpoint, flashpointEligible } from './flashpoints.js';
 import { importCost } from './energy-view.js';
 import { applyAction } from './actions.js';
 import { renewableTotal, oilPriceTerms, influencePool, influenceGain, compliance, variantEff, opOdds, opOddsTerms } from './selectors.js';
@@ -958,6 +959,7 @@ function counterIntel(g,S,fx,m){
 function world(g,S,fx,m){
   const {c,ns,led}=m;
   // Regional flashpoints: spawn, count down, auto-resolve against player if ignored
+  if(g.flashpoint&&!foreignFlashpoint(g.flashpoint,g.country.id)){g.flashpoint=null;S.setFlashpoint(null);}
   if(g.flashpoint){
     const nt=g.flashpoint.t-1;
     if(nt<=0){
@@ -970,11 +972,11 @@ function world(g,S,fx,m){
       g.flashpoint=null;S.setFlashpoint(null);
     } else {g.flashpoint={...g.flashpoint,t:nt};S.setFlashpoint({...g.flashpoint});}
   } else if(g.gracePeriod<=0&&rng()<0.08){
-    const rids=Object.keys(REGIONS).filter(r=>{const pv=g.sphere[r]?.player||0;return pv>15&&pv<75;});
+    const rids=Object.keys(REGIONS).filter(r=>flashpointEligible(g,r));
     if(rids.length){
       const rid=rids[Math.floor(rng()*rids.length)];
       const types=Object.keys(FLASHPOINTS);const type=types[Math.floor(rng()*types.length)];
-      const fp={rid,type,t:6+(g.intelInfra.isr_fusion?3:0)+responseAt(g,rid)};g.flashpoint=fp; // F9c: bases in reach buy response timeS.setFlashpoint(fp);
+      const fp={rid,type,t:6+(g.intelInfra.isr_fusion?3:0)+responseAt(g,rid)};g.flashpoint=fp;S.setFlashpoint(fp); // Bases in reach buy response time.
       fx.toast(`${FLASHPOINTS[type].i} ${FLASHPOINTS[type].n} — ${REGIONS[rid].n}. Respond on the map.`);
       S.setLog(p=>[{msg:`${FLASHPOINTS[type].i} ${FLASHPOINTS[type].n}: ${REGIONS[rid].n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
     }

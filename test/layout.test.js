@@ -63,7 +63,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
         reserves: [/Ore reserves/, /\d+y to zero|100y\+ to zero|unrefined|—/, /t REO\/yr refined/, /USGS MCS 2025/, /Rare earths · export extraction/, /Revenue/],
         processing: [/Processing capacity/, /Mountain Pass, CA/, /Seadrift, TX/, /t REO\/yr ≈ 2% of world/, /Private plant|not profitable/, /DPA \$\d+M/, /Offtake \$\d+M/, /Recycle/, /Gallium/],
         stockpile: [/Stockpile and reserve/, /kSWU/, /Buy reserve/, /Release reserve|Hold reserve/],
-        deals: [/Offtake deals/, /Available partners/, /Offtake · /, /Processing pact/],
+        deals: [/Active contracts/, /suppliers/, /Sign offtake/, /Processing pact/],
         controls: [/Your export controls/, /Controls against you/, /Rival impact/, /Export control/],
         natural: [/Natural Resource Management/, /Crude Oil/, /Renewable Energy/],
       };

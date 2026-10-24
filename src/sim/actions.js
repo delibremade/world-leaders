@@ -67,13 +67,18 @@ function deployPolicy(g,S,fx,issueType,optId){
   return true;
 }
 
+import { canStation, unitMeta } from '../data/deployment-catalog.js';
+import { stationInventory } from './forces.js';
+import { platformBlock } from './procurement-view.js';
 import { ownedUnits, deployedTotal } from './deployment-view.js';
 function deployUnit(g,S,fx,rid,pid){
-  if(!DEPLOYABLE.includes(pid)){fx.toast(`⚠ ${(PLATFORMS[pid]||BLACK_PROGRAMS[pid])?.n||pid} cannot be stationed${BLACK_PROGRAMS[pid]?.attachesTo?' — it attaches to '+BLACK_PROGRAMS[BLACK_PROGRAMS[pid].attachesTo].n+' wings':''}`);return false;}
-  const avail=ownedUnits(g,pid)-deployedTotal(g,pid);const nm=(PLATFORMS[pid]||BLACK_PROGRAMS[pid])?.n||pid;
+  if(!REGIONS[rid])return false;
+  if(!canStation(g.country?.id,pid)){fx.toast(`⚠ ${(PLATFORMS[pid]||BLACK_PROGRAMS[pid])?.n||pid} cannot be stationed${BLACK_PROGRAMS[pid]?.attachesTo?' — it attaches to '+BLACK_PROGRAMS[BLACK_PROGRAMS[pid].attachesTo].n+' wings':''}`);return false;}
+  const avail=ownedUnits(g,pid)-deployedTotal(g,pid);const nm=unitMeta(pid)?.n||pid;
   if(avail<=0){fx.toast(`⚠ No free ${nm} — build more or recall from other regions`);return false;}
   const crew=crewBlock(g,pid);if(crew){fx.toast(`⚠ ${crew}`);return false;} // E8 (#20): crews gate stationing
-  S.setForceDeployments(pr=>{const n2={...pr,[rid]:{...(pr[rid]||{}),[pid]:((pr[rid]||{})[pid]||0)+1}};g.forceDeployments=n2;return n2;});
+  const n2={...g.forceDeployments,[rid]:{...(g.forceDeployments[rid]||{}),[pid]:(g.forceDeployments[rid]?.[pid]||0)+1}};g.forceDeployments=n2;S.setForceDeployments(n2);
+  stationInventory(g,S,pid,rid,1);
   fx.toast(`🪖 ${nm} stationed in ${REGIONS[rid]?.n}`);return true;
 }
 function establishEmbassy(g,S,fx,nid){
@@ -138,7 +143,7 @@ function regimeChange(g,S,fx,nid){
   }
 }
 export function recordNuke(g,S,fx,e){const entry={...e,yr:g.date.yr,mo:g.date.mo};g.nukeLog=[entry,...g.nukeLog].slice(0,40);S.setNukeLog(g.nukeLog);}
-function recallUnit(g,S,fx,rid,pid){S.setForceDeployments(pr=>{const here={...(pr[rid]||{})};if(!here[pid])return pr;here[pid]-=1;if(here[pid]<=0)delete here[pid];const n2={...pr,[rid]:here};g.forceDeployments=n2;return n2;});}
+function recallUnit(g,S,fx,rid,pid){if(!g.forceDeployments?.[rid]?.[pid])return;const here={...g.forceDeployments[rid]};here[pid]-=1;if(here[pid]<=0)delete here[pid];g.forceDeployments={...g.forceDeployments,[rid]:here};S.setForceDeployments(g.forceDeployments);stationInventory(g,S);}
 export function pushTension(g,S,fx,cid,d,why){
   const cur=g.rivalTension[cid]||0;const nv=Math.max(0,cur+d);
   if(nv>=100){S.setGameOver(`☢️ NUCLEAR EXCHANGE. Your ${why} pushed ${cid.charAt(0).toUpperCase()+cid.slice(1)} past the brink and the world did not survive the reply. Whoever "started it," it ended on your watch.`);return;}
@@ -646,16 +651,16 @@ function expelPartner(g,S,fx,pid,nid){
 }
 function setPersonnelPay(g,S,fx,pay){const p=Math.max(0,Math.min(FORCE_RULES.payMax,Math.round(+pay||0)));g.personnelPay=p;S.setPersonnelPay(p);}
 function setProcurement(g,S,fx,mode){S.setProcureMode(mode);}
-function developPlatform(g,S,fx,pid){const p=PLATFORMS[pid];const reqsMet=meetsReq(p.req,g.defLevels);
+function developPlatform(g,S,fx,pid){const why=platformBlock(g,pid,'develop');if(why){fx.toast(`⚠ ${why}`);return;}const p=PLATFORMS[pid];const reqsMet=meetsReq(p.req,g.defLevels);
   if(!reqsMet){fx.toast('⚠ Research requirements not met');return;}if((g.stats?.treasury||0)<p.dev.cost){fx.toast(`⚠ Program needs $${p.dev.cost}M`);return;}S.setStats(pr=>({...pr,treasury:pr.treasury-p.dev.cost}));S.setPlatformDev(pr=>{const n2={...pr,[pid]:{mo:p.dev.mo}};g.platformDev=n2;return n2;});fx.toast(`🔬 ${p.n} program launched — ${p.dev.mo}mo to first article`);S.setLog(pr=>[{msg:`🔬 ${p.n} development started`,yr:g.date.yr,mo:g.date.mo},...pr.slice(0,19)]);
 }
-function buildPlatform(g,S,fx,pid){const p=PLATFORMS[pid];const reqsMet=meetsReq(p.req,g.defLevels);const procCost=procurementCost(p,g.procureMode);
+function buildPlatform(g,S,fx,pid){const why=platformBlock(g,pid,'build');if(why){fx.toast(`⚠ ${why}`);return;}const p=PLATFORMS[pid];const reqsMet=meetsReq(p.req,g.defLevels);const procCost=procurementCost(p,g.procureMode);
   if(!reqsMet){fx.toast('⚠ Research requirements not met');return;}if((g.stats?.treasury||0)<procCost){fx.toast('⚠ Insufficient treasury');return;}S.setStats(pr=>({...pr,treasury:pr.treasury-procCost}));
   // E8 (#20) closes E4's gap: a build draws its mineral inputs; a shortfall queues it (paid now, delivered as minerals arrive).
   if(!startTranche(g,S,fx,pid)){S.setLog(pr=>[{msg:`⏳ ${p.n} waiting on minerals`,yr:g.date.yr,mo:g.date.mo},...pr.slice(0,19)]);return;}
   S.setPlatforms(pr=>({...pr,[pid]:(pr[pid]||0)+1}));S.setLog(pr=>[{msg:`${p.i} ${p.n} deployed — $${procCost}M`,yr:g.date.yr,mo:g.date.mo},...pr.slice(0,19)]);fx.toast(`${p.i} ${p.n} deployed`);
 }
-function importPlatform(g,S,fx,pid){const p=PLATFORMS[pid];
+function importPlatform(g,S,fx,pid){const why=platformBlock(g,pid,'import');if(why){fx.toast(`⚠ ${why}`);return;}const p=PLATFORMS[pid];
   const impCost=Math.round(p.cost*1.8);if((g.stats?.treasury||0)<impCost){fx.toast('⚠ Insufficient treasury');return;}S.setStats(pr=>({...pr,treasury:pr.treasury-impCost}));S.setPlatformsImported(pr=>({...pr,[pid]:(pr[pid]||0)+1}));S.setLog(pr=>[{msg:`🌐 ${p.n} purchased abroad — $${impCost}M`,yr:g.date.yr,mo:g.date.mo},...pr.slice(0,19)]);fx.toast(`🌐 ${p.n} imported (90% effectiveness, +25% maintenance)`);
 }
 function decommissionPlatform(g,S,fx,pid){const p=PLATFORMS[pid];S.setPlatforms(pr=>({...pr,[pid]:Math.max(0,(pr[pid]||0)-1)}));fx.toast(`${p.n} decommissioned`);}

@@ -48,6 +48,8 @@ const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activ
 // 0.92 UI onboarding: both replay fixtures choose a doctrine before month 1. Previously the App could run
 // without one until month 2 (verb cases) or the first blocking event (play cases). Re-pin the five runs for
 // the explicit, matched opening choice; simulation formulas and save schema are unchanged.
+// 0.94: canonical trained personnel, usable starting fleet, home-theater flashpoint exclusion and queued-event timing
+// intentionally change military capability and event draws. Five replay hashes re-pinned; prefix and verb coverage unchanged.
 const NEW_KEYS = ['arsenal', 'minerals', 'forces', 'bases'];
 const dropNew = (s) => { if (!NEW_KEYS.some((k) => s.includes(`"${k}"`))) return s; const o = JSON.parse(s); for (const k of NEW_KEYS) delete o[k]; return JSON.stringify(o); };
 const strip = (s) => { const o = JSON.parse(dropNew(s)); delete o.evState; return JSON.stringify(o); };

@@ -2,6 +2,8 @@
 // each with its key, its target, whether it escalates (orange, always through the confirm sheet) and the exact
 // actions.js verb it dispatches. Nothing here computes a rule: gates are quoted from the verbs, which still enforce
 // them. runCommand() is the one place a card's action turns into a dispatch, a UI side effect or a confirm sheet.
+import { deploymentOptions } from '../../sim/deployment-view.js';
+import { unitMeta } from '../../data/deployment-catalog.js';
 import { NATIONS, DIP_TARGETS, INTEL_TARGETS } from '../../data/nations.js';
 import { INTEL_OPS } from '../../data/intel.js';
 import { PLATFORMS, BLACK_PROGRAMS, DEPLOYABLE } from '../../data/platforms.js';
@@ -25,7 +27,7 @@ const adversaryIn = (v, rid) => { const ids = nationsIn(v, rid); return ids.find
 const intelTargetIn = (v, rid) => INTEL_TARGETS.filter((t) => t.region === rid && t.id !== v.country?.id).sort((a, b) => rel(v, a.id) - rel(v, b.id))[0]?.id || null;
 const owned = (v, pid) => (BLACK_PROGRAMS[pid] ? +(v.blackPrograms?.[pid] || 0) : (v.platforms?.[pid] || 0) + (v.platformsImported?.[pid] || 0));
 const deployedOf = (v, pid) => Object.values(v.forceDeployments || {}).reduce((a, r) => a + ((r && r[pid]) || 0), 0);
-export const freeUnit = (v) => DEPLOYABLE.map((pid) => ({ pid, free: owned(v, pid) - deployedOf(v, pid) })).find((u) => u.free > 0)?.pid || null;
+export const freeUnit = v => deploymentOptions(v).find(u=>u.free>0&&!u.reason)?.id||null;
 const sitesIn = (rid) => Object.entries(SITES).filter(([, s]) => s.region === rid).map(([id]) => id);
 const myNodeAt = (v, sid) => (v.bases?.nodes || []).some((n) => n.site === sid && n.owner === v.country?.id);
 
@@ -35,7 +37,7 @@ const act = (id, keys, icon, label, rest) => ({ id, key: keys[id], icon, label, 
 export function regionCommands(v, rid) {
   if (!rid || !REGIONS[rid]) return [];
   const K = REGION_KEYS; const region = REGIONS[rid].n;
-  const unit = freeUnit(v); const unitName = unit ? (PLATFORMS[unit] || BLACK_PROGRAMS[unit]).n : null;
+  const unit = freeUnit(v); const unitName = unit ? unitMeta(unit).n : null;
   const partner = partnerIn(v, rid); const adversary = adversaryIn(v, rid); const spy = intelTargetIn(v, rid);
   const sites = sitesIn(rid); const stationSite = sites.find((s) => myNodeAt(v, s)) || sites[0] || null; const buildSite = sites.find((s) => !myNodeAt(v, s)) || sites[0] || null;
   const sanctioned = adversary ? v.sanctions?.has(adversary) : false; const embargoed = adversary ? v.embargoes?.has(adversary) : false;

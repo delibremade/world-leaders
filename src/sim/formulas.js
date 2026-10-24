@@ -5,6 +5,7 @@ import { REGIONS } from '../data/regions.js';
 import { DEP_W, DV, NAV_W, BLACK_PROGRAMS, BUY_PREMIUM } from '../data/platforms.js';
 import { BASE_SECTOR } from '../data/economy.js';
 import { FORCE_RULES as FR, SOF_RULES, FLEET_RULES as FL, BRANCH_IDS, crewOf } from '../data/forces.js';
+import { FLEET_PACKAGES } from '../data/deployment-catalog.js';
 import { ORBAT, crewHeads } from '../data/orbat.js';
 import { sofEq } from '../data/sof.js';
 import { baseIsr, theaterMult, t1Bonus } from './reach.js';
@@ -25,7 +26,7 @@ const ATTACH=Object.fromEntries(Object.entries(BLACK_PROGRAMS).filter(([,b])=>b.
 // Up to +50% on stationed host weight, scaled by drone wings owned per host owned.
 export const ccaMult=(black,host='f47')=>{const f=+black?.[host]||0,c=+black?.[ATTACH[host]]||0;return f>0&&c>0?1+0.5*Math.min(1,c/f):1;};
 // Deployment weight in one region (DEP_W per platform, default 1). `black` (optional) = owned black programs, for the drone multiplier.
-export const wSum=(o,black)=>Object.entries(o||{}).reduce((a,[k,v])=>a+(v||0)*(DEP_W[k]||1)*(ATTACH[k]?ccaMult(black,k):1),0);
+export const wSum=(o,black)=>Object.entries(o||{}).reduce((a,[k,v])=>a+(v||0)*(FLEET_PACKAGES[k]?.weight||DEP_W[k]||1)*(ATTACH[k]?ccaMult(black,k):1),0);
 // Owned programs with a flag: any program flagged `bonus` (deterrent bomber leg, air multiplier) or carrying flat `isr`.
 const ownsBonus=(black,bonus)=>Object.keys(black||{}).some(k=>BLACK_PROGRAMS[k]?.bonus===bonus&&(+black[k]||0)>0);
 const blackIsr=(black)=>Object.keys(black||{}).reduce((a,k)=>a+((+black[k]||0)>0?(BLACK_PROGRAMS[k]?.isr||0):0),0);
@@ -38,7 +39,7 @@ export const isrScore=(platforms,levels,infra,black)=>(platforms.satellite_net||
 export const isrOf=(g)=>isrScore(g.platforms||{},g.defLevels||{},g.intelInfra||{},g.blackPrograms)+baseIsr(g.bases,g.country?.id);
 // Naval weight of the forces stationed in one region: carriers + subs + SSN(X) x2 + frigates x0.5 + Zumwalts x1.2.
 // Was duplicated at 7 sites in v57.
-export const navalWeight=o=>{o=o||{};return (o.carrier_group||0)+(o.sub_fleet||0)+(o.ssnx||0)*2+(o.frigate||0)*0.5+(o.zumwalt||0)*1.2+navExtra(o);};
+export const navalWeight=o=>{o=o||{};return (o.carrier_group||0)+(o.sub_fleet||0)+(o.ssnx||0)*2+(o.frigate||0)*0.5+(o.zumwalt||0)*1.2+navExtra(o)+Object.entries(o).reduce((a,[id,n])=>a+(FLEET_PACKAGES[id]?.naval||0)*n,0);};
 // E3 hulls (NAV_W). Zero for every v57 deployment, so v57 sums are unchanged.
 const navExtra=o=>Object.keys(NAV_W).reduce((a,k)=>a+(o[k]||0)*NAV_W[k],0);
 
@@ -123,9 +124,9 @@ export const fleetLines=(f)=>(ORBAT[f?.nid]||[]).filter((l)=>f.fleet?.[l.id]);
 // Crew fill per branch: crew heads its share of active strength provides / heads its fleet needs (reserve lines: reserve vs 2024 reserve).
 // Platforms beyond the fill sit unready; they never vanish.
 export function fleetFill(f){
-  const need=Object.fromEntries(BRANCH_IDS.map((b)=>[b,0]));
+  const need=Object.fromEntries(BRANCH_IDS.map((b)=>[b,f.crewAux?.[b]||0]));
   for(const l of fleetLines(f))if(!l.reserve)need[l.b]+=crewHeads(l,f.fleet[l.id].n);
-  const fill=Object.fromEntries(BRANCH_IDS.map((b)=>[b,need[b]>0?Math.min(1,(f.active||0)*(f.crewShare?.[b]||0)/need[b]):1]));
+  const fill=Object.fromEntries(BRANCH_IDS.map((b)=>[b,need[b]>0?Math.min(1,(f.crewVersion===2?Math.min(f.crews?.[b]||0,(f.active||0)*(f.crewShare?.[b]||0)):(f.active||0)*(f.crewShare?.[b]||0))/need[b]):1]));
   fill.reserve=f.base?.reserve?Math.min(1,(f.reserve||0)/f.base.reserve):1;
   return {fill,need};
 }

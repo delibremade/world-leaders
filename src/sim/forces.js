@@ -1,7 +1,7 @@
 // E8 (#20): troops, training, force quality and SOF tiers. One implementation of the monthly step, the crew gate and the view,
 // shared by the month (tick.js), the deploy verb (actions.js) and the Defense tab. Multipliers live in formulas.js.
 // State g.forces: active, reserve, retention (0..100), recruits, attrition (last month), quality (0..100, lags forceQuality),
-// train (TRAINING index), readiness {land,air,sea}, crews {land,air,sea} (trained crew sets), pipe [{b,mo}] (crews in training),
+// train (TRAINING index), readiness {land,air,sea}, crews {land,air,sea} (personnel at crewVersion 2; old saves: crew sets), pipe [{b,mo,n}] (trainees),
 // sof {units:{id:{ops, out:[{op, tgt, mo, rec}]}}, pipes:[{u, t, mo, n}]} over src/data/sof.js (F8, #56: named units, operators).
 // F7 (#55, spec Part 9) adds the tangible order of battle: active and reserve become headcounts (base: the 2024 strength they are
 // measured against), nid, q0 (quality at the start), crewShare {branch: share of active that crews its fleet}, depot (throughput %),
@@ -10,6 +10,7 @@ import { FORCE_RULES as R, FLEET_RULES as FL, TRAINING, SOF_UNITS, BRANCHES, BRA
 import { SOF_RULES, OP_NAMES, sofOrbat, sofUnit, unitCap, freeSubs, freeOps, sofOps, sofFree, pickUnit, subsN } from '../data/sof.js';
 import { INTEL_OPS } from '../data/intel.js';
 import { ORBAT, MANPOWER, UNIT_PLATFORMS, crewHeads, crewOfLine, manpowerCap } from '../data/orbat.js';
+import { FLEET_PACKAGES, unitMeta } from '../data/deployment-catalog.js';
 import { NATIONS } from '../data/nations.js';
 import { PLATFORMS, BLACK_PROGRAMS } from '../data/platforms.js';
 import { forceQuality, forceMult, tier1Power, qualityF, manPts, lineW, typeQ, qualMC, fleetFill, fillOf, lineAvail, blkF, lineReady, equipF } from './formulas.js';
@@ -20,7 +21,7 @@ export function newForces(nid, stats) {
   const s = R.start;
   const f = { nid, active: s.active, reserve: s.reserve, retention: s.retention, recruits: 0, attrition: 0, quality: forceQuality(stats),
     train: s.train, readiness: per(() => s.readiness), crews: per((b) => R.spare[b]), pipe: [], sof: newSof(nid) };
-  return withFleet(f, nid, {}, stats);
+  return withCrews(withFleet(f, nid, {}, stats));
 }
 // F7: headcounts from MANPOWER and the 2024 fleet from ORBAT. A pre-F7 force (index strength) converts in place of its index points.
 const home = (nid) => NATIONS[nid]?.region;
@@ -36,8 +37,25 @@ function withFleet(f, nid, fielded, ns) {
 // F8: every named SOF unit at its 2024 operator strength. A pre-F8 force (abstract t1/t2 counts) converts to the 2024 units.
 export const newSof = (nid) => ({ units: Object.fromEntries(sofOrbat(nid).map((u) => [u.id, { ops: u.ops, out: [] }])), pipes: [] });
 const withSof = (f, nid) => (f.sof?.units ? f : { ...f, nid: f.nid ?? nid, sof: newSof(f.nid ?? nid) });
-const F = (g) => { const f0 = g.forces || newForces(g.country?.id, g.stats); const f = g.country ? withSof(f0, g.country.id) : f0; return f.base || !g.country ? f : withFleet(f, g.country.id, ownedOf(g), g.stats); };
-export const crewPool = (f, b) => manPts(f).active * R.crewPer[b];
+// Migrate the obsolete six-crew-set pool from the real fleet's existing trained allocation. No fleet or manpower is granted.
+function withCrews(f) {
+  if (!f.fleet || f.crewVersion===2) return f;
+  return {...f,crewVersion:2,crews:per(b=>f.active*(f.crewShare?.[b]||0)),pipe:(f.pipe||[]).map(p=>({...p,n:Math.max(10,Math.ceil(f.base.active*(f.crewShare?.[p.b]||0)/24))}))};
+}
+export const effectiveForces = (g) => { const f0=g.forces||newForces(g.country?.id,g.stats); const f=g.country?withSof(f0,g.country.id):f0;
+  return syncFleet(g,withCrews(f.base||!g.country?f:withFleet(f,g.country.id,ownedOf(g),g.stats)),f.crewVersion!==2); };
+const F=effectiveForces;
+export const crewPool = (f,b) => f.crewVersion===2 ? f.active*(f.crewShare?.[b]||0) : manPts(f).active*R.crewPer[b];
+export function unitCrew(g,id,f=F(g)) {
+  const pkg=FLEET_PACKAGES[id]; if(pkg)return {b:pkg.b,n:pkg.heads};
+  const c=crewOf(id); if(f.crewVersion!==2||!c.n)return c;
+  const l=buyLine(f.nid,id),u=UNIT_PLATFORMS[id];
+  return {b:l?.b||c.b,n:l&&u?Math.ceil(crewHeads(l,u.per)):c.n*100};
+}
+function crewNeed(g,f) {
+  if(f.crewVersion!==2)return crewSum(ownedOf(g));
+  return fleetFill(f).need;
+}
 
 // Units owned (domestic + imported + programs) and deployed, as crew sets needed per branch.
 const ownedOf = (g) => {
@@ -50,17 +68,19 @@ const ownedOf = (g) => {
 const crewSum = (units) => { const by = per(() => 0); for (const [k, n] of Object.entries(units)) { const c = crewOf(k); by[c.b] += c.n * (n || 0); } return by; };
 const deployedUnits = (g) => { const o = {}; for (const dep of Object.values(g.forceDeployments || {})) for (const [k, n] of Object.entries(dep || {})) o[k] = (o[k] || 0) + (n || 0); return o; };
 
-// Per branch: crew sets needed by owned units, held by deployed units, trained, in the pipeline; gap = owned need not covered.
-export function crewStatus(g) {
-  const f = F(g); const need = crewSum(ownedOf(g)); const dep = crewSum(deployedUnits(g));
-  return per((b) => { const crews = Math.floor(f.crews?.[b] || 0); return { need: need[b], deployed: dep[b], crews, free: crews - dep[b], pool: Math.floor(crewPool(f, b)), pipe: (f.pipe || []).filter((p) => p.b === b).length, gap: Math.max(0, need[b] - crews) }; });
+// Per branch: crew/maintenance personnel needed by the fleet, stationed, trained and in training. Legacy saves normalize above.
+export function crewStatus(g,f=F(g)) {
+  const need=crewNeed(g,f),dep=per(()=>0);
+  for(const [id,n] of Object.entries(deployedUnits(g))){const c=unitCrew(g,id,f);dep[c.b]+=c.n*n;}
+  return per(b=>{const crews=Math.floor(Math.min(f.crews?.[b]||0,crewPool(f,b))),required=Math.ceil(need[b]);
+    return {need:required,deployed:dep[b],crews,free:Math.max(0,crews-dep[b]),pool:Math.floor(crewPool(f,b)),pipe:(f.pipe||[]).filter(p=>p.b===b).reduce((n,p)=>n+(p.n||1),0),gap:Math.max(0,required-crews)};});
 }
 // Crew gate for stationing one unit: null when crews are free, else the reason (shown, never silent).
-export function crewBlock(g, pid) {
-  const c = crewOf(pid); if (!c.n) return null;
-  const st = crewStatus(g)[c.b];
+export function crewBlock(g, pid, status, f) {
+  const c = unitCrew(g,pid,f); if (!c.n) return null;
+  const st = (status||crewStatus(g))[c.b];
   if (st.free >= c.n) return null;
-  const nm = (PLATFORMS[pid] || BLACK_PROGRAMS[pid])?.n || pid;
+  const nm = unitMeta(pid)?.n || pid;
   return `${nm} has no trained crews — ${c.b} crews ${Math.max(0, st.free)}/${c.n} free (${st.pipe} in training)`;
 }
 
@@ -106,15 +126,23 @@ export function stepForces(g, S, fx, cash, ns) {
   // Crews: attrition with retention, pipeline completions, new starts toward owned need + spares, capped by the trained pool.
   const crews = per((b) => (f0.crews[b] || 0) * (1 - (1 - retention / 100) * R.crewAttrition));
   const pipe = [];
-  for (const p of f0.pipe) { if (p.mo > 1) pipe.push({ ...p, mo: p.mo - 1 }); else crews[p.b] += 1; }
-  const need = crewSum(ownedOf(g)); const rate = TRAINING[f0.train].crews;
+  for (const p of f0.pipe) { if (p.mo > 1) pipe.push({ ...p, mo: p.mo - 1 }); else crews[p.b] += p.n || 1; }
+  const need = crewNeed(g,f0),rate=TRAINING[f0.train].crews,modern=f0.crewVersion===2;
+  // Qualified personnel may expand with the fleet, but total crew allocations cannot exceed active manpower.
+  const targets=per(b=>modern?Math.max(f0.crewShare[b]*active,need[b]*(1+FL.crewSlack)):crewPool({...f0,active},b));
+  const total=Object.values(targets).reduce((a,n)=>a+n,0),scale=modern&&total>active?active/total:1;
+  const crewShare=modern?per(b=>active?targets[b]*scale/active:0):f0.crewShare;
   for (const b of BRANCH_IDS) {
-    const want = need[b] + R.spare[b] - Math.floor(crews[b]) - pipe.filter((p) => p.b === b).length;
-    for (let i = 0; i < Math.min(rate, want); i++) pipe.push({ b, mo: R.pipeMo[b] });
-    crews[b] = Math.min(crews[b], crewPool({ ...f0, active }, b));
+    const pool=modern?targets[b]*scale:crewPool({...f0,active},b);
+    const pending=pipe.filter(p=>p.b===b).reduce((n,p)=>n+(p.n||1),0);
+    const goal=modern?Math.min(pool,need[b]*(1+FL.crewSlack)):need[b]+R.spare[b];
+    let want=Math.max(0,Math.floor(goal-crews[b]-pending));
+    const classSize=modern?Math.max(10,Math.ceil((f0.base.active*f0.crewShare[b])/24)):1;
+    for(let i=0;i<rate&&want>0;i++){const n=Math.min(classSize,want);pipe.push({b,mo:R.pipeMo[b],...(modern?{n}:{})});want-=n;}
+    crews[b]=Math.min(crews[b],pool);
   }
   const sof = stepSof(f0, quality, fx);
-  const f1 = { ...f0, active, reserve, retention, recruits, attrition, quality, readiness, crews, pipe, sof, ...(mp.prop != null ? { prop: mp.prop } : {}) };
+  const f1 = { ...f0, active, reserve, retention, recruits, attrition, quality, readiness, crews, crewShare, pipe, sof, ...(mp.prop != null ? { prop: mp.prop } : {}) };
   setF(g, S, f0.fleet ? stepFleet(g, f1, fx, cash) : f1);
 }
 // ── F8 SOF month: turnover, the standing pipeline, surge classes graduating, committed sub-units counting down to rotation.
@@ -195,7 +223,8 @@ export function mcTarget(f, l, s) {
   const depot = Math.min(1.05, Math.pow((f.depot ?? 100) / 100, FL.depotExp));
   return cl(l.mc * maint * depot * qualMC(f, l) * (1 + FL.mcBlk * s.blk));
 }
-function stepFleet(g, f, fx, cash) {
+function syncFleet(g, f,assign=false) {
+  if(!f.fleet)return f;
   const nid = f.nid; const rid0 = home(nid); const owned = ownedOf(g);
   const fleet = { ...f.fleet }; const fielded = { ...f.fielded };
   // Procurement adds to existing fleets: every newly owned unit lands per-unit platforms in its line; a decommissioned unit takes them out.
@@ -205,6 +234,21 @@ function stepFleet(g, f, fx, cash) {
     const s = fleet[l.id] || newLine({ ...l, count: 0 }, nid); const k = d * UNIT_PLATFORMS[u].per;
     fleet[l.id] = k > 0 ? { ...s, n: s.n + k, at: addAt(s.at, rid0, k) } : { ...s, n: Math.max(0, s.n + k), at: takeAt(s.at, Math.min(s.n, -k), rid0) };
   }
+  if(assign){
+  for(const [id,s] of Object.entries(fleet))fleet[id]={...s,at:s.n?{[rid0]:s.n}:{}};
+  for(const [rid,units] of Object.entries(g.forceDeployments||{}))for(const [id,n] of Object.entries(units||{})){
+    const pkg=FLEET_PACKAGES[id],l=pkg?.nid===nid?lineOf(nid,pkg.line):!pkg?buyLine(nid,id):null,per=pkg?.per||UNIT_PLATFORMS[id]?.per;
+    if(!l||!per||rid===rid0)continue;
+    const s=fleet[l.id];if(!s)continue;const k=Math.min(s.at[rid0]||0,n*per);
+    if(k>0)fleet[l.id]={...s,at:addAt(takeAt(s.at,k,rid0),rid,k)};
+  }
+  }
+  const crewAux=per(()=>0);
+  for(const [id,n] of Object.entries(owned))if(!buyLine(nid,id)||!UNIT_PLATFORMS[id]){const c=crewOf(id);crewAux[c.b]+=c.n*100*n;}
+  return {...f,fleet,fielded,crewAux};
+}
+function stepFleet(g,f,fx,cash){
+  const nid=f.nid,rid0=home(nid),fleet={...f.fleet},fielded=f.fielded;
   const rate = Math.min(1, FL.converge * (f.depot ?? 100) / 100);
   for (const [id, s0] of Object.entries(fleet)) {
     const l = lineOf(nid, id); if (!l) continue;
@@ -328,6 +372,11 @@ function retire(g, S, fx, { line, n }) {
   if (!l || !s) { fx.toast('⚠ No such fleet line'); return; }
   const k = Math.min(s.n, Math.max(1, Math.round(+n || 1)));
   if (!s.n) { fx.toast(`⚠ No ${l.n} left to retire`); return; }
+  const assigned=Object.values(g.forceDeployments||{}).reduce((sum,units)=>sum+Object.entries(units).reduce((a,[id,n])=>{
+    const pkg=FLEET_PACKAGES[id],target=pkg?.line||buyLine(f.nid,id)?.id;
+    return a+(target===line?n*(pkg?.per||UNIT_PLATFORMS[id]?.per||0):0);
+  },0),0);
+  if(k>s.n-assigned){fx.toast('⚠ Recall deployed units before retiring these platforms');return;}
   const before = maintCost(f); const f1 = { ...f, fleet: { ...f.fleet, [line]: { ...s, n: s.n - k, at: takeAt(s.at, k, home(f.nid)) } } };
   setF(g, S, f1);
   fx.toast(`📦 Retired ${k} ${l.n} — ${s.n - k} left, saves $${Math.round(before - maintCost(f1))}M/mo maintenance`);
@@ -378,9 +427,9 @@ export function fleetView(g) {
       crewRatio: c.sets, crewSize: c.heads, maintainers: c.mx, heads: crewHeads(l, s.n), quality: typeQ(f.quality, l), cost: s.n * lineW(l) * FL.om * s.mx / 100,
       modCost: modCostOf(l, s), modWhy: modBlock(g, f, l.id), buys: l.buys || [], status_source: l.status_source };
   });
-  const branches = BRANCHES.map(([b, n]) => ({ id: b, n, fill: fill[b], need: need[b], pool: (f.active || 0) * (f.crewShare?.[b] || 0), equip: equipF(f, b),
+  const branches = BRANCHES.map(([b, n]) => ({ id: b, n, fill: fill[b], need: need[b], pool: Math.min(f.crews[b],crewPool(f,b)), equip: equipF(f, b),
     count: lines.filter((x) => x.b === b).reduce((a, x) => a + x.count, 0), ready: lines.filter((x) => x.b === b).reduce((a, x) => a + x.ready, 0) }));
-  return { lines, branches, depot: f.depot ?? 100, maintenance: maintCost(f), depotCost: depotCost(f), modMo: modMonths(f), rules: FL,
+  return { nid:f.nid, lines, branches, depot: f.depot ?? 100, maintenance: maintCost(f), depotCost: depotCost(f), modMo: modMonths(f), rules: FL,
     manpower: m && { active: f.active, reserve: f.reserve, base: f.base, cap: manpowerCap(f.nid), prop: propensityOf(m, s0, pay, f.base), prop0: propensity0(m),
       intakeMax: intakeMax(m), recruits: f.recruits, attrition: f.attrition, next: manpowerStep(f, s0, pay, f.retention), labor: recruitLabor(s0), stab: stabProp(s0), status_source: m.status_source } };
 }
@@ -395,3 +444,6 @@ function sofView(g, f) {
       out: s.out.map((o) => ({ ...o, label: `${opName(o.op)} · ${NATIONS[o.tgt]?.n || o.tgt}`, left: o.mo + o.rec })) };
   });
 }
+
+// Save the synchronized inventory after an operational assignment changes.
+export function stationInventory(g,S){setF(g,S,syncFleet(g,F(g),true));}

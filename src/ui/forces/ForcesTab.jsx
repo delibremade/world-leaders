@@ -9,6 +9,9 @@ import { ConfirmSheet } from '../shell/Confirm.jsx';
 import { Why } from '../shell/Why.jsx';
 import { PLATFORMS, BLACK_PROGRAMS, DEPLOYABLE, SLOTS } from '../../data/platforms.js';
 import { REGIONS, POSTURE_LABELS } from '../../data/regions.js';
+import { FLEET_PACKAGES, unitMeta } from '../../data/deployment-catalog.js';
+import { ownedUnits } from '../../sim/deployment-view.js';
+import { unitCrew } from '../../sim/forces.js';
 import { BRANCHES, crewOf, FORCE_RULES } from '../../data/forces.js';
 import { isrOf, triadLegs } from '../../sim/formulas.js';
 import { baseIsr } from '../../sim/reach.js';
@@ -110,10 +113,10 @@ function Training({ fv, v, ask, dispatch }) {
       })}
       <div className="wl-note">Crews are people: pilots per airframe, crew per hull, maintainers per platform. Platforms beyond the crews sit unready.</div>
     </Panel>}
-    <Panel id="pipelines" title="Crew pipelines" figure={`${fv.pipe.length} training`}>
+    <Panel id="pipelines" title="Crew pipelines" figure={`${fv.pipe.length} classes`}>
       {fv.branches.map((b) => {
         const mine = fv.pipe.filter((p) => p.b === b.id).map((p) => p.mo).sort((x, y) => x - y);
-        return <Row key={b.id} title={`${b.n} crews`} sub={mine.length ? `${mine.length} in training, next in ${mine[0]}mo (${R.pipeMo[b.id]}mo pipeline)` : `${R.pipeMo[b.id]}mo pipeline, none in training`} value={`${b.crews} / ${b.need}`} tone={b.gap > 0 ? 'alert' : 'good'} />;
+        return <Row key={b.id} title={`${b.n} crews`} sub={mine.length ? `${hc(b.pipe)} personnel in ${mine.length} classes, next in ${mine[0]}mo (${R.pipeMo[b.id]}mo pipeline)` : `${R.pipeMo[b.id]}mo pipeline, none in training`} value={`${hc(b.crews)} / ${hc(b.need)}`} tone={b.gap > 0 ? 'alert' : 'good'} />;
       })}
     </Panel>
   </>;
@@ -122,7 +125,7 @@ function Training({ fv, v, ask, dispatch }) {
 function Equipment({ fv, v, ask, dispatch, toast }) {
   const fl = fleetView(v); const [selLine, setSelLine] = useState(null); const wide = useWide();
   const own = (pid) => (BLACK_PROGRAMS[pid] ? +v.blackPrograms[pid] || 0 : (v.platforms[pid] || 0) + (v.platformsImported[pid] || 0));
-  const meta = (pid) => PLATFORMS[pid] || BLACK_PROGRAMS[pid];
+  const meta = unitMeta;
   const ids = [...Object.keys(PLATFORMS), ...Object.keys(BLACK_PROGRAMS)].filter((pid) => own(pid) > 0);
   const maint = Object.entries(v.platforms).reduce((s, [pid, ct]) => s + (PLATFORMS[pid]?.maint || 0) * (ct || 0), 0);
   const where = (pid) => Object.entries(v.forceDeployments).filter(([, o]) => (o?.[pid] || 0) > 0).map(([rid, o]) => [rid, o[pid]]);
@@ -136,7 +139,7 @@ function Equipment({ fv, v, ask, dispatch, toast }) {
   const crewsPanel = (
     <Panel id="crews" title="Crews vs airframes and hulls" figure={fv.branches.some((b) => b.gap > 0) ? 'gap' : 'covered'} tone={fv.branches.some((b) => b.gap > 0) ? 'alert' : 'good'} data-forces-crews>
       {fv.branches.map((b) => (
-        <Row key={b.id} title={b.n} sub={`${b.crews} crews / ${b.need} needed · ${b.deployed} stationed${b.pipe ? ` · ${b.pipe} training` : ''}`} value={b.gap > 0 ? `gap ${b.gap}` : 'covered'} tone={b.gap > 0 ? 'alert' : 'good'}>
+        <Row key={b.id} title={b.n} sub={`${hc(b.crews)} personnel / ${hc(b.need)} needed · ${hc(b.deployed)} stationed${b.pipe ? ` · ${b.pipe} training` : ''}`} value={b.gap > 0 ? `gap ${b.gap}` : 'covered'} tone={b.gap > 0 ? 'alert' : 'good'}>
           <Bar pct={b.need ? (b.crews / b.need) * 100 : 100} tone={b.gap > 0 ? 'alert' : 'good'} />
         </Row>))}
       <div className="wl-note">A unit without free crews cannot be stationed. Raise training or pay to close a gap.</div>
@@ -148,8 +151,8 @@ function Equipment({ fv, v, ask, dispatch, toast }) {
       return <Panel key={bid} id={`inv_${bid}`} title={`${bn} inventory`} figure={mine.reduce((a, pid) => a + own(pid), 0)}>
         {mine.length === 0 && <div className="wl-note">Nothing fielded. Build in the Arsenal tab.</div>}
         {mine.map((pid) => {
-          const m = meta(pid); const n = own(pid); const w = where(pid); const st = w.reduce((a, [, k]) => a + k, 0); const dep = DEPLOYABLE.includes(pid); const c = crewOf(pid);
-          return <Row key={pid} data-unit={pid} title={`${m.i} ${m.n}`} sub={`${gen(pid)} · ${c.n * n} crew sets · ${dep ? `${st}/${n} stationed, ${n - st} in reserve` : 'national asset, applies automatically'}`}
+          const m = meta(pid); const n = own(pid); const w = where(pid); const st = w.reduce((a, [, k]) => a + k, 0); const dep = DEPLOYABLE.includes(pid); const c = unitCrew(v,pid);
+          return <Row key={pid} data-unit={pid} title={`${m.i} ${m.n}`} sub={`${gen(pid)} · ${c.n * n} personnel · ${dep ? `${st}/${n} stationed, ${n - st} in reserve` : 'national asset, applies automatically'}`}
             value={PLATFORMS[pid] ? `$${m.maint * (v.platforms[pid] || 0)}M/mo` : `×${n}`}>
             {dep && <div className="wl-row" style={{ flexWrap: 'wrap', marginTop: 4 }}>
               {w.map(([rid, k]) => <span key={rid} className="wl-chip">{REGIONS[rid]?.n} ×{k} {POSTURE_LABELS[v.forcePosture[rid] || 'deter']?.slice(0, 2)} <button type="button" data-recall={pid} className="wl-btn wl-btn-sm wl-btn-alert" onClick={() => dispatch({ type: 'recallUnit', payload: { region: rid, unit: pid } })}>recall</button></span>)}
@@ -189,12 +192,12 @@ function Equipment({ fv, v, ask, dispatch, toast }) {
         <DataTable id="fleet" label="Order of battle" title="Order of battle · by type" columns={cols} rows={fl.lines} rowId={(l) => l.id} selected={cur?.id} onSelect={setSelLine} rowProps={(l) => ({ 'data-line': l.id })} />
         {inventory}{theatersPanel}
       </div>
-      <div data-detail="fleet">{fleetSummary(fl, dispatch)}{cur && <Panel key={cur.id} id="line-detail" title="Selected type" figure={cur.n}>{lineDetail(cur, fl, ask, dispatch)}</Panel>}{crewsPanel}{maintPanel}</div>
+      <div data-detail="fleet">{fleetSummary(fl, dispatch)}{cur && <Panel key={cur.id} id="line-detail" title="Selected type" figure={cur.n}>{lineDetail(cur, fl, ask, dispatch, v)}</Panel>}{crewsPanel}{maintPanel}</div>
     </div>;
   }
   return <>
     {fl && fleetSummary(fl, dispatch)}
-    {fl && fleetBranches(fl, selLine, setSelLine, ask, dispatch)}
+    {fl && fleetBranches(fl, selLine, setSelLine, ask, dispatch, v)}
     {crewsPanel}
     {inventory}
     {theatersPanel}
@@ -223,7 +226,8 @@ function lineRow(l, sel, onSel) {
     sub={`${hc(l.ready)} ready · MC ${Math.round(l.mc)}% → ${Math.round(l.target)}%${l.crewless ? ` · ${hc(l.crewless)} crewless` : ''}${l.blk ? ` · block ${l.blk}` : ''}${l.mod ? ` · depot ${l.mod}mo` : ''}${l.mx !== 100 ? ` · maint ${l.mx}%` : ''}`}
     value={hc(l.count)} tone={l.crewless ? 'alert' : l.count < l.count2024 ? 'warn' : undefined}><Bar pct={l.mc} tone={tone(l.mc, 40, 60)} marker={l.target} /></Row>;
 }
-function lineDetail(l, fl, ask, dispatch) {
+function lineDetail(l, fl, ask, dispatch, v) {
+  const packageId=`fleet:${fl.nid}:${l.id}`,pkg=FLEET_PACKAGES[packageId];
   const step = Math.min(l.count, RETIRE_STEP[l.cls] || 1);
   const retire = (n) => ask({ title: `Retire ${hc(n)} ${l.n}`, cost: `saves about $${Math.round(l.cost * n / Math.max(1, l.count))}M/mo maintenance`, kind: 'alert', label: 'Retire',
     lines: [`${hc(l.count - n)} left in service. Retired ${CLS_N[l.cls]} do not come back; procurement adds new ones to this line.`, 'Their crews return to the pool for the rest of the fleet.'], run: () => dispatch({ type: 'retire', payload: { line: l.id, n } }) });
@@ -235,6 +239,7 @@ function lineDetail(l, fl, ask, dispatch) {
       <small>{hc(l.count)} {CLS_N[l.cls]} (2024: {hc(l.count2024)}{l.lost ? `, ${l.lost} lost` : ''}) · crew ratio {l.crewRatio} x {hc(l.crewSize)}{l.maintainers ? ` + ${l.maintainers} maintainers` : ''} · {hc(l.heads)} people · quality ×{f2(l.quality)}</small>
       <small>Based: {Object.entries(l.at).map(([r, k]) => `${REGIONS[r]?.n || r} ${hc(k)}`).join(' · ') || 'none'}{l.buys.length ? ` · procurement: ${l.buys.join(', ')}` : ''}</small>
       <small>Source: {l.status_source}</small>
+      {pkg&&v&&ownedUnits(v,packageId)>0&&<div className="wl-row" style={{flexWrap:'wrap',margin:'10px 0'}}><select className="wl-sel" id={`station_${l.id}`} aria-label={`Deploy ${l.n} to`} defaultValue="EA">{Object.entries(REGIONS).map(([id,r])=><option key={id} value={id}>{r.n}</option>)}</select><button type="button" className="wl-btn wl-btn-primary" data-fleet-deploy={l.id} onClick={()=>dispatch({type:'deployUnit',payload:{unit:packageId,region:document.getElementById(`station_${l.id}`).value}})}>Station {pkg.per} {l.cls==='airframe'?'aircraft':l.cls==='hull'?'hull':'formation'}</button></div>}
       <Row title="Maintenance" sub={`$${Math.round(l.cost)}M/mo · MC target ${Math.round(l.target)}%`} value={`${l.mx}%`}>
         <input className="wl-slider" type="range" min="0" max="150" step="5" value={l.mx} aria-label={`Maintenance ${l.n}`} onChange={(e) => dispatch({ type: 'setMaintenance', payload: { line: l.id, pct: +e.target.value } })} />
       </Row>
@@ -246,11 +251,11 @@ function lineDetail(l, fl, ask, dispatch) {
     </div>
   </div>;
 }
-function fleetBranches(fl, selId, setSel, ask, dispatch) {
+function fleetBranches(fl, selId, setSel, ask, dispatch, v) {
   return BRANCHES.map(([bid, bn]) => {
     const ls = fl.lines.filter((l) => l.b === bid); const b = fl.branches.find((x) => x.id === bid);
     return <Panel key={bid} id={`fleet_${bid}`} title={`${bn} order of battle`} figure={`${hc(b.ready)} / ${hc(b.count)}`} tone={b.fill < 1 ? 'alert' : undefined} data-fleet-panel={bid}>
-      {ls.map((l) => [lineRow(l, selId === l.id, () => setSel(selId === l.id ? null : l.id)), selId === l.id ? lineDetail(l, fl, ask, dispatch) : null])}
+      {ls.map((l) => [lineRow(l, selId === l.id, () => setSel(selId === l.id ? null : l.id)), selId === l.id ? lineDetail(l, fl, ask, dispatch, v) : null])}
       <div className="wl-note">Tap a type to set its maintenance, modernize or retire it. Bar: MC now, marker: target.</div>
     </Panel>;
   });
