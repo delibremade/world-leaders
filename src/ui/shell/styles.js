@@ -1,3 +1,4 @@
+import { DECISION_CSS } from './DecisionDialog.jsx';
 import { NATION_CSS } from './NationWorkspace.jsx';
 import { ENERGY_DESK_CSS } from '../energy/EnergyDesk.jsx';
 import { atlasStyles } from '../map/styles.js';
@@ -380,4 +381,5 @@ kbd{font:inherit;font-size:${SIZE.micro}px;color:${c.text.dim};border:1px solid 
 ${atlasStyles}
 ${ENERGY_DESK_CSS}
 ${NATION_CSS}
+${DECISION_CSS}
 `;

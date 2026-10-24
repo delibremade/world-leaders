@@ -69,7 +69,7 @@ test('App (jsdom): the Intel operations list is grouped by type and target with 
   try {
     await g.pickCountry(0);
     const { doc, w } = g; const q = (s) => doc.querySelector(s), qa = (s) => [...doc.querySelectorAll(s)];
-    [...q('[data-event-card=doctrine]').querySelectorAll('div')].find((d) => d.style.cursor === 'pointer' && /Military Superpower/.test(d.textContent)).click(); await flush();
+    q('[data-doctrine=fortress]').click(); await flush();
     await g.advance(1); w.__wl.fund(60000); await flush();
     g.tabBtn('intel').click(); await flush();
     const btn = (re, nth = 0) => qa('button').filter((b) => re.test(b.textContent))[nth];

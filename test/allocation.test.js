@@ -57,7 +57,7 @@ test('App (jsdom): pool held by default; a drag is local and commits one batched
   try {
     await g.pickCountry(0);
     const { doc, w } = g; const q = (s) => doc.querySelector(s), qa = (s) => [...doc.querySelectorAll(s)];
-    [...q('[data-event-card=doctrine]').querySelectorAll('div')].find((d) => d.style.cursor === 'pointer' && /Military Superpower/.test(d.textContent)).click(); await flush();
+    q('[data-doctrine=fortress]').click(); await flush();
     g.tabBtn('economy').click(); await flush(); await flush();
     const sl = (k) => q(`[data-alloc-line=${k}] input[type=range]`); const val = (k) => +sl(k).value;
     const set = async (k, v) => { const el = sl(k); const proto = Object.getPrototypeOf(el); Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, String(v)); el.dispatchEvent(new w.Event('input', { bubbles: true })); el.dispatchEvent(new w.Event('change', { bubbles: true })); await flush(); await flush(); };

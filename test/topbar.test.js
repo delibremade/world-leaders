@@ -37,7 +37,7 @@ test('App: wells open tooltip tables from engine categories; an alert chip focus
     await g.pickCountry(0);
     const { doc, w } = g;
     const q = (s) => doc.querySelector(s), qa = (s) => [...doc.querySelectorAll(s)];
-    [...q('[data-event-card=doctrine]').querySelectorAll('div')].find((d) => d.style.cursor === 'pointer' && /Military Superpower/.test(d.textContent)).click(); await flush();
+    q('[data-doctrine=fortress]').click(); await flush();
     await g.advance(2);
     // three wells, each a tooltip table: title, subtitle, 2-column rows, a total row
     assert.deepEqual(qa('[data-hud] [data-well]').map((e) => e.getAttribute('data-well')), ['treasury', 'stability', 'hegemony']);

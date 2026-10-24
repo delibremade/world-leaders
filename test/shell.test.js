@@ -82,12 +82,12 @@ test('App: shell renders (HUD, speed, nav badges, doctrine card, sheet, outliner
     assert.ok(q('[data-hud]') && q('[data-nav]') && q('[data-outliner]'), 'shell chrome present');
     assert.equal(qa('[data-nav] [data-tab]').length, 9, 'nine verticals');
     assert.equal(qa('[data-nav] [data-tab]').map((b) => b.getAttribute('data-tab')).join(','), TABS.join(','));
-    assert.ok(q('[data-event-card=doctrine]'), 'doctrine is a non-blocking card');
+    assert.ok(q('[data-event-card=doctrine]'), 'doctrine has a dedicated decision surface');
     assert.equal(q('[data-event-card=doctrine]').getAttribute('data-modal'), '1900');
-    assert.ok(!qa('div').some((d) => d.style.position === 'fixed' && d.style.inset && /Doctrine/.test(d.textContent)), 'no doctrine scrim');
+    assert.ok(q('[data-event-card=doctrine]').closest('dialog[aria-modal=true]'), 'required choice is outside the activity rail');
     assert.equal(q('[data-badge=overview]')?.textContent, '1', 'doctrine pending badge');
     // doctrine via the card, then nav to intel and back (data-tab)
-    [...q('[data-event-card=doctrine]').querySelectorAll('div')].find((d) => d.style.cursor === 'pointer' && /Military Superpower/.test(d.textContent)).click(); await flush();
+    q('[data-doctrine=fortress]').click(); await flush();
     assert.equal(q('[data-event-card=doctrine]'), null, 'doctrine chosen, card gone');
     // speed control: pause shows its reason; 2x sets speed and clears the pause
     const speed = qa('[data-speed] button'); assert.equal(speed.length, 5, 'pause, 1x, 2x, 4x, Next (Q2, #42)');

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.93.1 (2026-10-24) — Decisions get room to read
+- Mandatory doctrine selection moves out of the narrow Cards rail into a dedicated, keyboard-accessible decision dialog. Desktop shows all four choices together, with each benefit and tradeoff stated once. Change nation remains available.
+- Every ongoing event, cabinet decision and ready brief can open in a full-size reader. The clock holds while reading; existing actions and requirements are preserved, and the map stays in place.
+- Regression coverage checks all doctrine choices above the outliner, focus containment, Escape behavior, background shortcuts, phone scrolling, event responses and unchanged replay results.
+
 ## 0.93.0 (2026-10-23) — Nation, energy decisions and the operational atlas
 - Nation workspace: shared budget allocation, service outcomes, energy exposure and project queues. World remains the spatial workspace.
 - Energy: connected supply/transit/economy view, reserve controls, import and extraction settings, current import-cost estimate and observed monthly accounting. The estimate and monthly tick share one import-cost calculation.

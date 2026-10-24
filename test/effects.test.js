@@ -71,7 +71,7 @@ test('App (jsdom): three solar builds show one Active Effects line naming the so
   try {
     await g.pickCountry(0);
     const { doc, w } = g; const q = (s) => doc.querySelector(s), qa = (s) => [...doc.querySelectorAll(s)];
-    [...q('[data-event-card=doctrine]').querySelectorAll('div')].find((d) => d.style.cursor === 'pointer' && /Military Superpower/.test(d.textContent)).click(); await flush();
+    q('[data-doctrine=fortress]').click(); await flush();
     await g.advance(1); w.__wl.fund(60000); await flush();
     g.tabBtn('resources').click(); await flush(); q('[data-seg=natural]')?.click(); await flush();
     for (let i = 0; i < 3; i++) { qa('button').find((b) => /^\+\$400M$/.test(b.textContent)).click(); await flush(); }

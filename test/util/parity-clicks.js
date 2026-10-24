@@ -217,5 +217,9 @@ export const verbScript = (g, shocks) => {
     await shocks(m);
     if (m >= 2) { if (plan[m]) await plan[m](); await every(m); }
   };
-  return { onMonth, hits: d.hits, chooseDoctrine: () => clickDiv(/^🛡️Military Superpower/) };
+  return { onMonth, hits: d.hits, chooseDoctrine: async () => {
+    const button = g.doc.querySelector('[data-doctrine=fortress]');
+    if (button) { button.click(); d.hits.push(String(/^🛡️Military Superpower/)); await flush(); }
+    else await clickDiv(/^🛡️Military Superpower/);
+  } };
 };
