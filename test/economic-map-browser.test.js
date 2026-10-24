@@ -30,7 +30,7 @@ for(const [width,height] of [[1280,800],[1440,900],[1920,1080],[390,844]]){
       assert.ok(searchedHit,'a civilian marker remains selectable while searching');
       await page.mouse.click(searchedHit.x,searchedHit.y);await settle(page);
       if(searchedHit.ids.length>1){
-        await page.getByLabel('Find a city or economic activity').fill('');
+        assert.equal(await page.locator('[data-locate-hub]').count(),searchedHit.ids.length,'a cluster selection clears the previous search');
         await page.locator('[data-locate-hub]').first().click();await settle(page);
       }
       assert.ok(await page.locator('[data-economy-route]').first().isVisible(),'city actions appear after map selection');
