@@ -15,16 +15,16 @@ test('commands: the region card has the eight v2 actions with their keys; escala
   assert.deepEqual(a.map((x) => x.id), ['deploy', 'station', 'influence', 'visit', 'sanction', 'embargo', 'intel', 'build']);
   assert.deepEqual(a.map((x) => x.key), ['A', 'S', 'D', 'F', 'Z', 'X', 'C', 'V']); assert.deepEqual(Object.values(REGION_KEYS), a.map((x) => x.key));
   const by = Object.fromEntries(a.map((x) => [x.id, x]));
-  assert.deepEqual(a.filter((x) => x.escalate).map((x) => x.id), ['sanction', 'embargo', 'intel'], 'sanction, embargo and intel escalate');
+  assert.deepEqual(a.filter((x) => x.escalate).map((x) => x.id), ['sanction', 'embargo'], 'sanctions and embargoes escalate; intelligence opens planning');
   for (const x of a.filter((x) => x.escalate)) assert.ok(x.confirm && x.confirm.title && x.confirm.label && x.confirm.lines.length, `${x.id} confirms`);
-  assert.equal(by.deploy.disabled, true); assert.match(by.deploy.reason, /No free units/);
+  assert.equal(by.deploy.disabled, false); assert.deepEqual(by.deploy.ui,{deploy:'WE'});
   assert.equal(by.visit.target, 'United Kingdom', 'best relations, not sanctioned'); assert.deepEqual(by.visit.dispatch, { type: 'stateVisit', payload: { nation: 'uk' } });
   assert.equal(by.influence.dispatch.payload.weight, 1); assert.deepEqual(by.station.ui, { site: 'rota' }); assert.deepEqual(by.build.ui, { build: true, site: 'rota' });
   assert.equal(by.sanction.target, 'Germany', 'the rival great power present'); assert.equal(by.embargo.dispatch.type, 'toggleEmbargo');
-  assert.equal(by.intel.dispatch.type, 'runIntelOp'); assert.equal(by.intel.dispatch.payload.op, 'influence', 'cheapest covert op');
+  assert.equal(by.intel.dispatch,undefined); assert.equal(by.intel.ui.jump.tab,'sitroom','choose the mission in planning');
   // state changes the card: units free the deploy, a sanction flips to lift (no longer escalatory), cooldown gates the visit, low extraction gates the embargo
   const b = Object.fromEntries(regionCommands(view({ platforms: { carrier_group: 2 }, sanctions: new Set(['germany']), actionCooldowns: { visit_uk: 4 }, resExtraction: { oil: 1 } }), 'WE').map((x) => [x.id, x]));
-  assert.equal(b.deploy.disabled, false); assert.deepEqual(b.deploy.dispatch, { type: 'adjustDeployment', payload: { region: 'WE', unit: 'carrier_group', delta: 1 } });
+  assert.equal(b.deploy.disabled, false); assert.equal(b.deploy.dispatch,undefined); assert.deepEqual(b.deploy.ui,{deploy:'WE'});
   assert.equal(b.sanction.label, 'Lift sanctions'); assert.equal(b.sanction.escalate, false); assert.equal(b.sanction.confirm, null);
   assert.equal(b.visit.disabled, true); assert.match(b.visit.reason, /cooldown 4mo/);
   assert.equal(b.embargo.disabled, true); assert.match(b.embargo.reason, /Extraction too low/);
@@ -64,7 +64,7 @@ test('App (jsdom): region card opens on selection; F visits, Z opens an orange c
     w.__wl.region('WE'); await flush(); await flush();
     const card = q('[data-command-card=region]'); assert.ok(card, 'region card'); assert.equal(card.dataset.placement, 'sheet', 'jsdom is narrow: the card tops the region sheet');
     assert.deepEqual(qa('[data-command-card=region] [data-cmd]').map((b) => b.dataset.key), ['A', 'S', 'D', 'F', 'Z', 'X', 'C', 'V']);
-    assert.deepEqual(qa('[data-command-card=region] [data-escalate=true]').map((b) => b.dataset.cmd), ['sanction', 'embargo', 'intel']);
+    assert.deepEqual(qa('[data-command-card=region] [data-escalate=true]').map((b) => b.dataset.cmd), ['sanction', 'embargo']);
     const visitTarget = q('[data-cmd=visit] .wl-cmd-t').textContent;
     await press('f');
     assert.match(q('[data-cmd=visit]').getAttribute('title') || '', /cooldown/i, `F dispatched the state visit to ${visitTarget}; the card now shows the cooldown`);

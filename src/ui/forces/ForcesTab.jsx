@@ -1,5 +1,7 @@
 // Forces vertical (E5a, spec Part 8): people and readiness. Manpower | Quality | Training | Equipment | Specialized.
 // Reads state through forceView / crewStatus (the month's own rules) and dispatches actions; no game logic here.
+import { DeploymentOrders } from '../map/DeploymentOrders.jsx';
+import { deploymentOptions } from '../../sim/deployment-view.js';
 import { useState } from 'react';
 import { Seg } from '../shell/Seg.jsx';
 import { DataTable } from '../shell/DataTable.jsx';
@@ -22,6 +24,7 @@ import { CommandCard } from '../shell/CommandCard.jsx';
 import { fleetCommands, runCommand } from '../shell/commands.js';
 
 export const FORCES_SUBS = [
+  { id: 'deployments', label: 'Deployments' },
   { id: 'manpower', label: 'Manpower' }, { id: 'quality', label: 'Quality' }, { id: 'training', label: 'Training' },
   { id: 'equipment', label: 'Equipment' }, { id: 'specialized', label: 'Special' },
 ];
@@ -30,6 +33,22 @@ const R = FORCE_RULES;
 const hc = (x) => Math.round(x).toLocaleString('en-US');
 const pc = (x) => `${Math.round(x * 100)}%`;
 const BRANCH_N = Object.fromEntries(BRANCHES);
+
+function Deployments({v,request,dispatch,onJump}){
+ const [destination,setDestination]=useState(request?.region||''),[selectedUnit,setSelectedUnit]=useState(request?.unit);
+ const units=deploymentOptions(v),free=units.reduce((n,u)=>n+u.free,0);
+ const regions=Object.entries(REGIONS).map(([rid,r])=>({rid,name:r.n,units:deploymentOptions(v,rid).filter(u=>u.here)})).filter(r=>r.units.length);
+ return <div className="wl-deployment-workspace" data-force-orders>
+  <Panel id="orders" title="Deploy your forces" figure={`${free} packages available`}>
+   <DeploymentOrders g={v} region={request?.region} initialUnit={request?.unit} chooseRegion onRegion={setDestination} onUnit={setSelectedUnit} dispatch={dispatch} onJump={onJump}/>
+   {destination&&<button className="wl-btn" data-deployment-map onClick={()=>onJump({tab:'overview',mode:'military',region:destination,unit:selectedUnit})}>Inspect {REGIONS[destination].n} on map →</button>}
+  </Panel>
+  <Panel id="assignments" title="Current assignments" figure={`${regions.length} theaters`}>
+   {!regions.length&&<p className="wl-note">No forces forward deployed. Your starting forces are available in the order form.</p>}
+   {regions.map(r=><div className="wl-deployment-assignment" key={r.rid} data-assignment-region={r.rid}><h3>{r.name}</h3><small>{POSTURE_LABELS[v.forcePosture?.[r.rid]||'deter']}</small>{r.units.map(u=><Row key={u.id} title={u.name} value={`×${u.here}`} trailing={<button className="wl-btn" data-assignment-recall={`${r.rid}:${u.id}`} onClick={()=>dispatch({type:'adjustDeployment',payload:{region:r.rid,unit:u.id,delta:-1}})}>Recall 1</button>}/>)}<button className="wl-btn" onClick={()=>onJump({tab:'forces',sub:'deployments',region:r.rid,unit:request?.unit})}>Manage this theater →</button></div>)}
+  </Panel>
+ </div>;
+}
 
 // F7 (#55): strength as headcounts against the 2024 force and the population bound; recruits as propensity of the eligible cohort.
 function strengthPanel(fv, fl, pay) {
@@ -122,7 +141,7 @@ function Training({ fv, v, ask, dispatch }) {
   </>;
 }
 
-function Equipment({ fv, v, ask, dispatch, toast }) {
+function Equipment({ fv, v, ask, dispatch, toast, onJump }) {
   const fl = fleetView(v); const [selLine, setSelLine] = useState(null); const wide = useWide();
   const own = (pid) => (BLACK_PROGRAMS[pid] ? +v.blackPrograms[pid] || 0 : (v.platforms[pid] || 0) + (v.platformsImported[pid] || 0));
   const meta = unitMeta;
@@ -192,12 +211,12 @@ function Equipment({ fv, v, ask, dispatch, toast }) {
         <DataTable id="fleet" label="Order of battle" title="Order of battle · by type" columns={cols} rows={fl.lines} rowId={(l) => l.id} selected={cur?.id} onSelect={setSelLine} rowProps={(l) => ({ 'data-line': l.id })} />
         {inventory}{theatersPanel}
       </div>
-      <div data-detail="fleet">{fleetSummary(fl, dispatch)}{cur && <Panel key={cur.id} id="line-detail" title="Selected type" figure={cur.n}>{lineDetail(cur, fl, ask, dispatch, v)}</Panel>}{crewsPanel}{maintPanel}</div>
+      <div data-detail="fleet">{fleetSummary(fl, dispatch)}{cur && <Panel key={cur.id} id="line-detail" title="Selected type" figure={cur.n}>{lineDetail(cur, fl, ask, dispatch, v, onJump)}</Panel>}{crewsPanel}{maintPanel}</div>
     </div>;
   }
   return <>
     {fl && fleetSummary(fl, dispatch)}
-    {fl && fleetBranches(fl, selLine, setSelLine, ask, dispatch, v)}
+    {fl && fleetBranches(fl, selLine, setSelLine, ask, dispatch, v, onJump)}
     {crewsPanel}
     {inventory}
     {theatersPanel}
@@ -226,7 +245,7 @@ function lineRow(l, sel, onSel) {
     sub={`${hc(l.ready)} ready · MC ${Math.round(l.mc)}% → ${Math.round(l.target)}%${l.crewless ? ` · ${hc(l.crewless)} crewless` : ''}${l.blk ? ` · block ${l.blk}` : ''}${l.mod ? ` · depot ${l.mod}mo` : ''}${l.mx !== 100 ? ` · maint ${l.mx}%` : ''}`}
     value={hc(l.count)} tone={l.crewless ? 'alert' : l.count < l.count2024 ? 'warn' : undefined}><Bar pct={l.mc} tone={tone(l.mc, 40, 60)} marker={l.target} /></Row>;
 }
-function lineDetail(l, fl, ask, dispatch, v) {
+function lineDetail(l, fl, ask, dispatch, v, onJump) {
   const packageId=`fleet:${fl.nid}:${l.id}`,pkg=FLEET_PACKAGES[packageId];
   const step = Math.min(l.count, RETIRE_STEP[l.cls] || 1);
   const retire = (n) => ask({ title: `Retire ${hc(n)} ${l.n}`, cost: `saves about $${Math.round(l.cost * n / Math.max(1, l.count))}M/mo maintenance`, kind: 'alert', label: 'Retire',
@@ -239,7 +258,7 @@ function lineDetail(l, fl, ask, dispatch, v) {
       <small>{hc(l.count)} {CLS_N[l.cls]} (2024: {hc(l.count2024)}{l.lost ? `, ${l.lost} lost` : ''}) · crew ratio {l.crewRatio} x {hc(l.crewSize)}{l.maintainers ? ` + ${l.maintainers} maintainers` : ''} · {hc(l.heads)} people · quality ×{f2(l.quality)}</small>
       <small>Based: {Object.entries(l.at).map(([r, k]) => `${REGIONS[r]?.n || r} ${hc(k)}`).join(' · ') || 'none'}{l.buys.length ? ` · procurement: ${l.buys.join(', ')}` : ''}</small>
       <small>Source: {l.status_source}</small>
-      {pkg&&v&&ownedUnits(v,packageId)>0&&<div className="wl-row" style={{flexWrap:'wrap',margin:'10px 0'}}><select className="wl-sel" id={`station_${l.id}`} aria-label={`Deploy ${l.n} to`} defaultValue="EA">{Object.entries(REGIONS).map(([id,r])=><option key={id} value={id}>{r.n}</option>)}</select><button type="button" className="wl-btn wl-btn-primary" data-fleet-deploy={l.id} onClick={()=>dispatch({type:'deployUnit',payload:{unit:packageId,region:document.getElementById(`station_${l.id}`).value}})}>Station {pkg.per} {l.cls==='airframe'?'aircraft':l.cls==='hull'?'hull':'formation'}</button></div>}
+      {pkg&&v&&ownedUnits(v,packageId)>0&&<button type="button" className="wl-btn wl-btn-primary" data-fleet-deploy={l.id} onClick={()=>onJump({tab:"forces",sub:"deployments",unit:packageId})}>Deploy / recall {l.n} →</button>}
       <Row title="Maintenance" sub={`$${Math.round(l.cost)}M/mo · MC target ${Math.round(l.target)}%`} value={`${l.mx}%`}>
         <input className="wl-slider" type="range" min="0" max="150" step="5" value={l.mx} aria-label={`Maintenance ${l.n}`} onChange={(e) => dispatch({ type: 'setMaintenance', payload: { line: l.id, pct: +e.target.value } })} />
       </Row>
@@ -251,11 +270,11 @@ function lineDetail(l, fl, ask, dispatch, v) {
     </div>
   </div>;
 }
-function fleetBranches(fl, selId, setSel, ask, dispatch, v) {
+function fleetBranches(fl, selId, setSel, ask, dispatch, v, onJump) {
   return BRANCHES.map(([bid, bn]) => {
     const ls = fl.lines.filter((l) => l.b === bid); const b = fl.branches.find((x) => x.id === bid);
     return <Panel key={bid} id={`fleet_${bid}`} title={`${bn} order of battle`} figure={`${hc(b.ready)} / ${hc(b.count)}`} tone={b.fill < 1 ? 'alert' : undefined} data-fleet-panel={bid}>
-      {ls.map((l) => [lineRow(l, selId === l.id, () => setSel(selId === l.id ? null : l.id)), selId === l.id ? lineDetail(l, fl, ask, dispatch, v) : null])}
+      {ls.map((l) => [lineRow(l, selId === l.id, () => setSel(selId === l.id ? null : l.id)), selId === l.id ? lineDetail(l, fl, ask, dispatch, v, onJump) : null])}
       <div className="wl-note">Tap a type to set its maintenance, modernize or retire it. Bar: MC now, marker: target.</div>
     </Panel>;
   });
@@ -270,7 +289,7 @@ function sofRow(u, sel, onSel) {
 function sofOut(u) {
   return u.out.map((o, i) => <Row key={`${u.id}${i}`} data-sof-out={u.id} title={o.label} sub={`${u.n}: 1 ${u.sub} · ${o.mo ? `deployed ${o.mo} mo, then ${o.rec} mo recovery` : `recovering ${o.rec} mo`}`} value={`${o.left} mo`} tone="warn" />);
 }
-function Specialized({ fv, v, ask, dispatch }) {
+function Specialized({ fv, v, ask, dispatch, onJump }) {
   const [sel, setSel] = useState(null);
   const us = fv.sofUnits; const pick = (t) => us.find((u) => u.id === sel && u.tier === t); const dflt = (t) => us.find((u) => u.id === fv.classUnit[`t${t}`]);
   const t1u = pick(1); const t2u = pick(2); const r = fv.sofRules;
@@ -297,6 +316,7 @@ function Specialized({ fv, v, ask, dispatch }) {
         <button type="button" className="wl-lvl" disabled={!!why2} onClick={() => dispatch({ type: 'trainSof', payload: { unit: t2u?.id } })}>Train Tier 2{t2u ? ` → ${t2u.n}` : ''}<small>{why2 || `${r.t2Mo}mo · $${Math.round((c2?.cls || 0) * r.costPer.t2)}M/mo`}</small></button>
         <button type="button" className="wl-lvl" disabled={!!why1} onClick={selectT1}>Tier 1 selection{t1u ? ` → ${t1u.n}` : ''}<small>{why1 || `${fv.selectionMo}mo · $${Math.round(cls1 * r.costPer.t1)}M/mo`}</small></button>
       </div>
+      <button className="wl-btn wl-btn-primary" data-sof-plan onClick={()=>onJump({tab:'sitroom'})}>Plan covert operation →</button>
       <div className="wl-note">Tap a unit to aim the next class at it. Raids and special activities commit sub-units for the op plus recovery; turnover is replaced by the standing pipeline up to 2024 strength. Sources: {fv.units.status_source}.</div>
     </Panel>
     <Panel id="isr" title="ISR" figure={isr} tone={tone(isr, 4, 10)}>
@@ -308,24 +328,24 @@ function Specialized({ fv, v, ask, dispatch }) {
     <Panel id="nuclear" title="Nuclear crews" figure={`${legs}/3 legs`} tone={legs === 3 ? 'good' : legs ? 'warn' : undefined}>
       {nuke.map(([pid, n]) => { const ct = (v.platforms[pid] || 0) + (v.platformsImported[pid] || 0); const c = unitCrew(v,pid); const b = fv.branches.find((x) => x.id === c.b); return <Row key={pid} title={n} sub={`${hc(c.n * ct)} ${BRANCH_N[c.b]} personnel${b.gap > 0 ? ` · ${BRANCH_N[c.b]} gap ${b.gap}` : ''}`} value={`×${ct}`} tone={ct ? 'good' : undefined} />; })}
       {(v.blackPrograms.b21 || v.blackPrograms.h20 || v.blackPrograms.pakda || v.blackPrograms.x_bomber) ? <Row title="Stealth bomber (deterrent)" sub="Counts as the air leg" value="✓" tone="good" /> : null}
-      <div className="wl-note">Triad legs and MAD parity are in the Arsenal vertical (Deterrence).</div>
+      <button className="wl-btn" onClick={()=>onJump({tab:'arsenal',sub:'deterrence'})}>Open deterrence & nuclear posture →</button>
     </Panel>
   </>;
 }
 
-export function ForcesTab({ sub, onSub, view, dispatch, toast, onJump }) {
+export function ForcesTab({ sub, onSub, view, dispatch, toast, onJump, deploymentRequest }) {
   const wide = useWide();
   const [act, setAct] = useState(null);
   const fv = forceView(view);
   const gaps = fv.branches.filter((b) => b.gap > 0).length;
   const items = FORCES_SUBS.map((s) => (s.id === 'equipment' && gaps ? { ...s, badge: gaps, sev: 'alert' } : s));
-  const body = sub === 'quality' ? <Quality fv={fv} onJump={onJump} /> : sub === 'training' ? <Training fv={fv} v={view} ask={setAct} dispatch={dispatch} />
-    : sub === 'equipment' ? <Equipment fv={fv} v={view} ask={setAct} dispatch={dispatch} toast={toast} /> : sub === 'specialized' ? <Specialized fv={fv} v={view} ask={setAct} dispatch={dispatch} />
+  const body = sub === 'deployments' ? <Deployments key={deploymentRequest?.at||'orders'} v={view} request={deploymentRequest} dispatch={dispatch} onJump={onJump}/> : sub === 'quality' ? <Quality fv={fv} onJump={onJump} /> : sub === 'training' ? <Training fv={fv} v={view} ask={setAct} dispatch={dispatch} />
+    : sub === 'equipment' ? <Equipment fv={fv} v={view} ask={setAct} dispatch={dispatch} toast={toast} onJump={onJump} /> : sub === 'specialized' ? <Specialized fv={fv} v={view} ask={setAct} dispatch={dispatch} onJump={onJump} />
     : <Manpower fv={fv} v={view} dispatch={dispatch} />;
   return (
     <div className="wl-pane-wrap" data-sentinel="forces">
-      <Seg id="forces" label="Forces" items={items} active={sub} onSelect={onSub} />
-      <div className={`wl-tabroot${wide && sub !== 'equipment' ? ' wl-cols' : ''}`} data-forces data-forces-sub={sub}>{body}</div>
+      <Seg id="forces" label="Forces" cols={3} items={items} active={sub} onSelect={onSub} />
+      <div className={`wl-tabroot${wide && !['equipment','deployments'].includes(sub) ? ' wl-cols' : ''}`} data-forces data-forces-sub={sub}>{body}</div>
       <ConfirmSheet act={act} onClose={() => setAct(null)} />
     </div>
   );

@@ -29,6 +29,7 @@ for(const [width,height] of [[1280,800],[1440,900],[390,844]]){
    await page.locator('[data-platform=fa_xx]').getByRole('button',{name:/Develop/}).click();await settle(page);
    assert.match(await page.locator('[data-platform=fa_xx]').innerText(),/24mo left/);
    await page.evaluate(()=>window.__wl.platforms({fa_xx:1}));await settle(page);
+   await page.getByLabel('Deploy purchased platform to').selectOption('EA');
    await page.locator('[data-procurement-deploy=fa_xx]').click();await settle(page);
    assert.match(await page.locator('[data-platform=fa_xx]').innerText(),/1 stationed/);
    await page.locator('[data-nav] [data-tab=resources]').click();await page.locator('[data-seg=deals]').click();await settle(page);
@@ -41,7 +42,7 @@ for(const [width,height] of [[1280,800],[1440,900],[390,844]]){
     await page.evaluate(()=>window.__wl.region('EA'));await settle(page);
     await page.getByLabel('Force package',{exact:true}).selectOption('fleet:usa:cvn');
     await page.locator('[data-map-deploy="fleet:usa:cvn"]').click();await settle(page);
-    assert.match(await page.locator('[data-sheet] .wl-map-unit').innerText(),/1 here/);
+    assert.match(await page.locator('[data-sheet] .wl-deployment-stock').innerText(),/1 here/);
     await page.keyboard.press('Escape');await settle(page);
    }
    const o=await overflow(page,width);assert.equal(o.scrollWidth,width);assert.deepEqual(o.bad,[]);assert.deepEqual(errors,[]);
@@ -54,8 +55,8 @@ test('map deploys a starting carrier and recalls the same physical hull',async()
   await page.locator('[data-locate-region=EA]').click();await settle(page);
   await page.getByLabel('Force package',{exact:true}).selectOption('fleet:usa:cvn');await settle(page);
   await page.locator('[data-map-deploy="fleet:usa:cvn"]').click();await settle(page);
-  assert.match(await page.locator('.wl-map-unit').innerText(),/1 here/);
+  assert.match(await page.locator('.wl-deployment-stock').innerText(),/1 here/);
   await page.locator('[data-map-recall="fleet:usa:cvn"]').click();await settle(page);
-  assert.match(await page.locator('.wl-map-unit').innerText(),/0 here/);assert.deepEqual(errors,[]);
+  assert.match(await page.locator('.wl-deployment-stock').innerText(),/0 here/);assert.deepEqual(errors,[]);
  }finally{await ctx.close();}
 });

@@ -4,8 +4,8 @@ import { DataTable } from '../shell/DataTable.jsx';
 import { MINERAL_RULES as R } from '../../data/minerals.js';
 import { NATIONS } from '../../data/nations.js';
 const qty=n=>n.toLocaleString('en-US',{maximumFractionDigits:1});
-export function TradeDesk({rows,v,dispatch,onOpenNation}){
-  const [mineral,setMineral]=useState(rows[0]?.id),[supplier,setSupplier]=useState(null),[search,setSearch]=useState('');
+export function TradeDesk({rows,v,dispatch,onOpenNation,initialMineral}){
+  const [mineral,setMineral]=useState(initialMineral||rows[0]?.id),[supplier,setSupplier]=useState(null),[search,setSearch]=useState('');
   const r=rows.find(x=>x.id===mineral)||rows[0];
   const partners=r.partners.filter(p=>p.n.toLowerCase().includes(search.toLowerCase()));
   const p=partners.find(x=>x.id===supplier)||partners.find(x=>!x.reason)||partners[0];

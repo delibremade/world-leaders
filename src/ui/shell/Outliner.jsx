@@ -9,7 +9,7 @@ import { COLOR } from '../tokens.js';
 export function Outliner({ rows, open, onOpenChange, onJump, focus = null }) {
   const focused = new Set(focus?.ids || []);
   const [open2, setOpen2] = useState(() => new Set()); // rows whose explanation is unfolded (timers and cooldowns act by explaining themselves)
-  const inline = (r) => r.group === 'timers' || r.group === 'cooldowns';
+  const inline = (r) => !r.jump?.site && (r.group === 'timers' || r.group === 'cooldowns');
   const act = (r) => { if (inline(r)) setOpen2((p) => { const n = new Set(p); if (n.has(r.id)) n.delete(r.id); else n.add(r.id); return n; }); else onJump(r.jump, r); };
   const body = useRef(null);
   useEffect(() => { if (!focus || !body.current) return; const el = body.current.querySelector('[data-focus=true]'); el?.scrollIntoView?.({ block: 'nearest' }); }, [focus]);

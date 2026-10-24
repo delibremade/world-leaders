@@ -11,6 +11,10 @@ try{
    await page.waitForFunction(()=>window.__wlMap?.renderer==='pixi',null,{timeout:20000});await shot('doctrine');
    await page.locator('[data-doctrine=fortress]').click();await settle(page);await page.locator('[data-pause]').click();await shot('world');
    if(width>=1100){await page.getByRole('textbox',{name:'Find a base or host nation'}).fill('Changi');await page.locator('[data-map-inspector] .wl-map-row').first().click();await shot('facility');}
+   if(width<1100){await page.evaluate(()=>window.__wl.site('pcabello'));await shot('facility-orders');await page.getByRole('button',{name:'Close sheet',exact:true}).click();}
+   else{await page.getByLabel('Find a base or host nation').fill('Puerto Cabello');await page.locator('[data-map-inspector] .wl-map-row').first().click();await page.getByLabel('Force package',{exact:true}).selectOption('fleet:usa:cvn');await shot('facility-orders');}
+   await page.locator('[data-pulse=forces]').click();await page.getByLabel('Deployment theater').selectOption('ME');await page.getByLabel('Force package',{exact:true}).selectOption('fleet:usa:cvn');await page.locator('[data-map-deploy="fleet:usa:cvn"]').click();await shot('deployment-orders');
+   await page.locator('[data-nav] [data-tab=overview]').click();
    await page.locator('[data-seg=nation]').click();await shot('nation');
    await page.locator('[data-nation-energy]').click();await page.evaluate(()=>{window.__wl.fund(20000);window.__wl.imports(['oil','gas']);window.__wl.event('panama_drought',6);});await settle(page);
    await page.evaluate(()=>window.__wl.month());await settle(page);

@@ -1,5 +1,7 @@
 // Outliner rows (Paradox-style): a pure builder over the game view. Groups: ops, builds, research, timers,
 // flashpoints, cooldowns. Each row carries a jump target (tab + region/nation) so the drawer can open context.
+import { programSupply } from '../../sim/minerals.js';
+import { MINERALS } from '../../data/minerals.js';
 import { INTEL_OPS } from '../../data/intel.js';
 import { PLATFORMS, BLACK_PROGRAMS, DV } from '../../data/platforms.js';
 import { WORLD_EVENTS } from '../../data/world.js';
@@ -28,7 +30,7 @@ export function buildOutliner(v) {
   for (const [rid, b] of Object.entries(v.blockades || {})) push({ id: `bl_${rid}`, kind: 'situation', group: 'flashpoints', icon: '🚢', title: `Blockade · ${REGIONS[rid]?.n}`, sub: `vs ${nat(b?.target)}${b?.porous ? ' · porous' : ''}`, sev: 'warn', jump: { tab: 'overview', region: rid } });
 
   for (const o of v.intelOps || []) { const op = INTEL_OPS.find((x) => x.id === o.opId); push({ id: o.id, kind: 'brief', group: 'ops', icon: op?.i || '🕵️', title: `${op?.n || o.opId} → ${nat(o.targetId)}`, sub: `${Math.round((o.successRate || 0) * 100)}% success · ${Math.round((o.discoverRate || 0) * 100)}% exposure`, months: o.monthsLeft, pct: op?.mo ? 1 - o.monthsLeft / op.mo : null, jump: { tab: 'intel', nation: o.targetId } }); }
-  for (const [ck, on] of Object.entries(v.continuousOps || {})) { if (!on) continue; const [opId, target] = ck.split('@'); const op = INTEL_OPS.find((x) => x.id === opId); push({ id: `co_${ck}`, kind: 'brief', group: 'ops', icon: '♻️', title: `${op?.n || opId} → ${nat(target)}`, sub: 'Standing program', jump: { tab: 'intel', nation: target } }); }
+  for (const [ck, on] of Object.entries(v.continuousOps || {})) { if (!on) continue; const [opId, target] = ck.split('@'); const op = INTEL_OPS.find((x) => x.id === opId); push({ id: `co_${ck}`, kind: 'brief', group: 'ops', icon: '♻️', title: `${op?.n || opId} → ${nat(target)}`, sub: 'Standing program', jump: { tab: 'intel', target } }); }
   // Issues (E9, #23): unexamined and briefed ones carry a lapse timer; deployed ones show under Builds as deployments.
   for (const i of v.issues || []) {
     const def = ISSUES[i.type]; if (!def) continue;
@@ -37,7 +39,11 @@ export function buildOutliner(v) {
   }
   for (const [t, m] of Object.entries(v.investigations || {})) push({ id: `inv_${t}`, kind: 'brief', group: 'ops', icon: '🔍', title: `Brief: ${ISSUES[t]?.title || t}`, sub: 'Investigation', months: m, jump: { tab: 'intel', issue: t } });
 
-  for (const [pid, d] of Object.entries(v.platformDev || {})) { const p = PLATFORMS[pid]; push({ id: `dev_${pid}`, kind: 'build', group: 'builds', icon: p?.i || '🛠️', title: `Develop ${p?.n || pid}`, sub: 'Platform development', months: d?.mo, pct: p?.dev?.mo ? 1 - (d?.mo || 0) / p.dev.mo : null, jump: { tab: 'arsenal', sub: 'procurement' } }); }
+  for(const id of new Set((v.minerals?.queue||[]).map(q=>q.id))){
+    const q=programSupply(v,id).queued,p=PLATFORMS[id]||BLACK_PROGRAMS[id],first=q[0];
+    push({id:'supply_'+id,kind:'build',group:'builds',icon:p?.i||'🏭',title:p?.n||id,sub:q.length+' paid order(s) awaiting '+(MINERALS[first?.binding]?.n||'materials'),months:Number.isFinite(first?.months)?first.months:undefined,sev:'warn',jump:{tab:'resources',sub:'deals',mineral:first?.binding}});
+  }
+  for (const [pid, d] of Object.entries(v.platformDev || {})) { const p = PLATFORMS[pid]; push({ id: `dev_${pid}`, kind: 'build', group: 'builds', icon: p?.i || '🛠️', title: `Develop ${p?.n || pid}`, sub: 'Platform development', months: d?.mo, pct: p?.dev?.mo ? 1 - (d?.mo || 0) / p.dev.mo : null, jump: { tab: 'arsenal', sub: 'procurement', platform:pid } }); }
   if (v.blackResearch) { const bp = BLACK_PROGRAMS[v.blackResearch.id]; push({ id: 'sap', kind: 'build', group: 'builds', icon: '🕶️', title: `SAP: ${bp?.n || v.blackResearch.id}`, sub: 'Special access program', pct: v.blackResearch.mo ? (v.blackResearch.prog || 0) / v.blackResearch.mo : null, months: v.blackResearch.mo ? Math.max(0, v.blackResearch.mo - (v.blackResearch.prog || 0)) : undefined, jump: { tab: 'arsenal', sub: 'programs' } }); }
   for (const [id, d] of Object.entries(v.arsenal?.dev || {})) { const bp = BLACK_PROGRAMS[id]; push({ id: `proto_${id}`, kind: 'build', group: 'builds', icon: bp?.i || '🛩️', title: `Prototype: ${bp?.n || id}`, sub: d.slipped ? 'Slipped once' : 'Prototype line', pct: d.prog / d.mo, months: d.mo - d.prog, jump: { tab: 'arsenal', sub: 'programs' } }); }
   // F9b (#57): your nodes under construction (private ports too) and the ones a host closed.
@@ -81,7 +87,7 @@ export function decorate(r, v) {
   else if (id === 'conf') explain = 'A convoy is testing your blockade. The clock holds until you answer (enforce, board, or let it pass).';
   else if (id.startsWith('bl_')) explain = 'Your blockade: $120M a month, their sphere strangled, arms lanes cut. Lift it from the region card (Overview) when it has done its work.';
   else if (r.group === 'ops' && r.months != null && !id.startsWith('iss_') && !id.startsWith('inv_') && !id.startsWith('co_')) { const o = (v.intelOps || []).find((x) => x.id === r.id); if (o) { j.op = o.id; j.target = o.targetId; const op = INTEL_OPS.find((x) => x.id === o.opId); explain = `${op?.n || o.opId} against ${nat(o.targetId)}: ${pct(o.successRate)} success, ${pct(o.discoverRate)} exposure, ${o.monthsLeft} months to resolution. Opens the operation on the Intel tab.`; } }
-  else if (id.startsWith('co_')) explain = 'A standing program re-runs this operation every month until you stop it on the Intel tab.';
+  else if (id.startsWith('co_')) explain = 'A standing program relaunches this operation after completion when its requirements are met. Manage it on the Intel tab.';
   else if (id.startsWith('iss_')) explain = r.sub.startsWith('Unexamined') ? 'An issue the cabinet has not examined. Commission a brief on the Intel tab before the lapse timer runs out.' : 'The brief is ready: deploy one of its policies on the Intel tab before it lapses.';
   else if (id.startsWith('inv_')) explain = 'An investigation in progress: the brief lands when the months run out.';
   else if (id.startsWith('dev_') || id === 'sap' || id.startsWith('proto_')) explain = `${r.title}: ${r.months != null ? `${r.months} months to go` : 'in progress'}. Opens the program on the Arsenal tab.`;

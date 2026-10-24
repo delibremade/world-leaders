@@ -28,7 +28,7 @@ export function MapView({ view, mode = 'sphere', onModeChange, onRegionTap, onSi
   const inspect=(sel)=>{setSelection(sel);setPreviewType(sel?.kind==='site'?(view.bases?.nodes.find(n=>n.site===sel.id&&n.owner===view.country?.id)?.type||SITES[sel.id]?.types[0]):null);pendingFocus.current=sel;};
   const select=(kind,id)=>{if(!id){if(wide)inspect(null);return;}if(wide&&game)inspect({kind,id});else if(kind==='site')onSiteTap?.(id);else if(kind==='region')onRegionTap?.(id);else inspect({kind,id});};
   const scene = useMemo(() => buildScene({...view,selectedRegion:selection?.kind==='region'?selection.id:view.selectedRegion,selectedSite:selection?.kind==='site'?selection.id:view.selectedSite,previewType}, mode), [view, mode, selection, previewType]);
-  useEffect(()=>{if(selectionRequest)inspect(selectionRequest);},[selectionRequest]);
+  useEffect(()=>{inspect(selectionRequest||null);},[selectionRequest]);
   const selectRef=useRef(select);selectRef.current=select;
   const inspectRef=useRef(inspect);inspectRef.current=inspect;
   const key = JSON.stringify(scene);
@@ -93,7 +93,7 @@ export function MapView({ view, mode = 'sphere', onModeChange, onRegionTap, onSi
         </div>
       </div>
       {wide&&game&&<Operations mode={mode} g={game} selection={selection} previewType={previewType} onPreview={setPreviewType} onSelect={inspect} onClose={()=>inspect(null)} onDetails={(kind,id)=>kind==='site'?onSiteTap?.(id):onRegionTap?.(id)} onNation={onNation} onJump={onJump} dispatch={dispatch} ask={ask} build={scene.build}/>}</div>
-      {!wide&&game&&<Sheet open={!!selection} onClose={()=>inspect(null)} title={selection?.kind==='choke'?CHOKEPOINTS[selection.id]?.n:'Map selection'}><Operations mode={mode} g={game} selection={selection} previewType={previewType} onPreview={setPreviewType} onSelect={sel=>sel.kind==='site'?(inspect(null),onSiteTap?.(sel.id)):inspect(sel)} onClose={()=>inspect(null)} onDetails={(kind,id)=>{inspect(null);kind==='site'?onSiteTap?.(id):onRegionTap?.(id);}} onNation={onNation} onJump={onJump} dispatch={dispatch} ask={ask} build={scene.build}/></Sheet>}
+      {!wide&&game&&<Sheet open={!!selection} onClose={()=>inspect(null)} title={selection?.kind==='choke'?CHOKEPOINTS[selection.id]?.n:'Map selection'}><Operations mode={mode} g={game} selection={selection} previewType={previewType} onPreview={setPreviewType} onSelect={sel=>sel.kind==='site'?(inspect(null),onSiteTap?.(sel.id)):inspect(sel)} onClose={()=>inspect(null)} onDetails={(kind,id)=>{inspect(null);kind==='site'?onSiteTap?.(id):onRegionTap?.(id);}} onNation={id=>{inspect(null);onNation?.(id);}} onJump={route=>{inspect(null);onJump?.(route);}} dispatch={dispatch} ask={ask} build={scene.build}/></Sheet>}
       <div className="wl-mv-hint">{MAP_MODES.find((m) => m.id === mode)?.hint}</div>
     </div>
   );

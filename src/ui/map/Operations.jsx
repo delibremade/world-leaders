@@ -1,8 +1,8 @@
-import { DeploymentPicker } from './DeploymentPicker.jsx';
+import { DeploymentOrders } from './DeploymentOrders.jsx';
 import { useState } from 'react';
 import { SITES, NODE_TYPES } from '../../data/bases.js';
-import { REGIONS, POSTURE_LABELS } from '../../data/regions.js';
-import { NATIONS } from '../../data/nations.js';
+import { REGIONS } from '../../data/regions.js';
+import { INTEL_TARGETS, NATIONS } from '../../data/nations.js';
 import { CHOKEPOINTS } from '../../data/chokepoints.js';
 import { siteView, chokesCovered, regionsCovered } from '../../sim/bases.js';
 import { deploymentOptions } from '../../sim/deployment-view.js';
@@ -33,6 +33,8 @@ export function Operations({mode,g,selection,previewType,onPreview,onSelect,onCl
       {!selection&&mode!=='energy'&&<><div className="wl-map-intro"><span className="wl-atlas-mark">⌖</span><b>{build?'Choose a construction site':'Your world. Your next move.'}</b><p>{build?'Find a host, preview a facility and review its cost before committing.':'Select a theater to station forces. Zoom in to inspect facilities and their reach.'}</p></div><span className="wl-map-eyebrow">THEATERS</span><div className="wl-theater-grid">{Object.entries(REGIONS).map(([id,r])=><button data-locate-region={id} key={id} onClick={()=>choose('region',id)}>{r.n}<span>{Math.round(g.sphere?.[id]?.player||0)}% influence</span></button>)}</div><div className="wl-map-shortcuts"><button onClick={()=>onJump?.('economy')}>National budget ↗</button><button onClick={()=>onJump?.('energy')}>Energy & reserves ↗</button></div></>}
       {selection?.kind==='cluster'&&<><p className="wl-map-muted">These facilities share a small area. Choose one to inspect it.</p>{selection.ids.map(id=><button className="wl-map-row" key={id} onClick={()=>choose('site',id)}><Facility type={SITES[id].types[0]}/><span><b>{SITES[id].n}</b><small>{NATIONS[SITES[id].host]?.n||SITES[id].local}</small></span></button>)}</>}
       {site&&opt&&<>
+        <DeploymentOrders key={site.id} g={g} region={site.region} dispatch={dispatch} onJump={onJump}/>
+        <div className="wl-map-shortcuts">{INTEL_TARGETS.some(t=>t.id===site.host)&&site.host!==g.country.id&&<button data-site-intel onClick={()=>onJump({tab:'sitroom',target:site.host})}>Plan covert action →</button>}{site.options.some(o=>o.type==='port')&&<button onClick={()=>onJump({tab:'resources',sub:'deals'})}>Mineral supply & trade →</button>}</div>
         <div className="wl-facility-preview"><Facility type={opt.type} large/><span>{opt.have?opt.have.status==='building'?`Construction · ${opt.have.mo} months left`:opt.have.status==='active'?'Operational facility':'Host access suspended':'Proposed facility'}</span><b>{NODE_TYPES[opt.type].n}</b></div>
         <button className="wl-map-host" onClick={()=>onNation?.(site.host)} disabled={!site.host}>Host: {site.hostName} <span>{site.host?'↗':''}</span></button>
         <div className="wl-map-type-grid" role="group" aria-label="Facility type">{site.options.map(o=><button key={o.type} data-preview-type={o.type} aria-pressed={opt.type===o.type} onClick={()=>onPreview(o.type)} title={o.n}><Facility type={o.type}/><span>{o.n.replace(' base','').replace(' node','')}</span></button>)}</div>
@@ -49,11 +51,9 @@ export function Operations({mode,g,selection,previewType,onPreview,onSelect,onCl
         {!cp&&<div className="wl-map-facts"><div><b>{Math.round(g.sphere?.[rid]?.player||0)}%</b><span>Regional influence</span></div><div><b>{stationed}</b><span>Units stationed</span></div></div>}
         {cp&&energy.routes.some(r=>r.id===selection.id)&&<ReserveControls g={g} dispatch={dispatch}/>}
         {REGIONS[rid].homeFor?.includes(g.country.id)&&<p className="wl-map-muted" data-home-territory>Home theater · your homeland remains yours. The influence score measures diplomatic alignment across the region.</p>}
-        <span className="wl-map-eyebrow">FORWARD DEPLOYMENT</span>
-        <DeploymentPicker key={rid} units={units} region={rid} dispatch={dispatch}/>
-        <label className="wl-map-posture">Mission posture<select aria-label="Mission posture" value={g.forcePosture?.[rid]||'deter'} disabled={!stationed} onChange={e=>dispatch({type:'setPosture',payload:{region:rid,posture:e.target.value}})}>{Object.entries(POSTURE_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>
-        <p className="wl-map-muted">{stationed?'Deployment is theater-wide. Basing costs $4M per unit each month.':'Station a unit to assign its mission.'}</p>
-        <div className="wl-map-shortcuts"><button onClick={()=>onJump?.('forces')}>Forces & readiness ↗</button>{cp&&<button onClick={()=>onJump?.('energy')}>Energy & reserves ↗</button>}</div>
+        {mode==='intel'&&<div className="wl-map-shortcuts">{INTEL_TARGETS.filter(t=>t.region===rid&&t.id!==g.country.id).map(t=><button key={t.id} data-plan-intel={t.id} onClick={()=>onJump({tab:'sitroom',target:t.id})}>Plan operation · {t.n} →</button>)}</div>}
+        <DeploymentOrders key={rid} g={g} region={rid} initialUnit={selection?.unit} dispatch={dispatch} onJump={onJump}/>
+        <div className="wl-map-shortcuts"><button onClick={()=>onJump?.({tab:'forces',sub:'deployments',region:rid})}>Forces & readiness ↗</button>{cp&&<button onClick={()=>onJump?.('energy')}>Energy & reserves ↗</button>}</div>
         <details className="wl-map-sites"><summary>Facilities in this theater</summary>{Object.entries(SITES).filter(([,s])=>s.region===rid).map(([id,s])=><button className="wl-map-row" key={id} onClick={()=>choose('site',id)}><Facility type={s.types[0]}/><b>{s.n}</b><span>›</span></button>)}</details>
         <button className="wl-map-secondary" onClick={()=>onDetails('region',rid)}>Diplomacy, crises & all theater actions ↗</button>
       </>}

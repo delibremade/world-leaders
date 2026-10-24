@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.96.0 (2026-10-24) — Commands where you need them
+- Selected bases and theaters expose the same Deploy, Recall and posture controls. Defense opens a new Forces deployment workspace with explicit destinations, package availability, cost and current assignments.
+- Starting fleet types, procurement and the map preserve deployment context. Theater commands open planning instead of silently deploying the first unit or purchasing the cheapest intelligence operation.
+- Crew, research and mineral requirements link to their remedies. Paid orders awaiting minerals appear in Production and open the supplier desk on the binding input.
+- Base and intelligence selections connect to covert planning. Queue links retain the operation's target, platform or host-access context and close the previous sheet.
+- The interface explicitly describes theater-wide assignments; facility capacity, physical unit travel and bulk transfers remain separate engine work. No campaign formulas or replay baselines change.
+
 ## 0.95.0 (2026-10-24) — Actionable Situation Room and clear homeland identity
 - Home theaters retain their identity even when a foreign diplomatic influence index is higher. The map now distinguishes regional influence from sovereignty without rewriting campaign progress.
 - Situation Room has a permanent covert planning desk: foreign targets, six mission types, shared eligibility/cost/odds, confirmation, national counter-intelligence, response doctrine and active operations. All live issues are accessible; the five-item truncation is removed.
