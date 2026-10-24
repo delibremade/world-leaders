@@ -11,6 +11,10 @@ for(const [width,height] of [[1280,800],[1440,900],[1920,1080],[390,844]]){
    else{await page.locator('svg [data-region=SA]').click();await page.locator('[data-site-row=pcabello]').click();}
    await settle(page);assert.equal(await page.locator('[data-deployment-orders=SA]').count(),1);
    await page.getByLabel('Force package',{exact:true}).selectOption('fleet:usa:cvn');
+   if(width>=1100){
+    const visible=await page.locator('[data-map-deploy="fleet:usa:cvn"]').evaluate(el=>{const b=el.getBoundingClientRect(),p=el.closest('.wl-operations-scroll').getBoundingClientRect();return {inside:b.top>=p.top&&b.bottom<=p.bottom,clickable:el.contains(document.elementFromPoint(b.x+b.width/2,b.y+b.height/2))};});
+    assert.deepEqual(visible,{inside:true,clickable:true},'base Deploy must be fully visible before automatic action scrolling');
+   }
    await page.locator('[data-map-deploy="fleet:usa:cvn"]').click();await settle(page);
    assert.equal(await page.evaluate(()=>window.__wl.assignments().SA['fleet:usa:cvn']),1);
    await page.getByLabel('Mission posture',{exact:true}).selectOption('escort');await settle(page);

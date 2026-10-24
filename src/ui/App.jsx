@@ -1775,7 +1775,7 @@ function WorldLeadersInner({resumeSignal}){
       <Outliner open={outlinerOpen} onOpenChange={setOutlinerOpen} onJump={jumpTo} focus={alertFocus} rows={outlinerRows}/>
       <Feed open={feedOpen} onClose={closeFeed} entries={feed} routes={routes} onRoute={setRoute} onJump={jumpTo}/>
       <Sheet open={!!selectedRegion||!!selNation||!!selSite} onClose={()=>{setSelectedRegion(null);setSelNation(null);setSelSite(null);}} back={(!!selNation||!!selSite)&&!!selectedRegion} onBack={()=>{setSelNation(null);setSelSite(null);}}
-        title={selSite?`${SITES[selSite]?.n||''}`:selNation?`${NATIONS[selNation]?.flag||''} ${nationName(selNation)}`:selectedRegion?REGIONS[selectedRegion]?.n:''} subtitle={selSite?(buildMode?'Build here · tap a node type':'Base site · nodes here and what you can build'):selNation?'Every action on this nation':selectedRegion?`${Math.round(sphere[selectedRegion]?.player||0)}% your sphere · tap a nation for its actions`:''}>
+        title={selSite?`${SITES[selSite]?.n||''}`:selNation?`${NATIONS[selNation]?.flag||''} ${nationName(selNation)}`:selectedRegion?REGIONS[selectedRegion]?.n:''} subtitle={selSite?(buildMode?'Build here · tap a node type':'Base site · orders, facilities & host access'):selNation?'Every action on this nation':selectedRegion?`${Math.round(sphere[selectedRegion]?.player||0)}% your sphere · tap a nation for its actions`:''}>
         {selSite?<SiteSheet onJump={goPane} g={liveState()} site={siteView(liveState(),selSite)} country={country} dispatch={dispatch} ask={(a)=>{setSelSite(null);setAct(a);}} onNation={(n)=>{setSelSite(null);setSelNation(n);}}/>
         :selNation?<NationSheet nation={selNation} dispatch={dispatch} view={nationView} onSite={(sid)=>{setSelNation(null);setSelSite(sid);}}/>
         :<>
