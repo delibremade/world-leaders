@@ -53,6 +53,8 @@ for(const [width,height] of [[1280,800],[1440,900],[1920,1080],[390,844]]){
    await page.evaluate(()=>window.__wl.region('WE'));await settle(page);
    const before=await page.evaluate(()=>window.__wl.dispatched().length);
    await page.locator('[data-cmd=intel]').click();await settle(page);
+   // Vaul keeps the empty frame for its exit animation. Measure the destination after that frame is removed.
+   await page.locator('[data-sheet]').waitFor({state:'detached'});
    assert.equal(await page.locator('[data-covert-desk]').count(),1);
    assert.equal(await page.getByLabel('Foreign target').inputValue(),'germany');
    assert.equal(await page.evaluate(()=>window.__wl.dispatched().length),before,'planning does not buy an arbitrary mission');
