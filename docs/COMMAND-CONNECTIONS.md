@@ -13,6 +13,7 @@ Select a place or capability → choose an order → see availability, cost and 
 | Base inspector and site sheet | Construction-only controls hide operational uses | Deploy, recall and set theater posture directly at the selected site, above construction details |
 | Defense overview card | Promises readiness/deployment but opens Manpower | Forces → Deployments, with destination selection and current assignments |
 | Theater Deploy command | Instantly picks the first available package | Opens the full force picker for that theater; the player chooses the asset |
+| Legacy theater command card | Appears outside its modal dialog, whose overlay blocks clicks | Commands live inside the active region sheet and are checked with real pointer hit tests |
 | Starting order-of-battle type | Separate deployment control defaults to East Asia | Opens Deployments with that force type selected and an explicit destination |
 | No available packages | Only says to build or recall | Opens current assignments with recall controls; crew and procurement links remain accessible |
 | Forces → map | Context must be rebuilt | Keeps the chosen theater and force package |

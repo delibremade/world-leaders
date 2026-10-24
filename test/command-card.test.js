@@ -103,7 +103,7 @@ before(async () => { browser = await launch(); });
 after(async () => { await browser?.close(); });
 
 for (const [W, H] of [[1440, 900], [390, 844]]) {
-  test(`${W}px: the region card sits ${W >= 900 ? 'bottom-center over the map' : 'at the top of the region sheet'}, every action inside the viewport and tall enough to hit`, async () => {
+  test(`${W}px: region commands sit inside the active sheet; every action is visible and receives pointer input`, async () => {
     const { ctx, page, errors } = await openGame(browser, { svg: true, width: W, height: H });
     try {
       await page.evaluate(() => window.__wl.region('WE')); await settle(page, 800);
@@ -112,8 +112,9 @@ for (const [W, H] of [[1440, 900], [390, 844]]) {
       assert.ok(r.card, 'card rendered'); assert.equal(r.btns.length, 8);
       for (const b of r.btns) assert.ok(b.h >= 44 && b.x >= -0.5 && b.r <= W + 0.5, JSON.stringify(b));
       assert.ok(r.card.x >= -0.5 && r.card.r <= W + 0.5 && r.card.b <= H + 0.5, `card inside ${JSON.stringify(r.card)}`);
-      if (W >= 900) { assert.equal(r.placement, 'map'); const cx = (r.card.x + r.card.r) / 2, mx = (r.map.x + r.map.r) / 2; assert.ok(Math.abs(cx - mx) < 4, `centered on the map ${cx} vs ${mx}`); assert.ok(r.card.b <= r.map.b + 0.5 && r.card.b > r.map.y + r.map.h * 0.5, 'in the lower half of the map card'); }
-      else { assert.equal(r.placement, 'sheet'); assert.ok(r.card.y >= r.sheet.y - 0.5 && r.card.x >= r.sheet.x - 0.5, 'inside the sheet'); }
+      assert.equal(r.placement, 'sheet'); assert.ok(r.card.y >= r.sheet.y - 0.5 && r.card.x >= r.sheet.x - 0.5, 'inside the sheet');
+      const blocked=await page.locator('[data-command-card=region] [data-cmd]').evaluateAll(buttons=>buttons.filter(b=>{const r=b.getBoundingClientRect();return !b.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}).map(b=>b.dataset.cmd));
+      assert.deepEqual(blocked,[],'dialog overlay must not intercept theater commands');
       assert.deepEqual(errors, []);
     } finally { await ctx.close(); }
   });

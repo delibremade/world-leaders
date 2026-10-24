@@ -87,17 +87,18 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
 }
 
 // E5a: Forces vertical. Every sub-tab fits both widths with no sideways scroll, every segment and row control is a
-// 44px target, and every E8 mechanic (spec Part 7) has a control or a figure on one of the five screens.
+// 44px target, and every E8 mechanic (spec Part 7) has a control or a figure on one of the six screens.
 for (const [W, H] of [[390, 844], [1280, 800]]) {
-  test(`${W}px: Forces vertical, five sub-tabs inside the screen; every Part 7 mechanic reachable`, async () => {
+  test(`${W}px: Forces vertical, six sub-tabs inside the screen; every Part 7 mechanic reachable`, async () => {
     const { ctx, page, errors } = await openGame(browser, { width: W, height: H });
     try {
       await page.evaluate(() => { const h = window.__wl; h.field('f47', 2); h.forces({ crewVersion: 2, crews: { land: 300000, air: 0, sea: 150000 } }); });
       await go(page, 'forces');
       const segs = await page.evaluate(() => [...document.querySelectorAll('[data-segbar=forces] [data-seg]')].map((b) => { const r = b.getBoundingClientRect(); return { id: b.dataset.seg, w: r.width, h: r.height, r: r.right }; }));
-      assert.deepEqual(segs.map((x) => x.id), ['manpower', 'quality', 'training', 'equipment', 'specialized']);
+      assert.deepEqual(segs.map((x) => x.id), ['deployments', 'manpower', 'quality', 'training', 'equipment', 'specialized']);
       for (const x of segs) assert.ok(x.h >= (W < 900 ? 44 : 30) && x.w >= 44 && x.r <= W + 0.5, `segment ${JSON.stringify(x)}`);
       const want = {
+        deployments: [/Deploy your forces/, /Destination theater/, /Current assignments/],
         manpower: [/Strength/, /Retention/, /Personnel pay/, /Recruits/, /1,283,000/, /Population bound/], // F7 (#55): headcounts
         quality: [/Force quality index/, /Education/, /Healthcare/, /Food security/, /Stability/, /Equality/],
         training: [/Unfunded/, /Intensive/, /Readiness by branch/, /Crew pipelines/, /Fleet crews and readiness/, /Air: [\d,]+ of [\d,]+ ready/],

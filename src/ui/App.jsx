@@ -780,7 +780,7 @@ function WorldLeadersInner({resumeSignal}){
   const openDeploymentMap=rid=>jumpTo({tab:'overview',region:rid,mode:'military'});
   const openSupplyMap=(choke)=>{setCommandView('world');setMapSelection(choke?{kind:'choke',id:choke}:null);setSelNation(null);setSelSite(null);setSelectedRegion(null);setMapMode('energy');setActiveTab('overview');};
   const cmdView={country,stats,forces,nationRelations,sanctions,embargoes,actionCooldowns,influenceAlloc,platforms,platformsImported,blackPrograms,forceDeployments,resExtraction,bases,intelOps,sphere};
-  const regionCard=selectedRegion&&!selNation&&!selSite?<CommandCard id="region" placement={wide?'map':'sheet'} title={REGIONS[selectedRegion]?.n} sub={`${REGIONS[selectedRegion]?.homeFor?.includes(country.id)?'HOME THEATER · ':''}${Math.round(sphere[selectedRegion]?.player||0)}% diplomatic influence · keys A S D F Z X C V`} color={country?.color||'#6ee7a8'} actions={regionCommands(cmdView,selectedRegion)} onRun={runCmd} onClose={()=>setSelectedRegion(null)}/>:null;
+  const regionCard=selectedRegion&&!selNation&&!selSite?<CommandCard id="region" placement="sheet" title={REGIONS[selectedRegion]?.n} sub={`${REGIONS[selectedRegion]?.homeFor?.includes(country.id)?'HOME THEATER · ':''}${Math.round(sphere[selectedRegion]?.player||0)}% diplomatic influence · keys A S D F Z X C V`} color={country?.color||'#6ee7a8'} actions={regionCommands(cmdView,selectedRegion)} onRun={runCmd} onClose={()=>setSelectedRegion(null)}/>:null;
   // V2b: outliner rows and the top-bar alert chips come from one builder; a chip focuses its rows and switches the map mode.
   const outlinerRows=buildOutliner({minerals,bases,country,issues,evState,arsenal,flashpoint,worldEvent,ultimatum,confrontation,blockades,intelOps,continuousOps,investigations,platformDev,blackResearch,deployments,defResearch,defLevels,gracePeriod,pariah,hegHold,embargoedBy,expelled:expelR.current,embassyLocks:embLockR.current,blocLock,concessions,sprRelease,actionCooldowns});
   const alerts=buildAlerts(outlinerRows,{chokeStatus});
@@ -952,7 +952,6 @@ function WorldLeadersInner({resumeSignal}){
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'8px',marginBottom:'8px'}}><div style={{fontSize:'11px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px'}}>World command · select a region</div><Help items={HELP_TIPS}/></div>
               <MapView selectionRequest={mapSelection} game={{...cmdView,...energyGame,forcePosture,forces,defensePacts,chokeStatus,embassies,tradeAgreements}} dispatch={dispatch} ask={setAct} onNation={setSelNation} onJump={goPane} onMap={m=>{mapRef.current=m;if(m&&panPending.current){m.focus?.(panPending.current);panPending.current=null;}}} mode={mapMode} onModeChange={setMapMode} onRegionTap={rid=>setSelectedRegion(selectedRegion===rid?null:rid)} onSiteTap={sid=>{setSelNation(null);setSelectedRegion(null);setSelSite(sid);}} onBuildToggle={setBuildMode}
                 view={{country,sphere,selectedRegion,forceDeployments,flashpoint,sphereTrend,intelOps,defExports,doctrine,nationRelations,embassies,defensePacts,chokeStatus,rivalTension,blockades,tradeAgreements,importContracts,embargoes,embargoedBy,forcePosture,sanctions,moles,expelled:expelR.current,concessions,bases,build:buildMode,selectedSite:selSite}}/>
-              {wide&&regionCard}
 
             </div>
 
@@ -1779,7 +1778,7 @@ function WorldLeadersInner({resumeSignal}){
         {selSite?<SiteSheet onJump={goPane} g={liveState()} site={siteView(liveState(),selSite)} country={country} dispatch={dispatch} ask={(a)=>{setSelSite(null);setAct(a);}} onNation={(n)=>{setSelSite(null);setSelNation(n);}}/>
         :selNation?<NationSheet nation={selNation} dispatch={dispatch} view={nationView} onSite={(sid)=>{setSelNation(null);setSelSite(sid);}}/>
         :<>
-          {!wide&&regionCard}
+          {regionCard}
           {selectedRegion&&<div data-region-nations><div className="wl-label" style={{margin:'4px 0 2px'}}>Nations here · tap for every action</div>
             {Object.entries(NATIONS).filter(([,n])=>n.region===selectedRegion).map(([id,n])=><button key={id} type="button" className="wl-nation-row" data-nation-row={id} onClick={()=>setSelNation(id)}><span aria-hidden="true" style={{fontSize:18}}>{n.flag}</span><b>{n.n}</b><span className={`wl-chip${id===country?.id?' wl-chip-command':isAllyOf(country?.id,id)?' wl-chip-good':''}`}>{id===country?.id?'you':isAllyOf(country?.id,id)?'ally':NATION_BLOC[id]||'non-aligned'}</span></button>)}
             <div className="wl-label" style={{margin:'8px 0 2px'}}>Bases and candidate sites here · tap to build</div>

@@ -8,7 +8,7 @@ for(const [width,height] of [[1280,800],[1440,900],[1920,1080],[390,844]]){
   try{
    const fits=async()=>{const o=await overflow(page,width);assert.equal(o.scrollWidth,width);assert.deepEqual(o.bad,[]);};
    if(width>=1100){await page.getByLabel('Find a base or host nation').fill('Puerto Cabello');await page.locator('[data-map-inspector] .wl-map-row').click();}
-   else{await page.locator('svg [data-region=SA]').click();await page.locator('[data-site-row=pcabello]').click();}
+   else{await page.evaluate(()=>window.__wlMap.tapRegion('SA'));await page.locator('[data-site-row=pcabello]').click();}
    await settle(page);assert.equal(await page.locator('[data-deployment-orders=SA]').count(),1);
    await page.getByLabel('Force package',{exact:true}).selectOption('fleet:usa:cvn');
    if(width>=1100){

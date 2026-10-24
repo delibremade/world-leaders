@@ -5,6 +5,7 @@
 - Starting fleet types, procurement and the map preserve deployment context. Theater commands open planning instead of silently deploying the first unit or purchasing the cheapest intelligence operation.
 - Crew, research and mineral requirements link to their remedies. Paid orders awaiting minerals appear in Production and open the supplier desk on the binding input.
 - Base and intelligence selections connect to covert planning. Queue links retain the operation's target, platform or host-access context and close the previous sheet.
+- Legacy theater commands live inside their dialog so its overlay cannot block clicks. Repeated supply and procurement links restore the requested mineral or platform.
 - The interface explicitly describes theater-wide assignments; facility capacity, physical unit travel and bulk transfers remain separate engine work. No campaign formulas or replay baselines change.
 
 ## 0.95.0 (2026-10-24) — Actionable Situation Room and clear homeland identity
