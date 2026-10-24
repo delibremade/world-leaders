@@ -182,7 +182,7 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
 .wl-mv-zoom>button{min-width:${TAP}px;min-height:${TAP}px;border-radius:${RADIUS.lg}px;border:1px solid ${c.border.strong};background:${c.bg.panel}e6;color:${c.text.primary};font:inherit;font-size:${SIZE.lg}px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.6)}
 .wl-mv-zoom>button:disabled{opacity:.4}
 .wl-mv-zoom>.wl-btn{padding:0 ${SPACE[4]}px;font-size:${SIZE.small}px;background:${c.bg.panel}e6}
-.wl-mv-dock{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px;padding:2px;margin-top:${SPACE[3]}px;border:1px solid ${c.border.strong};border-radius:${RADIUS.lg}px;background:${c.bg.inset}}
+.wl-mv-dock{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;padding:2px;margin-top:${SPACE[3]}px;border:1px solid ${c.border.strong};border-radius:${RADIUS.lg}px;background:${c.bg.inset}}
 .wl-mv-dock button{min-height:${TAP}px;min-width:0;padding:${SPACE[2]}px 0;border-radius:${RADIUS.md}px;border:1px solid transparent;background:transparent;color:${c.text.muted};font:inherit;font-size:${SIZE.micro}px;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1.1} /* always bold: a mode switch must not change the dock's width (FIX 1 frame test) */
 .wl-mv-dock button[aria-selected=true]{border-color:${c.accent.command};background:rgba(79,184,255,.2);color:${c.text.primary};font-weight:700}
 .wl-mv-dock-i{font-size:16px}

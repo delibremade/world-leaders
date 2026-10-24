@@ -11,7 +11,7 @@ import { COLOR } from '../tokens.js';
 const money = (v) => `$${Math.round(v).toLocaleString('en-US')}M`;
 const signed = (v, unit = '') => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}${unit}`;
 
-export function Allocation({ allocs, maturity = {}, age = {}, treasury = 0, locks, onLock, hold, onHold, baseline = {}, dispatch, compact = false, selected = null, onSelect, children }) {
+export function Allocation({ allocs, maturity = {}, age = {}, treasury = 0, locks, onLock, hold, onHold, baseline = {}, dispatch, compact = false, selected = null, onSelect, children, visibleSectors = SECTORS }) {
   const [last, setLast] = useState(null); // the last squeeze: what was cut, for the alert
   const [drag, setDrag] = useState(null); // {sector, value} while a slider moves: local until release, so a drag is one action
   const live = drag ? { ...allocs, [drag.sector]: drag.value } : allocs;
@@ -52,7 +52,7 @@ export function Allocation({ allocs, maturity = {}, age = {}, treasury = 0, lock
       </div>}
       {last && !last.squeezed && last.fed && <div className="wl-alloc-alert" data-fed role="status"><b>Freed</b> money fed {last.cuts.map((c) => `${SECTOR_LABELS[c.sector]} ${c.from}% → ${c.to}%`).join(' · ')}</div>}
       {last && hold && !last.cuts.length && last.moved.from !== last.moved.to && <div className="wl-alloc-alert" data-unsqueezed role="status"><b>Pool grew</b>: every other line is locked or at its floor, so nothing could give way.</div>}
-      {SECTORS.map((sector) => {
+      {visibleSectors.map((sector) => {
         const alloc = live[sector] ?? 100; const cost = costOf(sector, alloc, maturity); const locked = locks.has(sector); const dd = d[sector];
         const a = age[sector] || 0; const decaying = a > 480; const nearEnd = a > 360 && a <= 480;
         const tone = alloc > 100 ? COLOR.accent.warn : alloc < 100 ? COLOR.accent.good : COLOR.text.dim;

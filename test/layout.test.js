@@ -195,11 +195,11 @@ test('390px: Specialized lists named SOF units with counts; a committed squadron
   } finally { await ctx.close(); }
 });
 
-test('390px: six map-mode chips fit inside the map card, equal width, none clipped', async () => {
+test('390px: seven map-mode chips fit inside the map card, equal width, none clipped', async () => {
   const { ctx, page } = await openGame(browser, { width: 390 });
   try {
-    const card = await rect(page, '[data-map-modes]'); const ids = ['sphere', 'tension', 'trade', 'energy', 'military', 'intel'];
-    assert.equal(await page.evaluate(() => document.querySelectorAll('[data-map-mode-btn]').length), 6);
+    const card = await rect(page, '[data-map-modes]'); const ids = ['sphere', 'tension', 'trade', 'energy', 'military', 'intel', 'economy'];
+    assert.equal(await page.evaluate(() => document.querySelectorAll('[data-map-mode-btn]').length), 7);
     for (const id of ids) { const r = await rect(page, `[data-map-mode-btn=${id}]`); assert.ok(r.x >= card.x - 0.5 && r.r <= card.r + 0.5 && r.w >= 40 && r.h >= 44, `${id} ${JSON.stringify(r)} in ${JSON.stringify(card)}`); }
     const clipped = await page.evaluate(() => [...document.querySelectorAll('[data-map-mode-btn] span:last-child')].filter((s) => s.scrollWidth > s.clientWidth).map((s) => s.textContent));
     assert.deepEqual(clipped, [], 'labels fully visible');

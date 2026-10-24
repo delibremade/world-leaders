@@ -6,10 +6,11 @@ import { COLOR, FONT, pixiHex } from '../tokens.js';
 import { lodFor, layersAt } from './lod.js';
 import { layoutSites, layoutLabels, visibleLayers } from './layout.js';
 import { SYMBOLS } from './symbols.js';
+import {economicBounds} from '../../data/economic-hubs.js';
 export const TILT = 0.84;
 const parsed = parseRegions(REGION_GEO);
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-export async function createPixiMap(container, {onTap,onSiteTap,onChokeTap,onClusterTap,onViewChange}={}) {
+export async function createPixiMap(container, {onTap,onSiteTap,onChokeTap,onClusterTap,onHubTap,onHubClusterTap,onViewChange}={}) {
   const [{Application,Container,Graphics,Text},{Viewport}]=await Promise.all([import('pixi.js'),import('pixi-viewport')]);
   const app=new Application(); const dpr=Math.min(devicePixelRatio||1,3);
   await app.init({resizeTo:container,background:0x081923,antialias:true,autoDensity:true,resolution:dpr,preference:'webgl'});
@@ -27,7 +28,7 @@ export async function createPixiMap(container, {onTap,onSiteTap,onChokeTap,onClu
   const rings=plane.addChild(new Graphics()),lanes=plane.addChild(new Graphics());
   const overlay=viewport.addChild(new Container());
   const tops={};for(const id of Object.keys(parsed))tops[id]=land.addChild(new Graphics());
-  let scene=null,tilt=1,level='strategic',hits=[],groups=[],phase=0,frames=0,fps=0,last=performance.now(),count=0;
+  let scene=null,tilt=1,level='strategic',hits=[],groups=[],hubGroups=[],phase=0,frames=0,fps=0,last=performance.now(),count=0;
   const textPool=[];let textIndex=0;
   const text=(parent,value,x,y,size=12,color=COLOR.text.secondary,weight='600')=>{
     const t=textPool[textIndex]||new Text({text:value,style:{fontFamily:FONT.sans,fontSize:size,fill:color,fontWeight:weight},resolution:Math.max(2,dpr),roundPixels:true});textPool[textIndex++]=t;parent.addChild(t);t.text=value;t.style.fontSize=size;t.style.fill=color;t.style.fontWeight=weight;
@@ -68,7 +69,7 @@ export async function createPixiMap(container, {onTap,onSiteTap,onChokeTap,onClu
     const small=sw()<650;
     const callouts=z<1.6?layoutLabels(scene.regions.map(r=>{const p=viewport.toScreen(r.cx,r.cy*tilt);return {id:r.rid,x:p.x,y:p.y,w:Math.max(100,r.name.length*(small?5.5:6.5)+18),h:52};}),{width:sw(),height:sh()}):[];
     // World labels form the primary interaction targets; tactical labels yield to facilities.
-    for(const r of scene.regions){
+    for(const r of scene.mode==='economy'?[]:scene.regions){
       const p=viewport.toScreen(r.cx,r.cy*tilt);
       const label=z<1.6?callouts.find(c=>c.id===r.rid):null;
       const dx=label?(label.x-p.x)/s:0,dy=label?(label.y-p.y)/s/tilt:0;
@@ -105,12 +106,28 @@ export async function createPixiMap(container, {onTap,onSiteTap,onChokeTap,onClu
       }
       pick(st.ids.length>1?'cluster':'site',st.id,st.x,st.y,22,{ids:st.ids});
     }
+    hubGroups=scene.mode==='economy'?layoutSites(scene.hubs||[],{build:true,scale:s,tilt}):[];
+    const hubLabels=[];
+    for(const h of hubGroups){
+      const p=viewport.toScreen(h.x,h.y*tilt),c=pin(h.x,h.y),g=c.addChild(new Graphics()),col=h.selected?'#e5fff3':h.color;
+      g.roundRect(-16,-16,32,32,4).fill({color:0x10272b,alpha:.98}).stroke({color:pixiHex(col),width:h.selected?2:1});
+      if(h.ids.length>1)text(c,String(h.ids.length),0,0,14,col,'800');
+      else{g.poly([-10,9,-10,-1,-4,-1,-4,-10,3,-10,3,2,10,2,10,9],true).fill(pixiHex(col));}
+      const label=h.ids.length>1?`${h.ids.length} economic hubs`:h.name;
+      const w=Math.min(180,label.length*6+14),r={x:p.x-w/2,y:p.y+22,w,h:18};
+      if(h.selected||!hubLabels.some(a=>a.x<r.x+r.w&&a.x+a.w>r.x&&a.y<r.y+r.h&&a.y+a.h>r.y)){
+        g.roundRect(-w/2,22,w,18,3).fill({color:0x081923,alpha:.97});text(c,label.length>27?label.slice(0,26)+'…':label,0,31,11,col);hubLabels.push(r);
+      }
+      pick(h.ids.length>1?'hubCluster':'hub',h.id,h.x,h.y,22,{ids:h.ids});
+    }
     if(show.chokepoints)for(const cp of scene.chokepoints){const c=pin(cp.x,cp.y),g=c.addChild(new Graphics());g.poly([0,-9,9,0,0,9,-9,0],true).fill({color:pixiHex(cp.color)}).stroke({color:0x081923,width:2});if(z>=1.6)text(c,cp.name,0,20,11,'#d7cba5');pick('choke',cp.k,cp.x,cp.y,22);}
     drawLanes();onViewChange?.(z,level);
   };
   viewport.on('clicked',e=>{
     let hit=null,best=Infinity;for(const h of hits){const d=Math.hypot(e.world.x-h.x,e.world.y-h.y)*viewport.scaled;if((h.width?Math.abs(e.world.x-h.x)*viewport.scaled<h.width/2&&Math.abs(e.world.y-h.y)*viewport.scaled<h.height/2:d<h.r)&&d<best){hit=h;best=d;}}
-    if(hit?.kind==='site')onSiteTap?.(hit.id);
+    if(hit?.kind==='hub')onHubTap?.(hit.id);
+    else if(hit?.kind==='hubCluster')onHubClusterTap?.(hit.ids);
+    else if(hit?.kind==='site')onSiteTap?.(hit.id);
     else if(hit?.kind==='cluster')onClusterTap?.(hit.ids);
     else if(hit?.kind==='choke')onChokeTap?.(hit.id);
     else onTap?.(hit?.id||regionAt(parsed,e.world.x,e.world.y/tilt,15/viewport.scaled));
@@ -120,11 +137,13 @@ export async function createPixiMap(container, {onTap,onSiteTap,onChokeTap,onClu
   app.ticker.add(t=>{frames++;count++;const now=performance.now();if(now-last>1000){fps=count*1000/(now-last);count=0;last=now;}if(!reduced()&&scene&&visibleLayers(scene.mode).routes&&scene.routes.length){phase+=t.deltaTime*.22;drawLanes();}});
   const zoomTo=(s,x,y)=>{viewport.setZoom(Math.max(fitScale(),Math.min(fitScale()*8,s)),true);if(x!=null)viewport.moveCenter(x,y);layout();};
   return {kind:'pixi',app,viewport,tilt:TILT,update(sc){scene=sc;layout();},
+    focusEconomy(){const b=economicBounds(scene?.hubs||[]);zoomTo(Math.min((sw()-70)/b.w,Math.max(90,sh()-160)/(b.h*TILT)),b.x+b.w/2,(b.y+b.h/2)*TILT);},
     focus(rid){const r=parsed[rid];if(r)zoomTo(Math.max(viewport.scaled,fitScale()*2.4),r.cx,r.cy*TILT);},
-    focusPoint(p){if(p)zoomTo(Math.max(viewport.scaled,fitScale()*3),p.x,p.y*TILT);},
+    focusPoint(p){if(p)zoomTo(Math.max(viewport.scaled,fitScale()*(scene?.mode==='economy'?5:3)),p.x,p.y*TILT);},
     focusSite(id){const st=scene?.sites.find(x=>x.id===id);if(st)zoomTo(Math.max(viewport.scaled,fitScale()*4),st.x,st.y*TILT);},
     pan(dx,dy){viewport.x+=dx;viewport.y+=dy;layout();},zoom:z=>zoomTo(z),zoomBy:f=>zoomTo(viewport.scaled*f),fit:()=>zoomTo(fitScale(),500,260),
     level:()=>level,layers:()=>({...layersAt(ratio()),rings:!!scene?.rings.length}),scale:()=>viewport.scaled,relativeZoom:ratio,
     visibleSites:()=>groups.map(g=>g.ids),projection:()=>tilt,screenPoint:(x,y)=>viewport.toScreen(x,y*tilt),
+    visibleHubs:()=>hubGroups.map(g=>({ids:g.ids,x:g.x,y:g.y})),
     fps:()=>fps,frames:()=>frames,destroy(){ro.disconnect();for(const t of textPool){t.removeFromParent();t.destroy();}app.destroy(true,{children:true,texture:true});}};
 }

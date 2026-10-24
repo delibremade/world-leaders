@@ -16,6 +16,15 @@ try{
    await page.locator('[data-pulse=forces]').click();await page.getByLabel('Deployment theater').selectOption('ME');await page.getByLabel('Force package',{exact:true}).selectOption('fleet:usa:cvn');await page.locator('[data-map-deploy="fleet:usa:cvn"]').click();await shot('deployment-orders');
    await page.locator('[data-nav] [data-tab=overview]').click();
    await page.locator('[data-seg=nation]').click();await shot('nation');
+   await page.locator('[data-nation-economy]').click();await shot('economic-layer');
+   if(width<1100){await page.locator('[data-browse-hubs]').click();await settle(page);}
+   await page.getByLabel('Find a city or economic activity').fill('Seattle');await page.locator('[data-locate-hub=seattle]').click();await shot('economic-city');
+   if(width<1100){await page.locator('[data-sheet-close]').click();await page.locator('[data-sheet]').waitFor({state:'detached'});}
+   await page.getByLabel('Economic sector',{exact:true}).selectOption('food');
+   if(width<1100){await page.locator('[data-browse-hubs]').click();await settle(page);}
+   await page.locator('[data-locate-hub=central_valley]').click();await shot('economic-food');
+   if(width<1100){await page.locator('[data-sheet-close]').click();await page.locator('[data-sheet]').waitFor({state:'detached'});}
+   await page.locator('[data-seg=nation]').click();
    await page.locator('[data-nation-energy]').click();await page.evaluate(()=>{window.__wl.fund(20000);window.__wl.imports(['oil','gas']);window.__wl.event('panama_drought',6);});await settle(page);
    await page.evaluate(()=>window.__wl.month());await settle(page);
    await page.locator('[data-reserve-fill]').click();await shot('energy');
