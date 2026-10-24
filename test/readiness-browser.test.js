@@ -9,6 +9,8 @@ for(const [width,height] of [[1280,800],[1440,900],[390,844]]){
    await page.evaluate(()=>window.__wl.decision('crew_shortfall','Sea needs qualified personnel for newly ordered hulls'));
    await page.evaluate(()=>window.__wl.event('panama_drought',6));
    await settle(page);
+   // Measure the settled layout: the entry animation translates cards by 16px and can start late on a busy CI runner.
+   await page.locator('[data-event-cards]').evaluate(async el=>{await Promise.all(el.getAnimations({subtree:true}).filter(a=>a.effect?.getTiming?.().iterations!==Infinity).map(a=>a.finished.catch(()=>{})));});
    if(width>=1100){
     for(const card of await page.locator('[data-card-summary]').all()){
      const geometry=await card.evaluate(el=>{const r=el.getBoundingClientRect(),d=el.closest('[data-dock]').getBoundingClientRect();const b=el.querySelector('[data-review-card]'),q=b.getBoundingClientRect();return {top:r.top,bottom:r.bottom,dockTop:d.top,dockBottom:d.bottom,clickable:b.contains(document.elementFromPoint(q.x+q.width/2,q.y+q.height/2)),options:el.querySelectorAll('.wl-opt').length};});
