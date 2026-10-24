@@ -27,6 +27,7 @@ try{
    if(width<1100){await page.keyboard.press('Escape');await settle(page);}
    await page.locator('[data-map-mode-btn=sphere]').click();
    await page.evaluate(()=>{window.__wl.sphere({NA:{player:5,competitors:{germany:90}},WE:{player:5,competitors:{germany:90}}});window.__wlMap.inspect({kind:'region',id:'NA'});window.__wlMap.focus('NA');});await shot('home-theater');
+   if(width<1100){await page.getByRole('button',{name:'Close sheet',exact:true}).click();await settle(page);}
    await page.locator('[data-seg=sitroom]').click();await page.locator('[data-covert-target]').selectOption('china');await page.locator('[data-covert-op=influence]').click();await shot('situation-desk');
    await page.evaluate(()=>window.__wl.nukes([{actor:'usa',target:'russia',region:'EE',type:'demonstration',mo:9,yr:2026},{actor:'russia',target:'usa',region:'NA',type:'ultimatum',mo:10,yr:2026}]));
    await page.locator('[data-situation-panel=nukes]').scrollIntoViewIfNeeded();await shot('nuclear-register');
@@ -37,3 +38,5 @@ try{
  }
 }finally{await browser.close();await writeFile(`${out}/results.json`,JSON.stringify(results,null,2));}
 console.log(JSON.stringify(results));
+
+if(results.some(r=>r.error||r.errors?.length||r.overflow?.bad?.length||r.overflow?.scrollWidth>r.width))process.exitCode=1;

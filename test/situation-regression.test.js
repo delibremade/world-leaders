@@ -79,6 +79,6 @@ test('Situation deployment shortcuts open the existing-force picker for the affe
   await g.pickCountry(0);g.answerModal();await flush();g.w.__wl.flashpoint('ME','coup',4);await flush();
   g.tabBtn('sitroom').click();await flush();await flush();
   const assign=g.doc.querySelector('[data-assign-forces=ME]');assert.ok(assign,'assignment shortcut exists');assign.click();await flush();await flush();
-  assert.ok(g.doc.querySelector('[data-map]'));const picker=g.doc.querySelector('[data-deployment-picker] select');assert.ok(picker);picker.value='fleet:usa:cvn';picker.dispatchEvent(new g.w.Event('change',{bubbles:true}));await flush();assert.ok(g.doc.querySelector('[data-map-deploy="fleet:usa:cvn"]'),'starting carrier available without buying another');
+  assert.ok(g.doc.querySelector('[data-map]'));const picker=g.doc.querySelector('[data-deployment-picker] select');assert.ok(picker);assert.equal(g.doc.querySelectorAll('[data-deployment-picker]').length,1,'one picker, not stacked map and region sheets');picker.value='fleet:usa:cvn';picker.dispatchEvent(new g.w.Event('change',{bubbles:true}));await flush();assert.ok(g.doc.querySelector('[data-map-deploy="fleet:usa:cvn"]'),'starting carrier available without buying another');
  }finally{g.close();}
 });
