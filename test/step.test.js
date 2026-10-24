@@ -15,6 +15,7 @@ const PHASE_IDS = MONTH_PHASES.map((p) => p.id);
 async function boot() {
   const g = await mount(BUNDLES.app, { testHook: true, seed: 31 });
   await g.pickCountry(0);
+  g.doc.querySelector('[data-event-card=doctrine] .wl-opt').click(); await flush(); await flush();
   const q = (s) => g.doc.querySelector(s);
   const settle = async () => { await flush(); await flush(); };
   const speed = async (n) => { [...g.doc.querySelectorAll('[data-speed] button')].find((b) => b.textContent.trim() === `${n}×`).click(); await settle(); };

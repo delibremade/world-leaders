@@ -52,7 +52,7 @@ test('scene: six modes, ten regions each, valid fills, legend per mode, every v5
     assert.equal(s.mode, m.id); assert.equal(s.regions.length, 10);
     for (const r of s.regions) { assert.match(r.fill, HEX, `${m.id} ${r.rid}`); assert.match(r.stroke, HEX); assert.ok(r.fillAlpha > 0 && r.fillAlpha <= 1); assert.ok(typeof r.line2 === 'string' && r.line2.length); assert.ok(r.value >= 0 && r.value <= 1); assert.equal(r.name, REGIONS[r.rid].n); }
     assert.ok(s.legend.title && s.legend.items.length >= 5, 'legend');
-    assert.equal(s.routes.length, 1, 'trade route to Japan'); assert.equal(s.routes[0].rid, 'EA');
+    if(m.id==='energy')assert.equal(s.routes.length,0,'no fossil contracts in this fixture');else{assert.equal(s.routes.length, 1, 'trade route to Japan'); assert.equal(s.routes[0].rid, 'EA');}
     assert.ok(s.influence.some((l) => l.rid === 'EA' && l.strength === 3), 'pact line'); assert.ok(s.influence.some((l) => l.rid === 'WE' && l.strength === 1), 'relations line'); assert.ok(s.influence.some((l) => l.rid === 'SAS' && l.strength === 2), 'embassy line');
     assert.equal(s.chokepoints.length, Object.keys(CHOKEPOINTS).length);
     const hz = s.chokepoints.find((c) => c.k === 'hormuz'); assert.equal(hz.status, 'disrupted'); assert.ok(hz.ring); assert.equal(hz.color, COLOR.choke.disrupted);
@@ -62,7 +62,7 @@ test('scene: six modes, ten regions each, valid fills, legend per mode, every v5
     assert.ok(s.regions.find((r) => r.rid === 'EA').intel, 'intel dot from op on china');
   }
   const sphere = buildScene(v, 'sphere');
-  assert.equal(sphere.regions.find((r) => r.rid === 'NA').line2, 'YOU 80%'); assert.equal(sphere.regions.find((r) => r.rid === 'EA').line2, 'CHINA 70%');
+  assert.equal(sphere.regions.find((r) => r.rid === 'NA').line2, 'HOME · USA'); assert.equal(sphere.regions.find((r) => r.rid === 'EA').line2, 'CHINA 70%');
   assert.ok(sphere.regions.find((r) => r.rid === 'ME').hatch, 'contested within 15'); assert.ok(!sphere.regions.find((r) => r.rid === 'NA').hatch);
   const tension = buildScene(v, 'tension');
   assert.equal(tension.regions.find((r) => r.rid === 'EE').line2, 'RUSSIA 82'); assert.equal(tension.regions.find((r) => r.rid === 'EE').fill, COLOR.ramp.tension[3]);
@@ -85,6 +85,7 @@ test('App: map renders (SVG fallback in jsdom), six mode chips switch fills and 
   const g = await mount(BUNDLES.app, { testHook: true });
   try {
     await g.pickCountry(0);
+    g.doc.querySelector('[data-event-card=doctrine] .wl-opt').click(); await flush(); await flush();
     const { doc } = g;
     assert.equal(doc.querySelector('[data-map]')?.getAttribute('data-map-renderer'), 'svg');
     assert.equal(doc.querySelectorAll('[data-map-mode-btn]').length, 6);
@@ -99,7 +100,7 @@ test('App: map renders (SVG fallback in jsdom), six mode chips switch fills and 
     doc.querySelector('[data-map-mode-btn=sphere]').click(); await flush();
     assert.equal(fillOf('EA'), before, 'back to affiliation fill');
     const me = doc.querySelector('svg g[data-region=ME]'); me.dispatchEvent(new g.w.MouseEvent('click', { bubbles: true })); await flush();
-    assert.match(g.text(), /Your Influence/, 'region panel opened');
+    assert.match(g.text(), /(Your|Regional) [Ii]nfluence/, 'region panel opened');
     assert.ok(doc.querySelector('svg g[data-region=ME] path').getAttribute('stroke') === COLOR.text.primary, 'selected stroke');
     assert.ok(doc.querySelector('[data-pause-reason]').textContent.includes('Paused: sheet open'), 'an open sheet holds the clock (Q2, #42)');
     doc.querySelector('[data-sheet-close]').click(); await flush(); await flush(); await flush(); // close it to resume
@@ -118,8 +119,9 @@ test('scene: base markers and reach rings come from g.bases; build mode lists ev
   assert.equal(s.sites.length, withNodes.size); assert.ok(s.sites.every((x) => !x.candidate));
   const dj = s.sites.find((x) => x.id === 'djibouti'); assert.ok(dj.mine === 1 && dj.theirs >= 2 && dj.owners.includes('china'), JSON.stringify(dj)); assert.equal(dj.color, COLOR.faction.player); assert.equal(dj.host, 'Djibouti');
   const ream = s.sites.find((x) => x.id === 'ream'); assert.equal(ream.mine, 0); assert.equal(ream.color, COLOR.faction.china);
-  const guam = s.rings.find((r) => r.site === 'guam' && r.type === 'naval'); assert.equal(guam.r, +(NODE_TYPES.naval.reach / KM_PER_PX).toFixed(1)); assert.ok(guam.mine);
-  assert.ok(s.rings.some((r) => r.site === 'ream' && !r.mine), 'foreign rings too');
+  assert.equal(s.rings.length,0,'coverage stays hidden without selection');
+  const guam = buildScene(view({bases,selectedSite:'guam'}),'military').rings.find((r) => r.site === 'guam' && r.type === 'naval'); assert.equal(guam.r, +(NODE_TYPES.naval.reach / KM_PER_PX).toFixed(1)); assert.ok(guam.mine);
+  assert.ok(buildScene(view({bases,selectedSite:'ream'}),'military').rings.some((r) => r.site === 'ream' && !r.mine), 'foreign rings too');
   assert.match(s.legend.glyphs, /your base/);
   const b = buildScene(view({ bases, build: true, selectedSite: 'subic' }), 'sphere');
   assert.equal(b.sites.length, SITE_IDS.length); assert.ok(b.build); assert.ok(b.sites.find((x) => x.id === 'subic').candidate && b.sites.find((x) => x.id === 'subic').selected);

@@ -4,6 +4,7 @@
 // 0..100: 70 = standard training. Crews are trained crew sets (one fills one unit's crew requirement); the trained pool caps
 // them at active strength x CREW_PER. Money in $M/month, on the scale of the v57 ledger (Personnel was $3M per unit).
 import { PLATFORMS, BLACK_PROGRAMS } from './platforms.js';
+import { FLEET_PACKAGES } from './deployment-catalog.js';
 import { SOF_ORBAT, SOF_RULES } from './sof.js';
 
 export const BRANCHES = [['land', 'Land'], ['air', 'Air'], ['sea', 'Sea']];
@@ -18,6 +19,7 @@ export const PLATFORM_CREW = {
 };
 export const SLOT_CREW = { gen5: ['air', 2], gen6: ['air', 2], bomber: ['air', 2], cca: ['air', 0], isr: ['air', 1], ssn: ['sea', 2], carrier: ['sea', 4] };
 export const crewOf = (id) => {
+  if (FLEET_PACKAGES[id]) return { b: FLEET_PACKAGES[id].b, n: FLEET_PACKAGES[id].heads };
   const [b, n] = PLATFORM_CREW[id] || SLOT_CREW[BLACK_PROGRAMS[id]?.slot] || ['land', 1];
   return { b, n: BLACK_PROGRAMS[id]?.attachesTo ? 0 : n };
 };

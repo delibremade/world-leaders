@@ -1,3 +1,5 @@
+export const ENERGY_SECURITY={reserveCapacity:6,reserveCost:200,contractCost:80,routeInflation:.1,routeGrowth:-.02};
+
 export const RES_META={
   oil:      {n:'Crude Oil',   i:'🛢️',col:'#d97706',rev:8,  depRate:0.018},
   gas:      {n:'Natural Gas', i:'🔥',col:'#f97316',rev:5,  depRate:0.014},

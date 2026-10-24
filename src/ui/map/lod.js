@@ -1,11 +1,13 @@
+// Coverage is selection-dependent; the renderer overrides the rings capability from the scene.
+// Zoom is relative to the fitted world, independent of the window size.
 // Level of detail for the 2.5D map (docs/DESIGN-SYSTEM-V2.md §3). One pure table from the viewport scale to the
 // level and the layers it shows, shared by the PixiJS renderer (what it draws), the level chip (what it says) and
 // the tests. Strategic: names and sphere chips. Operational: + base and chokepoint names. Tactical: + reach rings
-// and unit detail. Thresholds are in viewport scale units (1 = one world px per screen px).
+// and unit detail. Thresholds are relative to the fitted world (1 = the whole map).
 export const LOD = [
   { id: 'strategic', label: 'Strategic', min: 0, layers: ['names', 'chips', 'markers', 'lanes', 'chokepoints', 'flashpoints'] },
-  { id: 'operational', label: 'Operational', min: 1.05, layers: ['names', 'chips', 'markers', 'lanes', 'chokepoints', 'flashpoints', 'baseNames', 'chokeNames'] },
-  { id: 'tactical', label: 'Tactical', min: 1.9, layers: ['names', 'chips', 'markers', 'lanes', 'chokepoints', 'flashpoints', 'baseNames', 'chokeNames', 'rings', 'unitDetail'] },
+  { id: 'operational', label: 'Operational', min: 1.6, layers: ['names', 'chips', 'markers', 'lanes', 'chokepoints', 'flashpoints', 'baseNames', 'chokeNames'] },
+  { id: 'tactical', label: 'Tactical', min: 3, layers: ['names', 'chips', 'markers', 'lanes', 'chokepoints', 'flashpoints', 'baseNames', 'chokeNames', 'rings', 'unitDetail'] },
 ];
 export const LOD_IDS = LOD.map((l) => l.id);
 export const LAYERS = [...new Set(LOD.flatMap((l) => l.layers))];

@@ -1,0 +1,19 @@
+import { NationalPulse, ServiceStrip, QueueDeck } from './Workspace.jsx';
+import { energySituation } from '../../sim/energy-view.js';
+export function NationWorkspace({g,rows,onJump,children}) {
+  const e=energySituation(g);
+  return <section className="wl-nation-workspace" data-nation-workspace>
+    <div className="wl-workspace-title"><div><span className="wl-eyebrow">National command</span><h2>Build the strength behind your influence.</h2><p>Balance public services, investment and security from one allocation pool.</p></div></div>
+    <NationalPulse stats={g.stats} energyTier={e.tier} spr={g.spr} onJump={onJump}/>
+    <div className="wl-nation-columns"><section className="wl-nation-budget"><div className="wl-energy-section-title"><b>National allocation</b><span>Monthly spending</span></div>{children}<p className="wl-map-muted">Hold the pool to keep spending level. Increasing one line reduces the unlocked lines. Effects develop over monthly updates.</p><button className="wl-energy-budget-link" onClick={()=>onJump({tab:'economy'})}>Tax policy, accounting & service programs ↗</button></section>
+    <div className="wl-nation-outcomes"><section><div className="wl-energy-section-title"><b>Public service outcomes</b><span>Current state</span></div><ServiceStrip stats={g.stats}/></section>
+      <button className="wl-nation-energy" data-nation-energy onClick={()=>onJump({tab:'energy'})}><span className="wl-map-eyebrow">ENERGY SECURITY</span><b>{e.exposed?(e.shield?'Supply protected by reserves':'Your imports face disruption'):'Supply access maintained'}</b><div className="wl-nation-energy-figures"><span>${e.imports}M<small>imports / month</small></span><span>{e.reserve}/6<small>reserve tranches</small></span></div><p>{e.exposed?'Inspect the cause, compare protection options and follow the cost through the next month.':'Review routes, reserve cover and domestic supply.'}</p><em>Open energy decisions →</em></button>
+      <div className="wl-nation-link-grid"><button onClick={()=>onJump({tab:'arsenal',sub:'supply'})}>Production constraints <span>Materials & programs ↗</span></button><button onClick={()=>onJump({tab:'forces'})}>National capability <span>Crews & readiness ↗</span></button></div>
+    </div></div>
+    <QueueDeck rows={rows} onJump={onJump}/>
+  </section>;
+}
+export const NATION_CSS=`
+.wl-nation-workspace{padding:10px 6px 20px;min-width:0}.wl-ov-col:has(>.wl-nation-workspace){display:block!important;overflow-y:auto!important}.wl-nation-columns{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:18px;margin:20px 0}.wl-nation-budget{border:1px solid #2b424e;border-radius:6px;background:#0d1c29;padding:16px}.wl-nation-outcomes{display:flex;flex-direction:column;gap:18px}.wl-nation-outcomes .wl-service-strip{grid-template-columns:1fr 1fr}.wl-nation-energy{display:block;width:100%;text-align:left;padding:18px;background:#10282f;color:#c5e2db;border:1px solid #456a68;border-radius:6px;cursor:pointer}.wl-nation-energy>b{display:block;font-size:18px;font-weight:600;line-height:1.3;margin:10px 0 16px}.wl-nation-energy-figures{display:flex;gap:20px}.wl-nation-energy-figures>span{font-size:24px}.wl-nation-energy-figures small{display:block;font-size:11px;color:#8eafb4;margin-top:5px}.wl-nation-energy p{font-size:12px;line-height:1.6;color:#a0bdbf}.wl-nation-energy em{font-size:12px;font-style:normal;color:#b0dec3}.wl-nation-link-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.wl-nation-link-grid button{background:#12232f;color:#ccdddf;border:1px solid #304a56;border-radius:5px;text-align:left;padding:14px;font-size:12px;cursor:pointer}.wl-nation-link-grid span{display:block;color:#8eabb3;font-size:11px;margin-top:6px}
+@media(max-width:800px){.wl-nation-columns{grid-template-columns:1fr}.wl-nation-workspace{padding:0}.wl-nation-budget{padding:12px}}
+`;

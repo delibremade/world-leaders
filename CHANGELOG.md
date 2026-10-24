@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.95.0 (2026-10-24) — Actionable Situation Room and clear homeland identity
+- Home theaters retain their identity even when a foreign diplomatic influence index is higher. The map now distinguishes regional influence from sovereignty without rewriting campaign progress.
+- Situation Room has a permanent covert planning desk: foreign targets, six mission types, shared eligibility/cost/odds, confirmation, national counter-intelligence, response doctrine and active operations. All live issues are accessible; the five-item truncation is removed.
+- Situation deployment shortcuts open the shared force picker in the affected theater, including the existing starting fleet.
+- Intelligence crises use the accessible, scrolling decision reader. Consequence text reports actual engine effects; old narrative promises of unimplemented effects are no longer presented as results.
+- Situation panels no longer shrink and clip their contents. Nuclear records and headings wrap completely in both Situation and Arsenal.
+- Manual and standing covert orders share requirements. Invalid/self targets, duplicate missions and multiple national sweeps cannot spend funds. Defensive sweeps expire without creating a foreign discovery crisis.
+
+## 0.94.0 (2026-10-24) — Deployable starting forces and a usable trade desk
+- Activity cards show compact summaries on every screen size; full briefings and response choices open in the existing accessible reader, leaving room for the game controls.
+- Fleet readiness and deployment share trained personnel. Existing saves migrate from the obsolete crew-set cap using their real manpower allocation; training classes scale with the force, retain their lead times, and remain bounded by active personnel.
+- Existing order-of-battle aircraft, ships and formations deploy from the map and selected fleet type. Packages retain their real identities and move the same physical inventory.
+- Foreign regional flashpoints exclude the home theater; invalid old home crises clear without a rival penalty. Regional influence is labeled as diplomatic alignment rather than domestic sovereignty.
+- F/A-XX acquisition is linked from Programs, searchable in Procurement, and exposes development, mineral delivery and deployment. Engine gates prevent duplicate development and production before the first article.
+- Mineral trade compares every processor for the selected mineral, including smaller suppliers, with real contract terms and shared restriction checks. Active contracts, production needs, secure supply, the allied pact and diplomacy are accessible together.
+- Regression checks exposed premature random selection of queued follow-ups; queued events now respect their scheduled chain. Five deterministic replay goldens updated for the intentional mechanics changes; no prefix or verb checks relaxed.
+
+## 0.93.1 (2026-10-24) — Decisions get room to read
+- Mandatory doctrine selection moves out of the narrow Cards rail into a dedicated, keyboard-accessible decision dialog. Desktop shows all four choices together, with each benefit and tradeoff stated once. Change nation remains available.
+- Every ongoing event, cabinet decision and ready brief can open in a full-size reader. The clock holds while reading; existing actions and requirements are preserved, and the map stays in place.
+- Regression coverage checks all doctrine choices above the outliner, focus containment, Escape behavior, background shortcuts, phone scrolling, event responses and unchanged replay results.
+
+## 0.93.0 (2026-10-23) — Nation, energy decisions and the operational atlas
+- Nation workspace: shared budget allocation, service outcomes, energy exposure and project queues. World remains the spatial workspace.
+- Energy: connected supply/transit/economy view, reserve controls, import and extraction settings, current import-cost estimate and observed monthly accounting. The estimate and monthly tick share one import-cost calculation.
+- Atlas: flat world geography, shallow regional relief, screen-sized labels and facility silhouettes, nearby-site groups, selectable corridors, lens-specific networks and selection-only coverage.
+- Persistent desktop inspector: search sites, preview construction with actual host gates/costs/reach, build through confirmation, explicitly station/recall platforms and set posture. Mobile retains sheets and the SVG fallback remains keyboard accessible.
+- Browser acceptance captures added to CI. No save-schema or balance changes.
+
+## 0.92.0 (2026-10-23) — Desktop command workspace
+- Overview: clickable national indicators and real production, research and operations queues surround the 2.5D map. The existing event dock and outliner keep their fixed positions.
+- Economy: public-service outcomes and the shared allocation pool lead the screen; tax and monetary policy sit alongside. Budget command buttons now use the same held-pool and lock rules as sliders.
+- Energy: reserve and supply status, clickable transit routes, direct links to the energy map and natural-resource generation controls.
+- Essential navigation uses SVG icons; budget locks have text labels. Doctrine choices support the keyboard and hold time until selected; victory instructions now match the 85% / 24-month rule.
+- Tests: workspace navigation, reserve transactions, budget locking, desktop/390px layout. Clock fixtures choose a doctrine explicitly. Five parity baselines updated because both replay UIs now choose their opening doctrine before month 1, with the same simulation formulas and save schema.
+
 ## 0.91.0 (2026-10-22) — #89: Host nations and base sites (F15 tenure)
 - Rule change (spec Parts 11, 13 F15). 18 host nations are now in `NATIONS` with `host` data (terms, status_source): Singapore, Philippines, Australia, South Korea, UK, Italy, Spain, Greece, Turkey, Poland, Romania, Qatar, UAE, Kuwait, Bahrain, Djibouti, Iceland, Greenland. 10 are new entries; none are `dip`, so the v57 relations map is untouched (relations start from the bloc rule via `relOf`).
 - 19 new real sites (Paya Lebar, four EDCA sites, Tindal, Pine Gap, Camp Humphreys, Lakenheath, Aviano, Sigonella, Moron, Alexandroupolis, Poznan, Lask, MK, Ali Al Salem, Jebel Ali, Kurecik); Changi, Subic, Souda, Deveselu, Bahrain, Al Udeid, Arifjan, Djibouti, Keflavik, Pituffik move from local hosts to their registry host.

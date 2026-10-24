@@ -38,9 +38,9 @@ export const markWorldEvent = (g, S) => setEv(g, S, { ...evOf(g), last: absMonth
 
 // Eligible world events (off cooldown, conditions hold, weight > 0) -> weighted pick with roll in [0,1). null = quiet month.
 export function pickWorldEvent(g, roll) {
-  const cd = evOf(g).cd;
+  const cd = evOf(g).cd,queued=new Set(evOf(g).q.map(q=>q.id));
   const pool = Object.keys(WORLD_EVENTS)
-    .filter((id) => !(cd[id] > 0) && WORLD_RULES[id]?.when(g))
+    .filter((id) => !queued.has(id) && !(cd[id] > 0) && WORLD_RULES[id]?.when(g))
     .map((id) => [id, WORLD_RULES[id].w(g)]).filter(([, w]) => w > 0);
   const tot = pool.reduce((a, [, w]) => a + w, 0);
   if (!pool.length) return null;

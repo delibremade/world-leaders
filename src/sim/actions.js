@@ -1,3 +1,4 @@
+import {intelOrder} from './intel-operations.js';
 import { NATIONS, BUYERS, DIP_TARGETS, HOST_NATIONS, NATION_BLOC, RD_MODS } from '../data/nations.js';
 import { setPermanent, RENEWABLE_DAMPER } from './effects.js';
 import { REGIONS, POSTURE_LABELS } from '../data/regions.js';
@@ -8,7 +9,7 @@ import { worldOptions, decisionReason, fpReason, FP_COST, pushFx, flashpointRow,
 import { PA, ISSUES, SOCIAL_PROGRAMS, SECTOR_LABELS, IP_POLICY_LABELS, BASE_SECTOR } from '../data/economy.js';
 import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, INTEL_POSTURE_LABELS } from '../data/intel.js';
 import { BLOC_TRADE, CURRENCY_LABELS } from '../data/trade.js';
-import { RES_META, CONCESSIONS } from '../data/energy.js';
+import { RES_META, CONCESSIONS, ENERGY_SECURITY } from '../data/energy.js';
 import { relOf, startRel, panamaPriorityBlock, sumDep, isAllyOf, topHostile, wSum, isrOf, navalWeight, triadLegs, strategicWeight, kineticDamage, meetsReq, procurementCost, sapRunCost, trancheCost, devCost, recapCost, getQualMult, tier1Odds, exportEdge } from './formulas.js';
 import { blocTierReqs, blocCanAdvance, euTierNeed, blocGroups, opOddsTerms, programStage, programBlock, playerEntry, myAccess, accessGates, memberGates, shareCost, orderPrice, productionOpen } from './selectors.js';
 import { ALLIED_PROGRAMS, TIERS, TIER_ORDER, ACCESS_RULES } from '../data/alliance.js';
@@ -67,14 +68,18 @@ function deployPolicy(g,S,fx,issueType,optId){
   return true;
 }
 
-const ownedUnits=(g,pid)=>BLACK_PROGRAMS[pid]?(+g.blackPrograms?.[pid]||0):((g.platforms[pid]||0)+(g.platformsImported[pid]||0));
-const deployedTotal=(g,pid)=>Object.values(g.forceDeployments||{}).reduce((a,o)=>a+(o?.[pid]||0),0);
+import { canStation, unitMeta } from '../data/deployment-catalog.js';
+import { stationInventory } from './forces.js';
+import { platformBlock } from './procurement-view.js';
+import { ownedUnits, deployedTotal } from './deployment-view.js';
 function deployUnit(g,S,fx,rid,pid){
-  if(!DEPLOYABLE.includes(pid)){fx.toast(`⚠ ${(PLATFORMS[pid]||BLACK_PROGRAMS[pid])?.n||pid} cannot be stationed${BLACK_PROGRAMS[pid]?.attachesTo?' — it attaches to '+BLACK_PROGRAMS[BLACK_PROGRAMS[pid].attachesTo].n+' wings':''}`);return false;}
-  const avail=ownedUnits(g,pid)-deployedTotal(g,pid);const nm=(PLATFORMS[pid]||BLACK_PROGRAMS[pid])?.n||pid;
+  if(!REGIONS[rid])return false;
+  if(!canStation(g.country?.id,pid)){fx.toast(`⚠ ${(PLATFORMS[pid]||BLACK_PROGRAMS[pid])?.n||pid} cannot be stationed${BLACK_PROGRAMS[pid]?.attachesTo?' — it attaches to '+BLACK_PROGRAMS[BLACK_PROGRAMS[pid].attachesTo].n+' wings':''}`);return false;}
+  const avail=ownedUnits(g,pid)-deployedTotal(g,pid);const nm=unitMeta(pid)?.n||pid;
   if(avail<=0){fx.toast(`⚠ No free ${nm} — build more or recall from other regions`);return false;}
   const crew=crewBlock(g,pid);if(crew){fx.toast(`⚠ ${crew}`);return false;} // E8 (#20): crews gate stationing
-  S.setForceDeployments(pr=>{const n2={...pr,[rid]:{...(pr[rid]||{}),[pid]:((pr[rid]||{})[pid]||0)+1}};g.forceDeployments=n2;return n2;});
+  const n2={...g.forceDeployments,[rid]:{...(g.forceDeployments[rid]||{}),[pid]:(g.forceDeployments[rid]?.[pid]||0)+1}};g.forceDeployments=n2;S.setForceDeployments(n2);
+  stationInventory(g,S,pid,rid,1);
   fx.toast(`🪖 ${nm} stationed in ${REGIONS[rid]?.n}`);return true;
 }
 function establishEmbassy(g,S,fx,nid){
@@ -139,7 +144,7 @@ function regimeChange(g,S,fx,nid){
   }
 }
 export function recordNuke(g,S,fx,e){const entry={...e,yr:g.date.yr,mo:g.date.mo};g.nukeLog=[entry,...g.nukeLog].slice(0,40);S.setNukeLog(g.nukeLog);}
-function recallUnit(g,S,fx,rid,pid){S.setForceDeployments(pr=>{const here={...(pr[rid]||{})};if(!here[pid])return pr;here[pid]-=1;if(here[pid]<=0)delete here[pid];const n2={...pr,[rid]:here};g.forceDeployments=n2;return n2;});}
+function recallUnit(g,S,fx,rid,pid){if(!g.forceDeployments?.[rid]?.[pid])return;const here={...g.forceDeployments[rid]};here[pid]-=1;if(here[pid]<=0)delete here[pid];g.forceDeployments={...g.forceDeployments,[rid]:here};S.setForceDeployments(g.forceDeployments);stationInventory(g,S);}
 export function pushTension(g,S,fx,cid,d,why){
   const cur=g.rivalTension[cid]||0;const nv=Math.max(0,cur+d);
   if(nv>=100){S.setGameOver(`☢️ NUCLEAR EXCHANGE. Your ${why} pushed ${cid.charAt(0).toUpperCase()+cid.slice(1)} past the brink and the world did not survive the reply. Whoever "started it," it ended on your watch.`);return;}
@@ -280,12 +285,10 @@ function runIntelOp(g,S,fx,opId,targetId){
   const s=g.stats;if(!s)return;
   const op=INTEL_OPS.find(o=>o.id===opId);const c=g.country;
   if(!op||!c)return;
-  if(opId==='sabotage'&&!(g.intelInfra.paramilitary>0)){fx.toast('⚠ Requires Special Activities Wing (Intel infrastructure)');return;}
-  if(opId==='mole'&&(g.intelInfra.overseas_stations||0)<3){fx.toast('⚠ Requires 3+ Overseas Stations');return;}
-  const opCost=Math.round(op.cost*(g.doctrine==='shadow'?0.75:1));
-  const plan=intelPlan(g,op);if(plan&&!plan.picks.length){fx.toast('⚠ No Tier 2 element free — every sub-unit is deployed or recovering');return;} // F8 (#56)
-  if(s.treasury<opCost){fx.toast('⚠ Insufficient treasury');return;}
-  const {successRate,discoverRate,cyberLvl,budgetBonus,lpD}=opOddsTerms(g,opId); // one implementation with the op card why-breakdown
+  const order=intelOrder(g,opId,targetId);
+  if(order.block){fx.toast(`⚠ ${order.block}`);return;}
+  targetId=order.target;
+  const {cost:opCost,plan,odds:{successRate,discoverRate}}=order;
   if(g.absorbBonus>0)g.absorbBonus--;
   S.setStats(p=>({...p,treasury:p.treasury-opCost}));if(plan)commitPlan(g,S,fx,plan,targetId);
   S.setIntelOps(p=>[...p,{id:`${opId}_${targetId}_${fx.now()}`,opId,targetId,monthsLeft:op.mo,successRate,discoverRate,type:op.type}]);
@@ -499,7 +502,6 @@ function backChannel(g,S,fx,nation,from){
 function embargoBackChannel(g,S,fx){if((g.stats?.treasury||0)<250){fx.toast('⚠ Need $250M');return;}S.setStats(p=>({...p,treasury:p.treasury-250}));S.setRivalTension(p=>({...p,russia:Math.max(0,(p.russia||0)-8)}));fx.toast('🕊 Back-channel with Russia — tension −8');}
 function releaseReserve(g,S,fx,from){const spr=g.spr;if(spr<=0){fx.toast(from==='chokepoint'?'⚠ Reserve empty — fill it on the Energy tab':'⚠ Reserve empty');return;}g.sprRelease=true;S.setSprRelease(true);fx.toast('🛢️ Releasing reserve');}
 function establishRegionEmbassy(g,S,fx,rid){const embassies=g.embassies;const d=DIP_TARGETS.find(x=>x.region===rid&&!embassies.has(x.id));if(d)establishEmbassy(g,S,fx,d.id);else fx.toast('No embassy candidate in this region');}
-function stationHunterKiller(g,S,fx,rid){if(!deployUnit(g,S,fx,rid,'ssnx'))deployUnit(g,S,fx,rid,'sub_fleet');}
 // Rival-hegemony lane: same bloc suspension, freeze and ally cost as the Trade toggle (ruling 7, #5). Add-only.
 function imposeSanctions(g,S,fx,cid){if(!g.sanctions.has(cid))toggleSanctions(g,S,fx,cid);}
 
@@ -523,7 +525,7 @@ function modernizeSector(g,S,fx,sector){const label=SECTOR_LABELS[sector];
 }
 
 // Energy tab: strategic reserve, export shares, energy embargo, Panama deals, concessions and stewardship.
-function fillReserve(g,S,fx){const spr=g.spr;if(spr>=6){fx.toast('Reserve full');return;}if((g.stats?.treasury||0)<200){fx.toast('⚠ $200M per tranche');return;}S.setStats(p=>({...p,treasury:p.treasury-200}));g.spr=spr+1;S.setSpr(spr+1);fx.toast('🛢️ Reserve tranche filled');}
+function fillReserve(g,S,fx){const spr=g.spr;if(spr>=ENERGY_SECURITY.reserveCapacity){fx.toast('Reserve full');return;}if((g.stats?.treasury||0)<ENERGY_SECURITY.reserveCost){fx.toast(`⚠ ${ENERGY_SECURITY.reserveCost}M per tranche`);return;}S.setStats(p=>({...p,treasury:p.treasury-ENERGY_SECURITY.reserveCost}));g.spr=spr+1;S.setSpr(spr+1);fx.toast('🛢️ Reserve tranche filled');}
 function toggleReserveRelease(g,S,fx){const spr=g.spr,sprRelease=g.sprRelease;if(spr<=0){fx.toast('⚠ Reserve empty');return;}g.sprRelease=!sprRelease;S.setSprRelease(!sprRelease);fx.toast(sprRelease?'Release halted':'🛢️ Releasing reserve — 1 tranche/mo shields you from lane disruption');}
 function setExportShare(g,S,fx,k,v){S.setExportShare(p=>{const n2={...p,[k]:v};g.exportShare=n2;return n2;});}
 function toggleEmbargo(g,S,fx,tg){
@@ -647,16 +649,16 @@ function expelPartner(g,S,fx,pid,nid){
 }
 function setPersonnelPay(g,S,fx,pay){const p=Math.max(0,Math.min(FORCE_RULES.payMax,Math.round(+pay||0)));g.personnelPay=p;S.setPersonnelPay(p);}
 function setProcurement(g,S,fx,mode){S.setProcureMode(mode);}
-function developPlatform(g,S,fx,pid){const p=PLATFORMS[pid];const reqsMet=meetsReq(p.req,g.defLevels);
+function developPlatform(g,S,fx,pid){const why=platformBlock(g,pid,'develop');if(why){fx.toast(`⚠ ${why}`);return;}const p=PLATFORMS[pid];const reqsMet=meetsReq(p.req,g.defLevels);
   if(!reqsMet){fx.toast('⚠ Research requirements not met');return;}if((g.stats?.treasury||0)<p.dev.cost){fx.toast(`⚠ Program needs $${p.dev.cost}M`);return;}S.setStats(pr=>({...pr,treasury:pr.treasury-p.dev.cost}));S.setPlatformDev(pr=>{const n2={...pr,[pid]:{mo:p.dev.mo}};g.platformDev=n2;return n2;});fx.toast(`🔬 ${p.n} program launched — ${p.dev.mo}mo to first article`);S.setLog(pr=>[{msg:`🔬 ${p.n} development started`,yr:g.date.yr,mo:g.date.mo},...pr.slice(0,19)]);
 }
-function buildPlatform(g,S,fx,pid){const p=PLATFORMS[pid];const reqsMet=meetsReq(p.req,g.defLevels);const procCost=procurementCost(p,g.procureMode);
+function buildPlatform(g,S,fx,pid){const why=platformBlock(g,pid,'build');if(why){fx.toast(`⚠ ${why}`);return;}const p=PLATFORMS[pid];const reqsMet=meetsReq(p.req,g.defLevels);const procCost=procurementCost(p,g.procureMode);
   if(!reqsMet){fx.toast('⚠ Research requirements not met');return;}if((g.stats?.treasury||0)<procCost){fx.toast('⚠ Insufficient treasury');return;}S.setStats(pr=>({...pr,treasury:pr.treasury-procCost}));
   // E8 (#20) closes E4's gap: a build draws its mineral inputs; a shortfall queues it (paid now, delivered as minerals arrive).
   if(!startTranche(g,S,fx,pid)){S.setLog(pr=>[{msg:`⏳ ${p.n} waiting on minerals`,yr:g.date.yr,mo:g.date.mo},...pr.slice(0,19)]);return;}
   S.setPlatforms(pr=>({...pr,[pid]:(pr[pid]||0)+1}));S.setLog(pr=>[{msg:`${p.i} ${p.n} deployed — $${procCost}M`,yr:g.date.yr,mo:g.date.mo},...pr.slice(0,19)]);fx.toast(`${p.i} ${p.n} deployed`);
 }
-function importPlatform(g,S,fx,pid){const p=PLATFORMS[pid];
+function importPlatform(g,S,fx,pid){const why=platformBlock(g,pid,'import');if(why){fx.toast(`⚠ ${why}`);return;}const p=PLATFORMS[pid];
   const impCost=Math.round(p.cost*1.8);if((g.stats?.treasury||0)<impCost){fx.toast('⚠ Insufficient treasury');return;}S.setStats(pr=>({...pr,treasury:pr.treasury-impCost}));S.setPlatformsImported(pr=>({...pr,[pid]:(pr[pid]||0)+1}));S.setLog(pr=>[{msg:`🌐 ${p.n} purchased abroad — $${impCost}M`,yr:g.date.yr,mo:g.date.mo},...pr.slice(0,19)]);fx.toast(`🌐 ${p.n} imported (90% effectiveness, +25% maintenance)`);
 }
 function decommissionPlatform(g,S,fx,pid){const p=PLATFORMS[pid];S.setPlatforms(pr=>({...pr,[pid]:Math.max(0,(pr[pid]||0)-1)}));fx.toast(`${p.n} decommissioned`);}
@@ -797,7 +799,6 @@ export const VERBS={
   embargoBackChannel:(g,S,fx)=>embargoBackChannel(g,S,fx),
   releaseReserve:(g,S,fx,{from})=>releaseReserve(g,S,fx,from),
   establishRegionEmbassy:(g,S,fx,{region})=>establishRegionEmbassy(g,S,fx,region),
-  stationHunterKiller:(g,S,fx,{region})=>stationHunterKiller(g,S,fx,region),
   imposeSanctions:(g,S,fx,{nation})=>imposeSanctions(g,S,fx,nation),
   // economy
   setInterestRate:(g,S,fx,{rate})=>setInterestRate(g,S,fx,rate),

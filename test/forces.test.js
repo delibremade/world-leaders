@@ -157,7 +157,7 @@ test('invariants: strength, readiness, quality in 0..100; crews <= trained pool;
   const h = headless('usa');
   const bad = (o, re) => { const g = { ...h.g, forces: { ...h.g.forces, ...o } }; assert.ok(checkV57(g).some((n) => re.test(n)), JSON.stringify(o)); };
   bad({ active: manpowerCap('usa') }, /strength/); // F7 (#55): headcounts within the population bound bad({ quality: -1 }, /quality/); bad({ readiness: { ...h.g.forces.readiness, air: 120 } }, /readiness/);
-  bad({ crews: { ...h.g.forces.crews, sea: 999 } }, /crews/);
+  bad({ crews: { ...h.g.forces.crews, sea: h.g.forces.active + 1 } }, /crews/);
   assert.ok(checkV57({ ...h.g, personnelPay: -1 }).some((n) => /pay/.test(n)));
 });
 

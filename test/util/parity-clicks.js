@@ -59,7 +59,7 @@ export function clickDriver(g) {
     if (!gEl) throw new Error('region not found: ' + name);
     gEl.dispatchEvent(new w.MouseEvent('click', { bubbles: true })); await flush();
   };
-  const closeRegion = async () => { const x = all('button').find((b) => b.textContent === '✕' && !/border/.test(b.getAttribute('style') || '') && /Your Influence/.test(b.parentElement?.parentElement?.textContent || '')); if (!x) throw new Error('region close not found'); x.click(); await flush(); };
+  const closeRegion = async () => { const x = all('button').find((b) => b.textContent === '✕' && !/border/.test(b.getAttribute('style') || '') && /(Your|Regional) [Ii]nfluence/.test(b.parentElement?.parentElement?.textContent || '')); if (!x) throw new Error('region close not found'); x.click(); await flush(); };
   return { tab, seg, forces, arsenal, resources, stationFirst, recallFirst, find, click, tryClick, div, clickDiv, range, mm, region, closeRegion, hits };
 }
 
@@ -92,7 +92,6 @@ export const verbScript = (g, shocks) => {
   const h = () => g.w.__wl;
   const plan = {
     2: async () => { // doctrine; economy: rate, stance, tax, sector budget, social program, policy action, budget drill +/-
-      await clickDiv(/^🛡️Military Superpower/);
       await tab('economy');
       await range(mm(0, 20), 5.5); await click(/Stimulus/); await range(mm(8, 48), 33);
       if (g.w.__wl?.poolHold) { g.w.__wl.poolHold(false); await flush(); await flush(); } // V2e: v57 drags one line; the App replays it with the pool free (held by default for players)
@@ -199,7 +198,7 @@ export const verbScript = (g, shocks) => {
       fp.parentElement.dispatchEvent(new g.w.MouseEvent('click', { bubbles: true })); await flush();
       const bs = [...g.doc.querySelectorAll('button')].filter((b) => /Intervene|Mediate \$300M|Diplomatic/.test(b.textContent));
       if (bs.length) { bs[m % bs.length].click(); d.hits.push('flashpoint'); await flush(); }
-      if (/Your Influence/.test(g.doc.body.textContent)) await closeRegion();
+      if (/(Your|Regional) [Ii]nfluence/.test(g.doc.body.textContent)) await closeRegion();
     }
     // Issue briefs: deploy the first option of a ready brief, else commission the first unexamined issue.
     const cards = [...g.doc.querySelectorAll('div')].filter((x) => x.style.cursor === 'pointer' && x.style.borderRadius === '7px' && x.querySelector('span'));
@@ -218,5 +217,9 @@ export const verbScript = (g, shocks) => {
     await shocks(m);
     if (m >= 2) { if (plan[m]) await plan[m](); await every(m); }
   };
-  return { onMonth, hits: d.hits };
+  return { onMonth, hits: d.hits, chooseDoctrine: async () => {
+    const button = g.doc.querySelector('[data-doctrine=fortress]');
+    if (button) { button.click(); d.hits.push(String(/^🛡️Military Superpower/)); await flush(); }
+    else await clickDiv(/^🛡️Military Superpower/);
+  } };
 };

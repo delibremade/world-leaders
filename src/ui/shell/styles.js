@@ -1,3 +1,7 @@
+import { DECISION_CSS } from './DecisionDialog.jsx';
+import { NATION_CSS } from './NationWorkspace.jsx';
+import { ENERGY_DESK_CSS } from '../energy/EnergyDesk.jsx';
+import { atlasStyles } from '../map/styles.js';
 // Tier 1 shell stylesheet (P3c): app grid, HUD, event-card strip, bottom nav / side rail, outliner, sheet,
 // why-popover. Tokens only (docs/DESIGN-SYSTEM.md). Mobile first; the 900px query turns the bottom nav into
 // a left rail and the outliner into a right column.
@@ -38,6 +42,9 @@ export const SHELL_CSS = `
 .wl-card-ev{flex:0 0 min(86vw,420px);scroll-snap-align:start;background:${c.bg.raised};border:1px solid ${c.border.strong};border-left:3px solid var(--ev,${c.accent.command});border-radius:${RADIUS.xxl}px;padding:${SPACE[5]}px ${SPACE[6]}px;animation:wl-rise ${MOTION.slow} ${MOTION.ease}}
 .wl-card-ev h4{margin:0 0 2px;font-size:${SIZE.lg}px;color:${c.text.primary}}
 .wl-card-ev .wl-label{color:var(--ev,${c.accent.command})}
+.wl-card-ev[data-card-summary]{padding:10px 12px}
+.wl-card-ev[data-card-summary] h4{font-size:14px;line-height:18px}
+.wl-card-ev[data-card-summary] .wl-card-review{margin:6px 0 0;min-height:44px}
 .wl-why-now{margin:${SPACE[2]}px 0 0;font-size:${SIZE.caption}px;color:var(--ev,${c.accent.command});line-height:1.4}
 .wl-card-ev p{margin:${SPACE[2]}px 0 ${SPACE[4]}px;font-size:${SIZE.body}px;color:${c.text.muted};line-height:1.5}
 .wl-opts{display:grid;gap:${SPACE[3]}px;grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
@@ -187,6 +194,19 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
 .wl-mv-swatch{width:11px;height:11px;border-radius:2px;border:1px solid}
 .wl-mv-glyphs{color:${c.text.dim};flex-basis:100%}
 .wl-mv-hint{font-size:${SIZE.caption}px;color:${c.text.dim};margin-top:${SPACE[2]}px}
+
+.wl-btn:disabled{opacity:.48;cursor:not-allowed;filter:saturate(.45)}
+.wl-field{display:grid;gap:6px;margin:10px 0;font-size:12px;color:#b8c7d8}
+.wl-field input,.wl-field select{width:100%;min-width:0;box-sizing:border-box;padding:10px;background:#101c2b;color:#e6edf5;border:1px solid #344860;border-radius:6px;font:inherit}
+.wl-trade-desk{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-width:0}
+.wl-trade-desk>*{min-width:0}
+.wl-trade-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:14px 0}
+.wl-trade-metrics b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.wl-trade-metrics small{display:block;margin-top:5px;line-height:1.4;color:#a8b9cb}
+.wl-acquisition-path{display:grid;gap:6px;margin:10px 0;padding:12px;background:#152a3e;border-left:3px solid #5cb8ed}
+.wl-procurement-station{display:grid;gap:8px;margin-top:14px}
+.wl-map-posture select{width:100%;min-width:0;max-width:100%}
+@media (min-width:1200px){.wl-trade-desk{grid-template-columns:minmax(0,1.3fr) minmax(275px,1fr)}}
 @media (min-width:${BREAK.tablet}px){
   .wl-mv-dock{position:absolute;right:${SPACE[3]}px;bottom:${SPACE[3]}px;z-index:2;margin:0;display:flex;background:${c.bg.panel}e6;box-shadow:0 8px 24px rgba(0,0,0,.6)}
   .wl-mv-dock button{min-width:56px;padding:${SPACE[2]}px ${SPACE[2]}px}
@@ -322,7 +342,8 @@ kbd{font:inherit;font-size:${SIZE.micro}px;color:${c.text.dim};border:1px solid 
   .wl-body .wl-vitals{display:none}
   .wl-cards.wl-dock{grid-area:dock;flex-direction:column;overflow-y:auto;overflow-x:hidden;scroll-snap-type:none;gap:${SPACE[3]}px;padding:${SPACE[3]}px ${SPACE[4]}px;border-left:1px solid ${c.border.base};border-bottom:1px solid ${c.border.strong};min-height:0}
   .wl-cards.wl-dock:empty{display:flex}
-  .wl-dock>.wl-card-ev{flex:0 0 auto;width:100%;min-width:0;scroll-snap-align:none;padding:${SPACE[4]}px ${SPACE[5]}px}
+  .wl-dock>.wl-card-ev{flex:0 0 auto;width:100%;min-width:0;scroll-snap-align:none;padding:10px 12px}
+  .wl-dock [data-card-summary] .wl-card-review{min-height:32px}
   .wl-dock .wl-opts{grid-template-columns:repeat(auto-fit,minmax(104px,1fr))}
   .wl-dock-head{display:flex;justify-content:space-between;align-items:center;padding:0 2px;flex:0 0 auto}
   .wl-dock-empty{color:${c.text.dim};font-size:${SIZE.small}px;padding:${SPACE[4]}px 2px}
@@ -374,4 +395,8 @@ kbd{font:inherit;font-size:${SIZE.micro}px;color:${c.text.dim};border:1px solid 
   .wl-hud:has(.wl-alerts) .wl-hud-figs{width:clamp(480px,38vw,820px);grid-template-columns:repeat(3,minmax(160px,1fr))}
 }
 @media (min-width:1680px){.wl-alert-l{display:inline}}
+${atlasStyles}
+${ENERGY_DESK_CSS}
+${NATION_CSS}
+${DECISION_CSS}
 `;

@@ -34,7 +34,7 @@ test('App (jsdom): each row kind changes UI state when clicked: situation -> doc
   try {
     await g.pickCountry(0);
     const { doc, w } = g; const q = (s) => doc.querySelector(s), qa = (s) => [...doc.querySelectorAll(s)];
-    [...q('[data-event-card=doctrine]').querySelectorAll('div')].find((d) => d.style.cursor === 'pointer' && /Military Superpower/.test(d.textContent)).click(); await flush();
+    q('[data-doctrine=fortress]').click(); await flush();
     await g.advance(1);
     w.__wl.flashpoint('ME', 'coup', 5); w.__wl.event('hormuz_closure', 6);
     w.__wl.ops([{ id: 'op1', opId: 'tech_acq', targetId: 'china', monthsLeft: 3, successRate: 0.6, discoverRate: 0.2 }]); w.__wl.cooldown('visit_france', 3);

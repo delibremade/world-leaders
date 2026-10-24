@@ -49,13 +49,14 @@ function ProgramCard({ r, v, dispatch }) {
   </Panel>;
 }
 
-function Programs({ v, dispatch }) {
+function Programs({ v, dispatch, onConventional }) {
   const wide = useWide(); const [sel, setSel] = useState(null);
   const rows = programView(v); const { sapOffice, blackResearch, arsenal, defLevels, blackPrograms, stats } = v;
   const by = Object.fromEntries(STAGES.map(([k]) => [k, rows.filter((r) => r.stage === k).length]));
   const short = (stats?.treasury || 0) < 1500;
   const pipeline = (
     <Panel id="pipeline" title="Pipeline" figure={`${rows.length} programs`}>
+      <Row title="F/A-XX Naval Fighter" sub="Carrier aviation: develop the first article, produce a 24-aircraft tranche, then deploy it." trailing={<button type="button" className="wl-btn wl-btn-primary" data-open-faxx onClick={()=>onConventional('fa_xx')}>Open F/A-XX acquisition →</button>}/>
       <div className="wl-row" style={{ flexWrap: 'wrap', gap: 6 }}>
         {STAGES.map(([k, n]) => <span key={k} className={`wl-chip${by[k] ? ' wl-chip-command' : ''}`} data-stage-count={k}>{n} {by[k]}</span>)}
       </div>
@@ -140,10 +141,12 @@ function Deterrence({ v }) {
 }
 
 export function ArsenalTab({ sub, onSub, view, dispatch, toast, onJump, exportVert, onExportVert }) {
+  const [platform,setPlatform]=useState(null);
+  const conventional=id=>{setPlatform(id);onSub('procurement');};
   const wide = useWide();
-  const body = sub === 'procurement' ? <Procurement v={view} dispatch={dispatch} /> : sub === 'supply' ? <Supply v={view} onJump={onJump} />
+  const body = sub === 'procurement' ? <Procurement v={view} dispatch={dispatch} initialPlatform={platform}/> : sub === 'supply' ? <Supply v={view} onJump={onJump} />
     : sub === 'partnerships' ? <Partnerships v={view} dispatch={dispatch} /> : sub === 'exports' ? <Exports v={view} dispatch={dispatch} vert={exportVert} onVert={onExportVert} />
-    : sub === 'deterrence' ? <Deterrence v={view} /> : <Programs v={view} dispatch={dispatch} />;
+    : sub === 'deterrence' ? <Deterrence v={view} /> : <Programs v={view} dispatch={dispatch} onConventional={conventional}/>;
   return (
     <div className="wl-pane-wrap" data-sentinel="arsenal">
       <Seg id="arsenal" label="Arsenal" items={ARSENAL_SUBS} active={sub} onSelect={onSub} cols={3} />

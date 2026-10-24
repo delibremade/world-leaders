@@ -1,3 +1,6 @@
+import {intelResolutionOdds,intelOrder} from './intel-operations.js';
+import { foreignFlashpoint, flashpointEligible } from './flashpoints.js';
+import { importCost } from './energy-view.js';
 import { applyAction } from './actions.js';
 import { renewableTotal, oilPriceTerms, influencePool, influenceGain, compliance, variantEff, opOdds, opOddsTerms } from './selectors.js';
 import { ALLIED_PROGRAMS, TIERS, ACCESS_RULES, MEMBER_INCOME, LEAK } from '../data/alliance.js';
@@ -11,9 +14,9 @@ import { COMP_RESPONSES, WORLD_EVENTS, DECISIONS } from '../data/world.js';
 import { COVERT_PROGRAMS, INTEL_INFRA, INTEL_OPS, CRISIS_FRIENDLY, CRISIS_HOSTILE, CRISIS_STOLEN } from '../data/intel.js';
 import { BLOC_TRADE } from '../data/trade.js';
 import { CHOKEPOINTS, IMPORT_ROUTES } from '../data/chokepoints.js';
-import { RES_META, CONCESSIONS } from '../data/energy.js';
+import { RES_META, CONCESSIONS, ENERGY_SECURITY } from '../data/energy.js';
 import { sumDep, isAllyOf, topHostile, wSum, navalWeight, calcSCost, getEnergyTier, isDiversified, getRefineMult, triadLegs as legsOf, airMult, interceptChance, cnExposure, forceMult, theaterWeight } from './formulas.js';
-import { stepForces, payrollOf } from './forces.js';
+import { stepForces, payrollOf, commitPlan } from './forces.js';
 import { crewOf } from '../data/forces.js';
 import { naturalDrift } from './economy.js';
 import { rng } from './rng.js';
@@ -83,7 +86,7 @@ function economy(g,S,fx,m){
   const hormuzHit=cs.hormuz==='disrupted';
   if(g.sprRelease){if(g.spr>0){g.spr-=1;S.setSpr(g.spr);}else{g.sprRelease=false;S.setSprRelease(false);fx.toast('🛢️ Strategic reserve exhausted — release ends');}}
   const sprShield=g.sprRelease&&g.spr>=0;
-  if(routeHit&&!sprShield){ns.inflation+=0.1;ns.gdpGrowth-=0.02;}
+  if(routeHit&&!sprShield){ns.inflation+=ENERGY_SECURITY.routeInflation;ns.gdpGrowth+=ENERGY_SECURITY.routeGrowth;}
   if(hormuzHit&&(trait.energyDep||0)>0&&!sprShield){ns.inflation+=(trait.energyDep)*0.15;}
   if((trait.energyDep||0)>0){const eTier=getEnergyTier(g.resources,g.resExtraction,g.importContracts);const cushioned=eTier==='nuclear'||eTier==='high';if(!cushioned){ns.inflation+=(trait.energyDep)*0.12;ns.gdpGrowth-=(trait.energyDep)*0.03;}}
   if((trait.resourceCurse||0)>0){const cycle=Math.sin(g.tickCount/40)*(trait.resourceCurse);cash('Commodity cycle',Math.round(cycle*120));ns.gdpGrowth+=cycle*0.05;}
@@ -365,13 +368,7 @@ function economy(g,S,fx,m){
   const oilExportM=oilPriceTerms(g,{renTot,hormuzHit}).mult; // terms shared with the HUD why-breakdown (selectors.js)
   // Resource import contracts: continuity when domestic reserves run dry
   if(g.importContracts.size>0){
-    const blocCut=(g.blocTrade.eu>=1?0.9:1)*(g.blocTrade.cn>=1?0.85:1);
-    const secured=myRoutes.length&&myRoutes.every(k=>cs[k]==='secured'||cs[k]==='escorted');
-    let impCost=g.importContracts.size*80*(g.dominanceLeverage.importCut||1)*blocCut*(routeHit&&!sprShield?1.5:1)*(secured?0.9-laneCut(g,myRoutes):1)*(g.embargoedBy&&!isDiversified(g)&&!sprShield?1.3:1); // F9c: lane protection from bases on the route
-    if(Object.keys(g.stewardship).length&&g.importContracts.has('oil'))impCost-=40; // you market their crude
-    if((g.chokeDeals.panama||{}).priority&&myRoutes.includes('panama'))impCost*=0.85;
-    if(g.blocTrade.opec>=1){let foss=0;['oil','gas','coal'].forEach(k=>{if(g.importContracts.has(k))foss++;});impCost-=foss*16;}
-    cash('Imports',-Math.round(Math.max(0,impCost)));ns.inflation+=g.importContracts.size*0.03;}
+    cash('Imports',-importCost(g,{myRoutes,cs,routeHit,sprShield}));ns.inflation+=g.importContracts.size*0.03;}
   // Energy shortage: no domestic fossils left, weak renewables, no import lifeline
   const fossilLeft=['oil','gas','coal'].some(k=>(g.resources?.[k]?.r||0)>1);
   const impFossil=['oil','gas','coal'].some(k=>g.importContracts.has(k));
@@ -606,9 +603,10 @@ function intelOps(g,S,fx,m){
   const newOps=[];
   g.intelOps.forEach(op=>{
     if(op.monthsLeft<=1){
-      const tRg=NATIONS[op.targetId]?.region;const misB=(g.embassyMissions[op.targetId]==='intel'?0.12:0)+((tRg&&g.forcePosture[tRg]==='isr'&&sumDep(g.forceDeployments?.[tRg])>0)?0.25:0);
-      const odds=opOdds(g,op); // FIX 3: one odds implementation; a rate-less op from an old save resolves on today's terms instead of NaN
-      const success=rng()<Math.min(0.95,odds.successRate+misB);
+      // A domestic defensive sweep expires quietly. It cannot be discovered as a foreign operation.
+      if(op.opId==='counter_int')return;
+      const odds=intelResolutionOdds(g,op);
+      const success=rng()<odds.successRate;
       const discovered=rng()<odds.discoverRate;
       if(success&&op.opId==='tech_acq'){
         // Find the vertical where target leads and player is most behind
@@ -869,12 +867,14 @@ function counterIntel(g,S,fx,m){
   if(Object.keys(g.continuousOps||{}).length){
     Object.entries(g.continuousOps).forEach(([opKey,on])=>{
       if(!on)return;const [opId,targetId]=opKey.split('@');
-      const op=INTEL_OPS.find(o=>o.id===opId);if(!op)return;
+      const op=INTEL_OPS.find(o=>o.id===opId);if(!op||op.type!=='covert')return;
       const running=g.intelOps.some(o=>o.opId===opId&&o.targetId===targetId);
       if(!running){
         const monthlyCost=Math.round((op.cost/Math.max(1,op.mo))*1.6); // ~1.6x premium for standing posture
-        if((ns.treasury)>=monthlyCost){
+        const order=intelOrder({...g,stats:ns},opId,targetId,{cost:monthlyCost});
+        if(!order.block){
           cash('Intel operations',-monthlyCost);
+          if(order.plan)commitPlan(g,S,fx,order.plan,targetId);
           const {successRate,discoverRate}=opOddsTerms(g,opId); // FIX 3: a relaunch is stamped like a hand launch (id, odds, type); unstamped it resolved as NaN and never succeeded
           S.setIntelOps(p=>[...p,{id:`${opId}_${targetId}_c${g.tickCount}`,opId,targetId,monthsLeft:op.mo,totalMonths:op.mo,successRate,discoverRate,type:op.type,continuous:true}]);
         }
@@ -963,6 +963,7 @@ function counterIntel(g,S,fx,m){
 function world(g,S,fx,m){
   const {c,ns,led}=m;
   // Regional flashpoints: spawn, count down, auto-resolve against player if ignored
+  if(g.flashpoint&&!foreignFlashpoint(g.flashpoint,g.country.id)){g.flashpoint=null;S.setFlashpoint(null);}
   if(g.flashpoint){
     const nt=g.flashpoint.t-1;
     if(nt<=0){
@@ -975,11 +976,11 @@ function world(g,S,fx,m){
       g.flashpoint=null;S.setFlashpoint(null);
     } else {g.flashpoint={...g.flashpoint,t:nt};S.setFlashpoint({...g.flashpoint});}
   } else if(g.gracePeriod<=0&&rng()<0.08){
-    const rids=Object.keys(REGIONS).filter(r=>{const pv=g.sphere[r]?.player||0;return pv>15&&pv<75;});
+    const rids=Object.keys(REGIONS).filter(r=>flashpointEligible(g,r));
     if(rids.length){
       const rid=rids[Math.floor(rng()*rids.length)];
       const types=Object.keys(FLASHPOINTS);const type=types[Math.floor(rng()*types.length)];
-      const fp={rid,type,t:6+(g.intelInfra.isr_fusion?3:0)+responseAt(g,rid)};g.flashpoint=fp; // F9c: bases in reach buy response timeS.setFlashpoint(fp);
+      const fp={rid,type,t:6+(g.intelInfra.isr_fusion?3:0)+responseAt(g,rid)};g.flashpoint=fp;S.setFlashpoint(fp); // Bases in reach buy response time.
       fx.toast(`${FLASHPOINTS[type].i} ${FLASHPOINTS[type].n} — ${REGIONS[rid].n}. Respond on the map.`);
       S.setLog(p=>[{msg:`${FLASHPOINTS[type].i} ${FLASHPOINTS[type].n}: ${REGIONS[rid].n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
     }

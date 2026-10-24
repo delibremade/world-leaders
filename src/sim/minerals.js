@@ -8,6 +8,7 @@ import { MINERALS, MINERAL_IDS, MINERAL_START, MINERAL_UNITS, FACILITIES, FACILI
 import { BLACK_PROGRAMS, PLATFORMS } from '../data/platforms.js';
 import { NATIONS, NATION_BLOC } from '../data/nations.js';
 import { ALLIED_PROGRAMS } from '../data/alliance.js';
+import { relOf } from './formulas.js';
 import { oilPriceTerms, renewableTotal } from './selectors.js';
 
 const EPS = 1e-9;
@@ -51,7 +52,7 @@ export function aiControls(g) {
 }
 const controlling = (g, n, m) => !!M(g).against?.[n]?.includes(m);
 const offtakeUnits = (n, m) => Math.min(R.offtake.units, (MINERAL_START[n]?.[m]?.[1] || 0) * R.offtake.partnerCut);
-export const offtakePrice = (g, n, m) => Math.round(offtakeUnits(n, m) * MINERALS[m].price * (1 + Math.max(0, R.offtake.premiumRel - (g.nationRelations?.[n] || 0)) / 100));
+export const offtakePrice = (g, n, m) => Math.round(offtakeUnits(n, m) * MINERALS[m].price * (1 + Math.max(0, R.offtake.premiumRel - relOf(g,n)) / 100));
 
 // ── F10 (#58): tonnes. The sim runs in units; every tonne figure is units x tPerUnit (data/minerals.js), computed here once.
 export const tonnes = (m, u) => u * tPerUnit(m);
@@ -283,12 +284,16 @@ export function authorizeRetort(g, S, fx) {
   const o = projectOutlook(g, 'retort');
   fx.toast(`☢ Phase II authorized — private operators build in-situ retorting${o.profitable ? `, ~${o.eta}mo` : ' once oil prices recover'}; no treasury capex`);
 }
+export function offtakeBlock(g,m,n){
+  if(!known(m)||!NATIONS[n]||n===me(g))return 'Choose a foreign processor';
+  if(!(MINERAL_START[n]?.[m]?.[1]>0))return `${NATIONS[n].n} does not refine ${MINERALS[m].n}`;
+  if(M(g).deals.some(d=>d.m===m&&d.n===n))return 'Deal active';
+  if(controlling(g,n,m))return `${NATIONS[n].n} controls exports to you`;
+  if(relOf(g,n)<R.offtake.relMin)return `Relations ${Math.round(relOf(g,n))}: need at least ${R.offtake.relMin}`;
+  return null;
+}
 function signOfftake(g, S, fx, m, n) {
-  const mm = M(g); if (!known(m) || !NATIONS[n] || n === me(g)) return;
-  if (!(MINERAL_START[n]?.[m]?.[1] > 0)) { fx.toast(`⚠ ${NATIONS[n].n} does not refine ${MINERALS[m].n}`); return; }
-  if (mm.deals.some((d) => d.m === m && d.n === n)) { fx.toast('Deal active'); return; }
-  if (controlling(g, n, m)) { fx.toast(`⚠ ${NATIONS[n].n} controls ${MINERALS[m].n} exports to you`); return; }
-  if ((g.nationRelations?.[n] || 0) < R.offtake.relMin) { fx.toast(`⚠ Relations with ${NATIONS[n].n} too cold for an offtake`); return; }
+  const mm=M(g),why=offtakeBlock(g,m,n);if(why){fx.toast(`⚠ ${why}`);return;}
   const price = offtakePrice(g, n, m); const units = offtakeUnits(n, m);
   setM(g, S, { ...mm, deals: [...mm.deals, { m, n, units, price, mo: R.offtake.term }] });
   fx.toast(`📄 ${MINERALS[m].n} offtake with ${NATIONS[n].n}: ${units}/mo for $${price}M/mo, ${R.offtake.term}mo`);
@@ -348,15 +353,15 @@ export function mineralView(g) {
   return MINERAL_IDS.map((m) => {
     const o = mm.own[m];
     const partners = PROCESSORS.filter((n) => n !== p && NATIONS[n] && (MINERAL_START[n]?.[m]?.[1] || 0) > 0 && !mm.deals.some((d) => d.m === m && d.n === n))
-      .map((n) => ({ id: n, n: NATIONS[n].n, cap: MINERAL_START[n][m][1], controls: controlling(g, n, m), price: offtakePrice(g, n, m), units: offtakeUnits(n, m) }))
+      .map((n) => ({ id: n, n: NATIONS[n].n, cap: MINERAL_START[n][m][1], controls: controlling(g, n, m), price: offtakePrice(g, n, m), units: offtakeUnits(n, m), relation: relOf(g,n), reason: offtakeBlock(g,m,n) }))
       .sort((a, b) => b.cap - a.cap);
     const t = tPerUnit(m); const capT = capTPerYear(m, o.cap); const start = MINERAL_START[p]?.[m]?.[1] || 0;
     return { id: m, ...MINERALS[m], ...o, unit: MINERAL_UNITS[m].u, status_source: MINERAL_UNITS[m].status_source, tPerUnit: t, worldT: MINERAL_UNITS[m].world,
-      capT, oreT: o.ore * t, stockT: o.stock * t, stockMaxT: R.stockMax * t, reserveT: o.reserve * t, years: o.cap > 0 && o.ore > 0 ? (o.ore * t) / capT : null,
+      queuedT: mm.queue.reduce((n,q)=>n+(q.left[m]||0),0)*t, capT, oreT: o.ore * t, stockT: o.stock * t, stockMaxT: R.stockMax * t, reserveT: o.reserve * t, years: o.cap > 0 && o.ore > 0 ? (o.ore * t) / capT : null,
       plants: plantsOf(p, m, Math.max(0, o.cap - start)), inflowT: f[m].total * t, flow: f[m], upkeep: c.by[m] || 0, proj: projectOutlook(g, m), income: inc.by[m] || 0, built: mm.built[m] || 0,
       deals: mm.deals.filter((d) => d.m === m).map((d) => ({ ...d, name: NATIONS[d.n]?.n, paused: controlling(g, d.n, m) })),
       controlCost: controlCost(mm, m), recycling: mm.recycle.includes(m), releasing: mm.release.includes(m), controlled: mm.controls.includes(m),
       controlledBy: Object.entries(mm.against || {}).filter(([, ms]) => ms.includes(m)).map(([n]) => NATIONS[n]?.n || n),
-      partners: partners.filter((x) => !x.controls).slice(0, 2), canControl: o.cap > 0 };
+      partners, canControl: o.cap > 0 };
   });
 }

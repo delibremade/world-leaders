@@ -13,7 +13,7 @@ import { COLOR } from '../tokens.js';
 // v2 §3: map-mode hotkeys, dock order. Sphere Q, Tension W, Trade E, Energy R, Military T, Intel Y.
 export const MODE_KEYS = ['Q', 'W', 'E', 'R', 'T', 'Y'];
 export const MAP_MODES = [
-  { id: 'sphere', label: 'Sphere', icon: '🌍', hint: 'Who holds each region. Hatch = contested within 15 points.' },
+  { id: 'sphere', label: 'Sphere', icon: '🌍', hint: 'Regional diplomatic influence, not territorial ownership. Home theater stays marked; hatch = close foreign influence race.' },
   { id: 'tension', label: 'Tension', icon: '🔥', hint: 'Highest rival tension present in each region (ruling 2: always visible).' },
   { id: 'trade', label: 'Trade', icon: '🤝', hint: 'Export deals, trade agreements and import contracts per region.' },
   { id: 'energy', label: 'Energy', icon: '⚡', hint: 'Chokepoint state, your import routes, embargoes, concessions.' },
@@ -32,7 +32,7 @@ export function buildScene(view, mode = 'sphere') {
     country, sphere = {}, selectedRegion = null, forceDeployments = {}, flashpoint = null, sphereTrend = {}, intelOps = [],
     defExports = {}, doctrine = null, nationRelations = {}, embassies = new Set(), defensePacts = new Set(), chokeStatus = {},
     rivalTension = {}, blockades = {}, tradeAgreements = new Set(), importContracts = {}, embargoes = new Set(), embargoedBy = null,
-    forcePosture = {}, sanctions = new Set(), moles = {}, expelled = {}, concessions = {}, bases = null, build = false, selectedSite = null,
+    forcePosture = {}, sanctions = new Set(), moles = {}, expelled = {}, concessions = {}, bases = null, build = false, selectedSite = null, previewType = null,
   } = view;
   const pid = country?.id;
   const homeRid = homeRegion(country);
@@ -43,18 +43,19 @@ export function buildScene(view, mode = 'sphere') {
     const sph = sphere[rid] || {}; const pv = sph.player || 0;
     const topC = Object.entries(sph.competitors || {}).sort((a, b) => b[1] - a[1])[0];
     const tv = topC ? topC[1] : 0; const isP = pv >= tv; const lead = Math.max(pv, tv); const margin = Math.abs(pv - tv);
-    const affil = isP ? COLOR.faction.player : (COMP_COLORS[topC?.[0]] || COLOR.faction.neutral);
+    const home = REGIONS[rid].homeFor?.includes(pid) || false;
+    const affil = home || isP ? COLOR.faction.player : (COMP_COLORS[topC?.[0]] || COLOR.faction.neutral);
     const dep = sumDep(forceDeployments[rid]);
     const trend = sphereTrend[rid] || 0;
     const intelHere = intelOps.some((o) => o.targetId && INTEL_TARGETS.find((t) => t.id === o.targetId)?.region === rid) || (forceDeployments[rid]?.sr72 || 0) > 0;
     const ids = nationsIn(rid);
     const base = {
       rid, name: REGIONS[rid].n, cx: g.cx, cy: g.cy, d: g.d, selected: selectedRegion === rid,
-      affil, isPlayer: isP, lead, margin, contested: margin < 15, deployed: dep, trend: Math.abs(trend) >= 2 ? Math.round(trend) : 0,
+      affil, home, isPlayer: home || isP, lead, margin, contested: !home && margin < 15, deployed: dep, trend: Math.abs(trend) >= 2 ? Math.round(trend) : 0,
       intel: intelHere, flashpoint: flashpoint?.rid === rid ? { icon: FLASHPOINTS[flashpoint.type]?.i || '⚠', t: flashpoint.t, type: flashpoint.type } : null,
       fill: affil, fillAlpha: 0.14 + Math.min(0.5, lead / 150), stroke: selectedRegion === rid ? COLOR.text.primary : affil,
-      line2: `${isP ? 'YOU' : (topC?.[0] || '').toUpperCase()} ${Math.round(lead)}%`, line2Color: isP ? COLOR.accent.commandHi : affil,
-      line3: margin < 15 ? `CONTESTED ±${Math.round(margin)}` : '', hatch: margin < 15, value: lead / 100,
+      line2: home ? `HOME · ${pid.toUpperCase()}` : `${isP ? 'YOU' : (topC?.[0] || '').toUpperCase()} ${Math.round(lead)}%`, line2Color: isP ? COLOR.accent.commandHi : affil,
+      line3: home ? `${Math.round(pv)}% INFLUENCE` : margin < 15 ? `CONTESTED ±${Math.round(margin)}` : '', hatch: !home && margin < 15, value: lead / 100,
     };
     if (mode === 'tension') {
       const cands = new Set([...(REGIONS[rid].contestedBy || []), ...ids]);
@@ -118,21 +119,25 @@ export function buildScene(view, mode = 'sphere') {
   // F9b (#57): one marker per site that holds a node (every candidate site in build mode); reach rings for active nodes, in map units.
   const bySite = {};
   for (const n of bases?.nodes || []) (bySite[n.site] ||= []).push(n);
-  const sites = (build ? SITE_IDS : Object.keys(bySite)).map((sid) => {
+  const sites = (build ? SITE_IDS : [...new Set([...Object.keys(bySite), ...(selectedSite ? [selectedSite] : [])])]).map((sid) => {
     const s = SITES[sid]; const ns = bySite[sid] || []; const mine = ns.filter((n) => n.owner === pid); const theirs = ns.filter((n) => n.owner !== pid);
     const lead = mine[0] || theirs[0];
     const rings = ns.filter((n) => n.status === 'active' && NODE_TYPES[n.type].reach > 0).map((n) => ({ type: n.type, owner: n.owner, mine: n.owner === pid, r: +(NODE_TYPES[n.type].reach / KM_PER_PX).toFixed(1) }));
     return { id: sid, name: s.n, x: s.x, y: s.y, host: hostName(s), region: s.region, candidate: !ns.length, mine: mine.length, theirs: theirs.length, owners: [...new Set(ns.map((n) => n.owner))],
-      building: mine.some((n) => n.status === 'building'), closed: mine.some((n) => n.status === 'closed'), icon: lead ? NODE_TYPES[lead.type].i : '+',
+      type: lead?.type || 'candidate', nodes: ns.map(n=>({...n,progress:n.status==='building'?Math.max(0,Math.min(1,1-n.mo/NODE_TYPES[n.type].mo)):1})), building: mine.some((n) => n.status === 'building'), closed: mine.some((n) => n.status === 'closed'), icon: lead ? NODE_TYPES[lead.type].i : '+',
       color: mine.length ? COLOR.faction.player : theirs.length ? (COMP_COLORS[theirs[0].owner] || COLOR.faction.neutral) : COLOR.text.muted, selected: selectedSite === sid, rings };
   });
-  const rings = sites.flatMap((s) => s.rings.map((r) => ({ site: s.id, x: s.x, y: s.y, r: r.r, type: r.type, mine: r.mine, color: r.mine ? COLOR.faction.player : (COMP_COLORS[r.owner] || COLOR.faction.neutral) })));
-  return { mode, homeRid, regions, routes, influence, chokepoints, sites, rings, build, legend: legendFor(mode, country, (bases?.nodes || []).length > 0) };
+  const rings = sites.filter(s => s.selected).flatMap((s) => s.rings.filter(r=>!previewType||r.type===previewType).map((r) => ({ site: s.id, x: s.x, y: s.y, r: r.r, type: r.type, mine: r.mine, color: r.mine ? COLOR.faction.player : (COMP_COLORS[r.owner] || COLOR.faction.neutral) })));
+  if (selectedSite && SITES[selectedSite]?.types.includes(previewType) && NODE_TYPES[previewType]?.reach && !rings.some(r=>r.type===previewType&&r.mine)) {
+    const s = SITES[selectedSite]; rings.push({site:selectedSite,x:s.x,y:s.y,r:+(NODE_TYPES[previewType].reach/KM_PER_PX).toFixed(1),type:previewType,mine:true,color:COLOR.accent.good,preview:true});
+  }
+  const energyLanes = h && ['oil','gas','coal'].some(k=>importContracts.has?.(k)) ? [...myRoutes].map(k=>({id:k,rid:CHOKEPOINTS[k].region,x1:CHOKEPOINTS[k].x,y1:CHOKEPOINTS[k].y,x2:h.cx,y2:h.cy,color:chokeStatus[k]==='disrupted'?COLOR.accent.alert:COLOR.accent.energy})) : [];
+  return { mode, pid, homeRid, regions, routes: mode==='energy'?energyLanes:routes, influence, chokepoints, sites, rings, build, legend: legendFor(mode, country, (bases?.nodes || []).length > 0) };
 }
 
 export function legendFor(mode, country, withBases = false) {
-  const glyphs = '⚓ deployed · ⚠ flashpoint · ▲▼ 6-mo trend · ● intel op' + (withBases ? ' · ◎ your base · ○ foreign base · ring = reach (zoom in)' : '');
-  if (mode === 'sphere') return { title: 'Affiliation', items: [[COLOR.faction.player, 'You'], [COLOR.faction.russia, 'Russia'], [COLOR.faction.china, 'China'], [COLOR.faction.usa, 'USA'], [COLOR.faction.germany, 'Germany'], ['hatch', 'Contested (±15)']], glyphs };
+  const glyphs = '⚓ deployed · ⚠ flashpoint · ▲▼ 6-mo trend · ● intel op' + (withBases ? ' · select your base for reach' : '');
+  if (mode === 'sphere') return { title: 'Regional influence', items: [[COLOR.faction.player, 'You / home theater'], [COLOR.faction.russia, 'Russia'], [COLOR.faction.china, 'China'], [COLOR.faction.usa, 'USA'], [COLOR.faction.germany, 'Germany'], ['hatch', 'Contested (±15)']].filter(([,name])=>name!==(country?.id==='usa'?'USA':NATIONS[country?.id]?.n)), glyphs };
   const stops = { tension: ['Calm', '25', '50', '75', 'Brink'], trade: ['None', '1', '2', '3', '4+ deals'], energy: ['Clear', 'Route', 'Transit', 'Threat', 'Cut'], military: ['None', '2', '4', '6', '8+ units'], intel: ['Dark', 'Embassy', 'Op', 'Ops+', 'Saturated'] }[mode];
   const titles = { tension: 'Rival tension', trade: 'Trade ties', energy: 'Energy exposure', military: 'Force weight', intel: 'Intel presence' };
   const extra = { energy: ' · ◎ your import route', military: ' · BLOCKADE · posture', tension: ' · BRINK ≥70' }[mode] || '';

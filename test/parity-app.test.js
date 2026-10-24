@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mount, BUNDLES } from './util/harness.js';
+import { mount, BUNDLES, flush } from './util/harness.js';
 import { script } from './util/parity-script.js';
 import { verbScript, rotatingAnswer } from './util/parity-clicks.js';
 import { assertEventParity } from './util/parity-events.js';
@@ -21,6 +21,8 @@ async function play(entry, { seed, country }) {
   const g = await mount(entry, { seed, testHook: true });
   try {
     await g.pickCountry(country);
+    // Choose before month 1 on both UIs: onboarding now holds the clock.
+    g.answerModal(); await flush(); await flush();
     const months = await g.advance(MONTHS, script(g.w));
     for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0));
     return { months, saves: g.saves.slice(), text: g.text() };
@@ -51,6 +53,7 @@ async function playVerbs(entry, { seed, country, offset }) {
   try {
     await g.pickCountry(country);
     const vs = verbScript(g, script(g.w)); const answer = rotatingAnswer(g, offset);
+    await vs.chooseDoctrine();
     const months = await g.advance(MONTHS, vs.onMonth, answer);
     for (let i = 0; i < 5; i++) await new Promise((r) => setTimeout(r, 0));
     return { months, saves: g.saves.slice(), hits: vs.hits, seen: answer.seen };

@@ -1,14 +1,11 @@
-// Event card queue (Frostpunk 2 / Suzerain): non-blocking cards for things that want a decision but do not
-// pause the engine: the doctrine choice, decisions, the world event, the flashpoint. Blocking modals
-// (ultimatum, confrontation, intel crisis, game over, victory) stay modals because the engine's pause gate
-// requires them; the HUD chip names the reason.
-// DOM contract kept for the parity click script: decision options are pointer divs under a card whose text
-// holds "Decision Required"; doctrine options are pointer divs whose text starts with icon+name; the doctrine
-// card carries data-modal=1900 (v57's overlay z-index) so a stalled harness answers it first, as in v57.
-import { DOCTRINES, WORLD_EVENTS } from '../../data/world.js';
+// Activity cards summarize ongoing decisions. Mandatory campaign setup has its own top-layer dialog.
+// Every card can also open at reading width without moving the map or changing its engine actions.
+import { WORLD_EVENTS } from '../../data/world.js';
 import { REGIONS, FLASHPOINTS } from '../../data/regions.js';
-import { useEffect, useRef } from 'react';
+import { cloneElement, useEffect, useRef, useState } from 'react';
 import { COLOR } from '../tokens.js';
+import { DecisionDialog } from './DecisionDialog.jsx';
+import { DoctrineChoice } from './DoctrineChoice.jsx';
 
 // Inline responses (E2, #14): each is a button wired to the `eventResponse` verb; an unavailable one stays visible and says why.
 function Responses({ kind, opts, dispatch }) {
@@ -26,25 +23,13 @@ function Responses({ kind, opts, dispatch }) {
 // 'Why now' (F2, #33): the state that opened this card. Saves from before the line existed show a neutral stand-in.
 function WhyNow({ text }) { return <div className="wl-why-now" data-why-now>Why now: {text || 'carried over from an earlier save'}</div>; }
 
-export function EventCards({ dock = false, focus = null, doctrine, activeDecision, decisionDesc, worldEvent, flashpoint, worldOpts = [], fpOpts = [], decisionOpts = null, country = null, dispatch, onOpenRegion, fxBadge, readyBriefs = [], onOpenBrief }) {
+export function EventCards({ dock = false, focus = null, doctrine, activeDecision, decisionDesc, worldEvent, flashpoint, worldOpts = [], fpOpts = [], decisionOpts = null, country = null, dispatch, onOpenRegion, fxBadge, readyBriefs = [], onOpenBrief, onBack }) {
+  const [expanded, setExpanded] = useState(null);
   // FIX 2: focus = {card, at} from an outliner row; the named card rises and scrolls into view.
   const root = useRef(null);
   useEffect(() => { if (!focus || !root.current) return; root.current.querySelector('[data-focus=true]')?.scrollIntoView?.({ block: 'nearest', inline: 'center' }); }, [focus]);
   const fc = (k) => (focus?.card === k ? 'true' : undefined);
   const cards = [];
-  if (!doctrine) cards.push(
-    <div key="doctrine" className="wl-card-ev" data-event-card="doctrine" data-modal="1900" style={{ '--ev': COLOR.accent.command }}>
-      <div className="wl-label">Choose your national doctrine</div>
-      <h4>This defines your path to hegemony</h4>
-      <p>First nation to 80% Hegemony wins the era. Rivals are racing you. The game runs while you choose.</p>
-      <div className="wl-opts">
-        {Object.entries(DOCTRINES).map(([id, d]) => (
-          <div key={id} className="wl-opt" style={{ cursor: 'pointer', borderColor: d.col + '55' }} onClick={() => dispatch({ type: 'chooseDoctrine', payload: { doctrine: id } })}>
-            <span style={{ fontSize: 18 }}>{d.i}</span><b style={{ color: d.col }}>{d.n}</b><small>{d.d}</small>
-            {d.pros.map((p) => <small key={p} style={{ color: COLOR.accent.good }}>+ {p}</small>)}{d.cons.map((c) => <small key={c} style={{ color: COLOR.accent.alert }}>− {c}</small>)}
-          </div>))}
-      </div>
-    </div>);
   if (activeDecision) cards.push(
     <div key="decision" className="wl-card-ev" data-event-card="decision" data-focus={fc('decision')} style={{ '--ev': COLOR.accent.warn }}>
       <div className="wl-label">{activeDecision.urgentNow ? '⚡ Urgent decision' : `${activeDecision.icon} Cabinet briefing`}</div>
@@ -53,7 +38,7 @@ export function EventCards({ dock = false, focus = null, doctrine, activeDecisio
       <p>{decisionDesc}</p>
       <div className="wl-opts" style={{ display: 'grid' }}>
         {activeDecision.options.map((opt) => { const st = decisionOpts?.find((o) => o.id === opt.id); const ok = !st || st.ok; return (
-          <div key={opt.id} className="wl-opt" aria-disabled={!ok} style={{ cursor: 'pointer' }} onClick={() => { if (ok) dispatch({ type: 'makeDecision', payload: { option: opt.id } }); }}>
+          <div key={opt.id} className="wl-opt" role="button" tabIndex={0} aria-disabled={!ok} style={{ cursor: 'pointer' }} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} onClick={() => { if (ok) dispatch({ type: 'makeDecision', payload: { option: opt.id } }); }}>
             <b>{opt.label}{opt.cost ? ` · $${opt.cost}M` : ''}</b>{ok ? opt.tags.map((t, i) => <small key={i}>· {t}</small>) : <small className="wl-reason">{st.reason}</small>}
             {fxBadge && <span style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>{Object.entries(opt.effects || {}).map(([k, v]) => fxBadge(k, v, true))}</span>}
           </div>); })}
@@ -83,10 +68,20 @@ export function EventCards({ dock = false, focus = null, doctrine, activeDecisio
       <p>{b.rc}</p>
       <button type="button" className="wl-btn" onClick={() => onOpenBrief(b.type)}>Open brief · {b.n} options</button>
     </div>);
-  // dock (FIX 1): one reserved slot in the right column; it never grows or moves the map, it scrolls inside. Empty, it says so.
-  if (dock) return <div ref={root} className="wl-cards wl-dock" data-event-cards data-dock data-dock-count={cards.length}>
-    <div className="wl-dock-head"><span className="wl-label">Cards</span><span className="wl-num">{cards.length}</span></div>
-    {cards.length ? cards : <div className="wl-dock-empty" data-dock-empty>No cards. Quiet months are for building.</div>}
-  </div>;
-  return <div ref={root} className="wl-cards" data-event-cards>{cards}</div>;
+  const selected = cards.find(card => card.key === expanded);
+  const readable = cards.map(card => {
+    const children=[card.props.children].flat();
+    const review=<button key="review" type="button" className="wl-card-review" data-review-card={card.key} onClick={()=>setExpanded(card.key)}>Review & respond ↗</button>;
+    return cloneElement(card,{'data-card-summary':true},...children.filter(child=>child?.type==='h4'||child?.props?.className==='wl-label'),review);
+  });
+  return <>
+    {!doctrine && <DoctrineChoice country={country} dispatch={dispatch} onBack={onBack}/>}
+    <div ref={root} className={dock ? 'wl-cards wl-dock' : 'wl-cards'} data-event-cards data-dock={dock || undefined} data-dock-count={dock ? cards.length : undefined}>
+      {dock && <div className="wl-dock-head"><span className="wl-label">Cards</span><span className="wl-num">{cards.length}</span></div>}
+      {readable.length ? readable : dock ? <div className="wl-dock-empty" data-dock-empty>No cards. Quiet months are for building.</div> : null}
+    </div>
+    {selected && <DecisionDialog title="Review decision" eyebrow="Time paused while you read" onClose={() => setExpanded(null)}>
+      {cloneElement(selected, {onClick: e => { const action = e.target.closest('button,.wl-opt'); if (action && action.getAttribute('aria-disabled') !== 'true' && !action.disabled) setExpanded(null); }})}
+    </DecisionDialog>}
+  </>;
 }

@@ -93,22 +93,22 @@ test('1440px: hovering a HUD figure opens its breakdown without a click; leaving
     const opened = await page.waitForSelector('[data-why-content^="Treasury"]', { timeout: 4000 }).then(() => true, () => false);
     if (!opened) { const diag = await page.evaluate(() => { const w = document.querySelector('[data-why^="Treasury"]'); const r = w?.getBoundingClientRect(); return { well: r && { x: r.x, y: r.y, w: r.width, h: r.height }, fine: matchMedia('(hover:hover) and (pointer:fine)').matches, popovers: [...document.querySelectorAll('[data-why-content]')].map((e) => e.getAttribute('data-why-content')), under: (() => { const e = r && document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return e && `${e.tagName.toLowerCase()}.${e.className}`; })() }; }); assert.ok(opened, `hover opens ${JSON.stringify(diag)}`); }
     await page.mouse.move(700, 600); await settle(page, 600);
-    assert.equal(await page.$('[data-why-content^="Treasury"]'), null, 'leave closes');
+    assert.equal(await page.locator('[data-why-content^="Treasury"]').count(), 0, 'leave closes');
     await page.click('[data-why^="Treasury"]'); await settle(page, 400);
     assert.ok(await page.$('[data-why-content^="Treasury"]'), 'click still opens and stays open');
   } finally { await ctx.close(); }
 });
 
-// D2 Overview, FIX 1 frame: the map is the whole center column (no situation cards under it, no vitals column at desktop),
-// the right column holds the card dock over the outliner, and the Overview body does not scroll.
+// Desktop workspace: the map dominates the center between national indicators and the project queue.
+// The right column holds the card dock over the outliner, and the Overview body does not scroll.
 for (const [W, H, minW] of [[1280, 800, 560], [1440, 900, 700], [1920, 1080, 960]]) {
-  test(`${W}px: Overview map fills the center column (>= ${minW}px wide, full height, nothing under it, dock and outliner right)`, async () => {
+  test(`${W}px: Overview map dominates the center column (>= ${minW}px wide, dock and outliner right, no scrolling)`, async () => {
     const { ctx, page } = await openGame(browser, { width: W, height: H });
     try {
       await page.evaluate(() => document.querySelector('[data-tab=overview]').click()); await settle(page, 600);
       const r = await page.evaluate(() => { const q = (s) => { const e = document.querySelector(s); if (!e) return null; const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, r: b.right, b: b.bottom, w: b.width, h: b.height }; }; const col = document.querySelector('.wl-ov-col'); return { stage: q('.wl-mv-stage'), host: q('.wl-mv-host') || q('[data-map] svg'), vitals: q('.wl-vitals'), flank: q('.wl-ov-col .wl-flank'), outliner: q('[data-outliner]'), dock: q('[data-dock]'), card: q('.wl-map-card'), col: q('.wl-ov-col'), nav: q('[data-nav]'), scroll: col.scrollHeight - col.clientHeight, bodyScroll: document.documentElement.scrollHeight - innerHeight }; });
       assert.ok(r.stage.w >= minW, `map ${Math.round(r.stage.w)}px < ${minW}`);
-      assert.ok(r.stage.h >= r.col.h * 0.7, `map takes the column height: ${Math.round(r.stage.h)} of ${Math.round(r.col.h)}`);
+      assert.ok(r.stage.h >= r.col.h * 0.55, `map remains the majority of the column between national indicators and project queue: ${Math.round(r.stage.h)} of ${Math.round(r.col.h)}`);
       assert.ok(!r.vitals || r.vitals.w === 0, 'no vitals column: the vitals ride in the HUD tables'); assert.equal(r.flank, null, 'nothing stacks under the map');
       assert.ok(r.nav.r <= r.card.x + 1 && r.card.r <= r.outliner.x + 1, 'rail left, outliner right of the map');
       assert.ok(r.dock && r.dock.x >= r.card.r - 1 && r.dock.b <= r.outliner.y + 1, 'the card dock sits over the outliner in the right column');
@@ -232,7 +232,7 @@ for (const [W, H] of [[1280, 800], [1440, 900], [1920, 1080]]) {
       const caps = await page.evaluate(() => [...document.querySelectorAll('[data-table=proc] tbody tr')].map((r) => r.querySelector('td:nth-child(2)').textContent));
       assert.equal(caps.length, 10);
       await seg(page, 'deals');
-      assert.ok(await page.evaluate(() => document.querySelectorAll('[data-table=partners] tbody tr').length) >= 15, 'every offtake option is a row');
+      assert.ok(await page.evaluate(() => document.querySelectorAll('[data-table=partners] tbody tr').length) > 2, 'all suppliers for the selected mineral are shown, including smaller processors');
       assert.ok((await box(page, '[data-detail=deals]')).x >= (await box(page, '[data-table=partners]')).r - 1, 'pact and deals beside the partners table');
       await seg(page, 'controls');
       assert.ok(await page.evaluate(() => new Set([...document.querySelectorAll('[data-minerals] > section')].map((e) => Math.round(e.getBoundingClientRect().x))).size) >= 2, 'controls in two columns');

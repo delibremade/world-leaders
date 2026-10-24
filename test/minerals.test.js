@@ -247,9 +247,11 @@ test('App: Resources shows the minerals view with every lever on five screens; A
     for (const re of [/Buy reserve/, /Release/]) await press(re);
     assert.match(row().textContent, /reserve 10/i);
     await sub('deals');
-    await press(/Offtake .*Japan/);
+    const pick=g.doc.querySelector('[aria-label="Compare mineral"]');pick.value='gallium';pick.dispatchEvent(new g.w.Event('change',{bubbles:true}));await settle();
+    const japan=[...g.doc.querySelectorAll('[data-table=partners] tbody tr')].find(r=>/Japan/.test(r.textContent));assert.ok(japan);japan.click();await settle();
+    await press(/Sign offtake/,view());
     assert.match(g.doc.querySelector('[data-deal^=gallium_]').textContent, /Japan/);
-    await press(/Processing pact/, view());
+    await press(/Activate pact/, view());
     await sub('controls');
     const rare = row('rareEarth'); assert.ok([...rare.querySelectorAll('button')].some((b) => /Export control/.test(b.textContent)), 'export control offered where we process');
     await press(/Export control/, rare);

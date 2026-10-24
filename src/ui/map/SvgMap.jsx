@@ -3,9 +3,13 @@
 // the parity click script: each region is a <g> whose first <text> is the region name; the flashpoint marker
 // is a <text> ending in ⚠ inside that <g>.
 import { COLOR } from '../tokens.js';
+import { symbolPath } from './symbols.js';
+import { visibleLayers } from './layout.js';
 
-export function SvgMap({ scene, onRegionTap, onSiteTap, style }) {
+export function SvgMap({ scene, onRegionTap, onSiteTap, onChokeTap, style }) {
   const { regions, routes, influence, chokepoints, sites = [], rings = [] } = scene;
+  const layers=visibleLayers(scene.mode);
+  const keyTap=(e,fn)=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fn();}};
   return (
     <svg viewBox="0 0 1000 520" style={{ width: '100%', borderRadius: '6px', display: 'block', ...style }} data-map-renderer="svg" data-map-mode={scene.mode}>
       <defs>
@@ -19,7 +23,7 @@ export function SvgMap({ scene, onRegionTap, onSiteTap, style }) {
       {[...Array(9)].map((_, i) => <line key={'gv' + i} x1={(i + 1) * 100} y1="0" x2={(i + 1) * 100} y2="520" stroke={COLOR.bg.inset} strokeOpacity="0.22" strokeWidth="0.6" />)}
       {[...Array(4)].map((_, i) => <line key={'gh' + i} x1="0" y1={(i + 1) * 104} x2="1000" y2={(i + 1) * 104} stroke={COLOR.bg.inset} strokeOpacity="0.22" strokeWidth="0.6" />)}
       {regions.map((r) => (
-        <g key={r.rid} onClick={() => onRegionTap(r.rid)} style={{ cursor: 'pointer' }} data-region={r.rid}>
+        <g key={r.rid} role="button" tabIndex="0" aria-label={`Inspect ${r.name}`} onKeyDown={e=>keyTap(e,()=>onRegionTap(r.rid))} onClick={() => onRegionTap(r.rid)} style={{ cursor: 'pointer' }} data-region={r.rid}>
           <path d={r.d} className="region-path" filter="url(#landGlow)" fill={r.fill} fillOpacity={r.fillAlpha} stroke={r.stroke} strokeOpacity={r.selected ? 0.95 : 0.55} strokeWidth={r.selected ? 1.8 : 0.9} />
           {r.hatch && <path d={r.d} fill="url(#contestedHatch)" stroke="none" pointerEvents="none" />}
           <text x={r.cx} y={r.cy - 8} textAnchor="middle" fill={COLOR.text.secondary} fontSize="11.5" fontWeight="600" pointerEvents="none">{r.name}</text>
@@ -32,17 +36,17 @@ export function SvgMap({ scene, onRegionTap, onSiteTap, style }) {
           {r.intel && <circle cx={r.cx - 38} cy={r.cy - 12} r="3.2" fill={COLOR.accent.intel} fillOpacity="0.9" pointerEvents="none" />}
         </g>
       ))}
-      {routes.map((l) => <line key={`tr_${l.rid}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke={l.color} strokeWidth="1.2" strokeOpacity="0.5" strokeDasharray="6,5" style={{ animation: 'wl-dash 1.1s linear infinite' }} pointerEvents="none" />)}
-      {influence.map((l) => <line key={`inf_${l.rid}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke={l.color} strokeWidth={l.width} strokeOpacity={l.alpha} strokeDasharray="2,4" pointerEvents="none" />)}
+      {(layers.routes?routes:[]).map((l) => <line key={`tr_${l.id||l.rid}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke={l.color} strokeWidth="1.2" strokeOpacity="0.5" strokeDasharray="6,5" style={{ animation: 'wl-dash 1.1s linear infinite' }} pointerEvents="none" />)}
+      {(layers.influence?influence:[]).map((l) => <line key={`inf_${l.rid}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke={l.color} strokeWidth={l.width} strokeOpacity={l.alpha} strokeDasharray="2,4" pointerEvents="none" />)}
       {/* F9b: reach rings of the selected site (no zoom in the fallback), then one marker per site */}
       {rings.filter((r) => sites.find((s) => s.id === r.site)?.selected).map((r, i) => <circle key={`ring_${r.site}_${i}`} cx={r.x} cy={r.y} r={r.r} fill={r.color} fillOpacity={r.mine ? 0.06 : 0} stroke={r.color} strokeWidth={r.mine ? 1.2 : 0.7} strokeOpacity={r.mine ? 0.75 : 0.35} pointerEvents="none" data-ring={r.site} />)}
-      {sites.map((s) => <g key={`site_${s.id}`} data-site={s.id} data-candidate={s.candidate ? 'true' : undefined} onClick={(e) => { e.stopPropagation(); onSiteTap?.(s.id); }} style={{ cursor: 'pointer' }}>
-        <circle cx={s.x} cy={s.y} r={s.candidate ? 6 : 6.5} fill={s.candidate ? COLOR.bg.panel : s.color} fillOpacity={s.candidate ? 0.85 : s.mine ? 0.95 : 0.55} stroke={s.candidate ? COLOR.accent.good : s.selected ? COLOR.text.primary : COLOR.bg.surface} strokeWidth={s.selected ? 1.6 : 1} />
-        {(s.closed || s.building) && <circle cx={s.x} cy={s.y} r="9" fill="none" stroke={s.closed ? COLOR.accent.alert : COLOR.accent.warn} strokeWidth="1" />}
-        <text x={s.x} y={s.y + 3} textAnchor="middle" fontSize="8" fontWeight="700" fill={s.candidate ? COLOR.accent.good : COLOR.text.primary} pointerEvents="none">{s.icon}</text>
-        {s.mine + s.theirs > 1 && <text x={s.x + 7} y={s.y - 4} fontSize="6" fontWeight="800" fill={COLOR.text.primary} pointerEvents="none">{s.mine + s.theirs}</text>}
+      {sites.map((s) => <g key={s.id} role="button" tabIndex="0" aria-label={s.name} data-site={s.id} data-candidate={s.candidate ? 'true' : undefined} onKeyDown={e=>keyTap(e,()=>onSiteTap?.(s.id))} onClick={e=>{e.stopPropagation();onSiteTap?.(s.id);}} style={{cursor:'pointer'}}>
+        <rect x={s.x-14} y={s.y-14} width="28" height="28" rx="4" fill={COLOR.bg.panel} stroke={s.selected?COLOR.text.primary:s.building?COLOR.accent.warn:s.color} strokeWidth={s.selected?2:1}/>
+        <path d={symbolPath(s.type)} transform={`translate(${s.x} ${s.y}) scale(.75)`} fill={s.candidate?COLOR.accent.good:s.color}/>
+        {s.mine+s.theirs>1&&<text x={s.x+11} y={s.y-9} fontSize="9" fill={COLOR.text.primary}>{s.mine+s.theirs}</text>}
       </g>)}
-      {chokepoints.map((c) => <g key={`cp_${c.k}`} pointerEvents="none"><circle cx={c.x} cy={c.y} r={c.r} fill={c.color} fillOpacity={0.9} stroke={COLOR.bg.surface} strokeWidth="1" />{c.ring && <circle cx={c.x} cy={c.y} r="9" fill="none" stroke={COLOR.accent.alert} strokeWidth="1" strokeOpacity="0.6" />}{c.mine && <circle cx={c.x} cy={c.y} r="7" fill="none" stroke={COLOR.accent.energy} strokeWidth="1" strokeDasharray="2,2" />}</g>)}
+      {(layers.chokepoints?chokepoints:[]).map(c=><g key={c.k} role="button" tabIndex="0" aria-label={c.name} onKeyDown={e=>keyTap(e,()=>onChokeTap?.(c.k))} onClick={()=>onChokeTap?.(c.k)} style={{cursor:'pointer'}}><path d={`M${c.x} ${c.y-8}l8 8-8 8-8-8Z`} fill={c.color} stroke={COLOR.bg.surface} strokeWidth="1.5"/></g>)}
+
     </svg>
   );
 }

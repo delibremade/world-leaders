@@ -45,7 +45,7 @@ test('UI layer no longer writes game state: no ref writes or game setters in ren
   const src = readFileSync('src/ui/App.jsx', 'utf8');
   const body = src.slice(src.indexOf('const tick=useCallback'));
   assert.equal((body.match(/\b\w+R\.current\s*=(?!=)/g) || []).length, 0, 'ref writes after the engine seam');
-  const UI = /^set(Phase|SelectedRegion|SelDipNation|SelIssue|IntelIssue|SelOption|RightMode|SelDefVert|SelExportVert|ArsenalSub|ForcesSub|SelIntelTarget|T1Target|VitalsDrill|HovOpt|ActiveTab|Toasts|Feed|Routes|FeedOpen|PauseWhy|Holds|Collapsed|Paused|GameSpeed|SaveInfo|LastSaved|VictoryShown|Interval|MapMode|SelNation|OutlinerOpen|SelSite|BuildMode|Act|History|OpenMineral|SelBudget|AlertFocus|BudgetLocks|PoolHold|AllocOpen|DockFocus|OpFocus)$/;
+  const UI = /^set(Phase|SelectedRegion|SelDipNation|SelIssue|IntelIssue|SelOption|RightMode|SelDefVert|SelExportVert|ArsenalSub|ForcesSub|ResSub|SelIntelTarget|T1Target|VitalsDrill|HovOpt|ActiveTab|Toasts|Feed|Routes|FeedOpen|PauseWhy|Holds|Collapsed|Paused|GameSpeed|SaveInfo|LastSaved|VictoryShown|Interval|MapMode|SelNation|OutlinerOpen|SelSite|BuildMode|Act|History|OpenMineral|SelBudget|AlertFocus|BudgetLocks|PoolHold|AllocOpen|DockFocus|OpFocus|MapSelection|CommandView)$/;
   // New Nation (back to country select) is session lifecycle, like startGame/restoreGame: it clears gameOver.
   const game = [...body.matchAll(/(?<![\w.])(set[A-Z]\w*)\(/g)].map((m) => m[1]).filter((n) => !UI.test(n) && n !== 'setGameOver');
   assert.deepEqual(game, []);
@@ -131,7 +131,7 @@ test('#6 map + deploy updates live forceDeployments in the same month and cannot
 
 test('#6 map - recall and the blockade naval-weight read see the live deployment', () => {
   const h = reactLike(); h.g.platforms = { ...h.g.platforms, carrier_group: 2, sub_fleet: 2 };
-  h.g.forces = { ...h.g.forces, crews: { ...h.g.forces.crews, sea: 12 } }; // #20 (E8): stationing needs trained crews
+  h.g.forces = { ...h.g.forces, crews: { ...h.g.forces.crews, sea: h.g.forces.crews.sea } }; // #20 (E8): stationing needs trained crews
   for (const u of ['carrier_group', 'carrier_group', 'sub_fleet', 'sub_fleet']) h.run('adjustDeployment', { region: RID, unit: u, delta: 1 });
   assert.equal(navalWeight(h.g.forceDeployments[RID]), 4);
   h.run('adjustDeployment', { region: RID, unit: 'sub_fleet', delta: -1 });

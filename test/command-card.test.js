@@ -58,7 +58,7 @@ test('App (jsdom): region card opens on selection; F visits, Z opens an orange c
   try {
     await g.pickCountry(0);
     const { doc, w } = g; const q = (s) => doc.querySelector(s), qa = (s) => [...doc.querySelectorAll(s)];
-    [...q('[data-event-card=doctrine]').querySelectorAll('div')].find((d) => d.style.cursor === 'pointer' && /Military Superpower/.test(d.textContent)).click(); await flush();
+    q('[data-doctrine=fortress]').click(); await flush();
     const press = async (k) => { doc.dispatchEvent(new w.KeyboardEvent('keydown', { key: k, bubbles: true })); await flush(); await flush(); };
     const click = async (el) => { el.click(); await flush(); await flush(); };
     w.__wl.region('WE'); await flush(); await flush();

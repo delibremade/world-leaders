@@ -13,6 +13,7 @@ test('App (jsdom, SVG fallback): dock carries six modes with keys Q to Y; pressi
   try {
     await g.pickCountry(0);
     const { doc, w } = g; const q = (s) => doc.querySelector(s), qa = (s) => [...doc.querySelectorAll(s)];
+    q('[data-doctrine=fortress]').click(); await flush(); await flush();
     assert.deepEqual(qa('[data-map-modes] [data-map-mode-btn]').map((b) => b.dataset.key), MODE_KEYS);
     assert.deepEqual(qa('[data-map-modes] kbd').map((k) => k.textContent), MODE_KEYS, 'each chip shows its key');
     assert.equal(q('[data-map-lod]').textContent, 'Strategic'); assert.equal(q('[data-map]').getAttribute('data-map-level'), 'strategic');
@@ -23,7 +24,7 @@ test('App (jsdom, SVG fallback): dock carries six modes with keys Q to Y; pressi
     // typing in a field never switches the map
     const inp = doc.createElement('input'); doc.body.appendChild(inp); inp.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'w', bubbles: true })); await flush();
     assert.equal(q('[data-map]').getAttribute('data-map-mode'), 'sphere'); inp.remove();
-    assert.match(q('[data-map-legend]').textContent, /Affiliation/);
+    assert.match(q('[data-map-legend]').textContent, /Regional influence/);
     assert.ok(!g.faulted());
   } finally { console.error = origErr; g.close(); }
 });
@@ -38,14 +39,14 @@ test('1440px (WebGL): tilted plane renders; zoom walks Strategic -> Operational 
     await page.evaluate(() => document.querySelector('[data-tab=overview]').click()); await settle(page, 800);
     await page.waitForFunction(() => window.__wlMap?.renderer === 'pixi' && window.__wlMap.frames() > 5, null, { timeout: 15000 });
     const m = await page.evaluate(() => ({ tilt: window.__wlMap.tilt, level: window.__wlMap.level(), scale: window.__wlMap.scale(), layers: window.__wlMap.layers(), chip: document.querySelector('[data-map-lod]').textContent }));
-    assert.ok(m.tilt > 0.6 && m.tilt < 0.8, `plane tilt ${m.tilt}`); assert.equal(m.level, 'strategic'); assert.equal(m.chip, 'Strategic');
+    assert.ok(m.tilt >= 0.84 && m.tilt <= 1, `plane tilt ${m.tilt}`); assert.equal(m.level, 'strategic'); assert.equal(m.chip, 'Strategic');
     assert.equal(m.layers.rings, false); assert.equal(m.layers.names, true); assert.equal(m.layers.chips, true);
-    await page.evaluate(() => window.__wlMap.zoom(1.3)); await settle(page, 300);
+    await page.evaluate(() => window.__wlMap.zoomBy(2)); await settle(page, 300);
     let r = await page.evaluate(() => ({ level: window.__wlMap.level(), layers: window.__wlMap.layers(), chip: document.querySelector('[data-map-lod]').textContent }));
     assert.equal(r.level, 'operational'); assert.equal(r.chip, 'Operational'); assert.equal(r.layers.baseNames, true); assert.equal(r.layers.rings, false);
-    await page.evaluate(() => window.__wlMap.zoom(2.6)); await settle(page, 300);
+    await page.evaluate(() => window.__wlMap.zoomBy(2)); await settle(page, 300);
     r = await page.evaluate(() => ({ level: window.__wlMap.level(), layers: window.__wlMap.layers(), chip: document.querySelector('[data-map-lod]').textContent }));
-    assert.equal(r.level, 'tactical'); assert.equal(r.chip, 'Tactical'); assert.equal(r.layers.rings, true); assert.equal(r.layers.unitDetail, true);
+    assert.equal(r.level, 'tactical'); assert.equal(r.chip, 'Tactical'); assert.equal(r.layers.rings, false, 'zoom alone never exposes coverage'); assert.equal(r.layers.unitDetail, true);
     // zoom buttons drive the same renderer; fit returns to strategic
     await page.click('[data-map-zoom] [aria-label="Fit the world"]'); await settle(page, 300);
     assert.equal(await page.evaluate(() => window.__wlMap.level()), 'strategic');
@@ -58,7 +59,7 @@ test('1440px (WebGL): tilted plane renders; zoom walks Strategic -> Operational 
     inside(lod, 'level chip'); inside(zm, 'zoom'); inside(lg, 'legend'); inside(dk, 'dock');
     assert.ok(lod.x < st.x + st.w / 2 && lod.y < st.y + st.h / 2, 'chip top-left'); assert.ok(zm.r > st.x + st.w / 2 && zm.y < st.y + st.h / 2, 'zoom top-right');
     assert.ok(lg.x < st.x + st.w / 2 && lg.b > st.y + st.h / 2, 'legend bottom-left'); assert.ok(dk.r > st.x + st.w / 2 && dk.b > st.y + st.h / 2, 'dock bottom-right');
-    assert.ok(lg.r <= dk.x + 0.5, 'legend and dock do not overlap');
+    assert.ok(lg.b <= dk.y + 0.5, 'legend sits above the lens bar');
     // hotkey on the live map, then the mode's emphasis layer: W tints by tension
     await page.keyboard.press('w'); await settle(page, 200);
     assert.equal(await page.evaluate(() => document.querySelector('[data-map]').getAttribute('data-map-mode')), 'tension');
