@@ -573,8 +573,8 @@ function WorldLeadersInner({resumeSignal}){
     if(mode)setMapMode(mode);if(card)setDockFocus({card,at:Date.now()});
     if(pan){if(mapRef.current)mapRef.current.focus?.(pan);else panPending.current=pan;}
     if(tab==='forces'){if(sub)setForcesSub(sub);setDeploymentRequest(prev=>({region,unit,at:(prev?.at||0)+1}));}
-    if(tab==='arsenal'){if(sub)setArsenalSub(sub);setPlatformRequest(platform||null);}
-    if(tab==='resources'){if(sub)setResSub(sub);setMineralRequest(mineral||null);}
+    if(tab==='arsenal'){if(sub)setArsenalSub(sub);setPlatformRequest(prev=>({platform,at:(prev?.at||0)+1}));}
+    if(tab==='resources'){if(sub)setResSub(sub);setMineralRequest(prev=>({mineral,at:(prev?.at||0)+1}));}
     if(tab==='sitroom')setCovertRequest(prev=>({target,at:(prev?.at||0)+1}));
     if(tab==='intel'&&(target||nation||op)){setSelIntelTarget(target||nation||null);setOpFocus(op||null);}
     else if(nation)setSelNation(nation);
@@ -1286,7 +1286,7 @@ function WorldLeadersInner({resumeSignal}){
           <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'10px'}}>Energy Policy Actions</div><div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'9px'}}>{PA.filter(a=>a.t==='energy').map(a=><ActionCard key={a.id} action={a}/>)}</div></div>}
 
         {/* RESOURCES TAB */}
-        {activeTab==='resources'&&<div className="wl-pane-wrap" data-sentinel="resources">{segResources}{resSub!=='natural'&&<MineralsTab initialMineral={mineralRequest} sub={resSub} dispatch={dispatch} onOpenNation={setSelNation} view={{country,minerals,nationRelations,resources,resExtraction,globalDef,rivalTension,sanctions,embargoes,embargoedBy}}/>}{resSub==='natural'&&<div style={{flex:1,overflowY:'auto',padding:'12px'}}>
+        {activeTab==='resources'&&<div className="wl-pane-wrap" data-sentinel="resources">{segResources}{resSub!=='natural'&&<MineralsTab key={mineralRequest?.at||0} initialMineral={mineralRequest?.mineral} sub={resSub} dispatch={dispatch} onOpenNation={setSelNation} view={{country,minerals,nationRelations,resources,resExtraction,globalDef,rivalTension,sanctions,embargoes,embargoedBy}}/>}{resSub==='natural'&&<div style={{flex:1,overflowY:'auto',padding:'12px'}}>
           <div style={{fontSize:'10px',color:'#7c8aa3',textTransform:'uppercase',letterSpacing:'1px',marginBottom:'12px'}}>Natural Resource Management</div>
           <div className="wl-note" data-natural-note style={{marginBottom:'10px'}}>Private operators extract under your licence and build GGRB retorting when it pays. You set the licensed rate; the treasury takes royalties and tax (ledger: Extraction).</div>
           <div style={{display:'grid',gridTemplateColumns:'repeat(1,1fr)',gap:'10px',maxWidth:'650px'}}>
@@ -1362,7 +1362,7 @@ function WorldLeadersInner({resumeSignal}){
         </div>}</div>}
 
         {/* ARSENAL TAB (E5b): programs, procurement, supply, partnerships, exports, deterrence. Sub-tabs and cards live in src/ui/arsenal. */}
-        {activeTab==='arsenal'&&<ArsenalTab initialPlatform={platformRequest} sub={arsenalSub} onSub={setArsenalSub} dispatch={dispatch} toast={showToast} onJump={goPane} exportVert={selExportVert} onExportVert={setSelExportVert}
+        {activeTab==='arsenal'&&<ArsenalTab key={platformRequest?.at||0} initialPlatform={platformRequest?.platform} sub={arsenalSub} onSub={setArsenalSub} dispatch={dispatch} toast={showToast} onJump={goPane} exportVert={selExportVert} onExportVert={setSelExportVert}
           view={{country,nationRelations,defensePacts,budgetAlloc,stats,resExtraction,importContracts,tradeAgreements,blocTrade,ipPolicy,defLevels,intelBudget,intelOps,covertPrograms,intelInfra,platforms,platformsImported,arsenal,blackPrograms,blackResearch,date,sapOffice,minerals,forces,forceDeployments,platformDev,developed,defResearch,procureMode,sectorAge,activePolicies,globalDef,defExports,demand,sphere,embassies,nukeLog}}/>}
 
         {/* FORCES TAB (E5a): people and readiness. Sub-tabs and cards live in src/ui/forces. */}

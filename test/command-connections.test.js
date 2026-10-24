@@ -32,6 +32,10 @@ test('production queue resolves its shortage in the correct supplier desk withou
   g.w.__wl.minerals({queue:[{id:'fa_xx',left:{gallium:500},need:{gallium:500}}]});await flush();
   const row=g.doc.querySelector('[data-queue=builds]');assert.match(row.textContent,/F\/A-XX/);row.click();await flush();await flush();
   assert.equal(g.doc.querySelector('[aria-label="Compare mineral"]').value,'gallium');assert.equal(g.doc.querySelector('[data-sheet]'),null);assert.ok(!g.faulted());
+  const selector=g.doc.querySelector('[aria-label="Compare mineral"]');selector.value='titanium';selector.dispatchEvent(new g.w.Event('change',{bubbles:true}));await flush();
+  assert.equal(g.doc.querySelector('[aria-label="Compare mineral"]').value,'titanium');
+  g.doc.querySelector('[data-outliner-row=supply_fa_xx]').click();await flush();await flush();
+  assert.equal(g.doc.querySelector('[aria-label="Compare mineral"]').value,'gallium','repeated remedy restores its named mineral even within the same workspace');
  }finally{g.close();}
 });
 

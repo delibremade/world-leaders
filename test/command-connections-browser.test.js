@@ -44,6 +44,10 @@ for(const [width,height] of [[1280,800],[1440,900],[1920,1080],[390,844]]){
    assert.match(await page.locator('[data-queue=builds]').innerText(),/F\/A-XX/);
    await page.locator('[data-queue=builds]').click();await settle(page);
    assert.equal(await page.getByLabel('Compare mineral').inputValue(),'gallium');
+   await page.getByLabel('Compare mineral').selectOption('titanium');
+   if(width<1100)await page.locator('[data-alert-chip=good]').click();
+   await page.locator('[data-outliner-row=supply_fa_xx]').click();await settle(page);
+   assert.equal(await page.getByLabel('Compare mineral').inputValue(),'gallium','repeated shortage link restores its input');
    await fits();
    await page.locator('[data-nav] [data-tab=overview]').click();await settle(page);
    await page.evaluate(()=>window.__wl.region('WE'));await settle(page);
