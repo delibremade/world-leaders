@@ -1,6 +1,7 @@
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {launch,openGame,settle,overflow} from './util/browser.js';
+import {openIndividualAssets} from './util/force-packages-browser.js';
 let browser;before(async()=>{browser=await launch();});after(async()=>{await browser?.close();});
 for(const [width,height] of [[1280,800],[1440,900],[390,844]]){
  test(`${width}px: complete briefing, F/A-XX acquisition and supplier assessment remain usable`,async()=>{
@@ -40,6 +41,7 @@ for(const [width,height] of [[1280,800],[1440,900],[390,844]]){
    assert.ok(await page.locator('[data-deal=gallium_japan]').count());
    if(width<1100){
     await page.evaluate(()=>window.__wl.region('EA'));await settle(page);
+    await openIndividualAssets(page);
     await page.getByLabel('Force package',{exact:true}).selectOption('fleet:usa:cvn');
     await page.locator('[data-map-deploy="fleet:usa:cvn"]').click();await settle(page);
     assert.match(await page.locator('[data-sheet] .wl-deployment-stock').innerText(),/1 here/);
@@ -53,6 +55,7 @@ test('map deploys a starting carrier and recalls the same physical hull',async()
  const {ctx,page,errors}=await openGame(browser,{width:1440,height:900,svg:true});
  try{
   await page.locator('[data-locate-region=EA]').click();await settle(page);
+  await openIndividualAssets(page);
   await page.getByLabel('Force package',{exact:true}).selectOption('fleet:usa:cvn');await settle(page);
   await page.locator('[data-map-deploy="fleet:usa:cvn"]').click();await settle(page);
   assert.match(await page.locator('.wl-deployment-stock').innerText(),/1 here/);

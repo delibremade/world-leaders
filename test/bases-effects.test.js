@@ -12,6 +12,8 @@ import { chokeWeight, ownChokeWeight, rivalChokeWeight, theaterMult, baseIsr, re
 import { isrOf, isrScore, theaterWeight, capWeight, tier1Odds } from '../src/sim/formulas.js';
 import { fpReason } from '../src/sim/events.js';
 import { setRngSource, mulberry32 } from '../src/sim/rng.js';
+import {routeProtection,protectionWeight,escortProtectionWeight,energySituation} from '../src/sim/energy-view.js';
+import {packageDeployments} from '../src/sim/force-packages.js';
 
 // F9c (#57): every node effect, one test each, measured through the system that consumes it (spec Part 11 "done when").
 const idx = (id) => COUNTRIES.findIndex((c) => c.id === id);
@@ -36,7 +38,7 @@ test('cohesion: every effect has one implementation in reach.js; tick, actions, 
     assert.ok(!/isrScore\(/.test(src), `${f} reads raw isrScore; use isrOf(g)`);
     assert.ok(!/capWeight\(g\.forceDeployments/.test(src), `${f} reads capWeight without reach; use theaterWeight(g,rid)`);
   }
-  assert.ok(/chokeWeight\(g,k\)/.test(readFileSync('src/sim/tick.js', 'utf8')) && /responseAt\(g, rid\)/.test(readFileSync('src/sim/events.js', 'utf8')));
+  assert.ok(/routeProtection\(/.test(readFileSync('src/sim/tick.js', 'utf8')) && /chokeWeight\(g,id\)/.test(readFileSync('src/sim/energy-view.js', 'utf8')) && /responseAt\(g, rid\)/.test(readFileSync('src/sim/events.js', 'utf8')));
 });
 
 test('done-when: a naval base at a chokepoint raises control weight; Bahrain secures Hormuz with no ships; rivals halve it; a closed base counts for nothing', () => {
@@ -45,7 +47,7 @@ test('done-when: a naval base at a chokepoint raises control weight; Bahrain sec
   assert.equal(ownChokeWeight(g, 'bab'), 0, 'a SOF compound at Djibouti adds no control weight');
   assert.equal(chokeWeight(g, 'malacca'), 0);
   months(h, 1); assert.equal(g.chokeStatus.hormuz, 'open', 'one base (1.5) is short of the 2.0 line');
-  g.forceDeployments = { ME: { frigate: 1 } }; g.platforms = { ...g.platforms, frigate: 1 }; // navalWeight 0.5 + 1.5 base = 2.0
+  g.platforms = { ...g.platforms, frigate: 1 };assert.equal(h.run('deployUnit',{region:'ME',unit:'frigate'}),true); // navalWeight 0.5 + 1.5 base = 2.0
   months(h, 1); assert.equal(g.chokeStatus.hormuz, 'secured', 'ships plus base clear the line');
   drop(g, nodeId('usa', 'bahrain', 'naval')); months(h, 1); assert.equal(g.chokeStatus.hormuz, 'open', 'without the base, half a frigate secures nothing');
   add(g, 'usa', 'bahrain', 'naval'); add(g, 'usa', 'aludeid', 'logistics'); // 1.5 + 0.5 + 0.5 ships = 2.5
@@ -65,10 +67,32 @@ test('done-when: escort effectiveness. Under a Hormuz closure the escort posture
   months(h, 1); assert.equal(g.chokeStatus.hormuz, 'escorted', 'half a frigate plus NSA Bahrain escorts');
   drop(g, nodeId('usa', 'bahrain', 'naval')); months(h, 1); assert.equal(g.chokeStatus.hormuz, 'disrupted', 'no base: the same escort fails');
   // Imports: Germany routes through Suez, Bab al-Mandab and Hormuz. Secure them and the lane cut shows on the ledger.
-      const bill = (lane) => { const x = headless('germany'); rich(x.g); x.g.gracePeriod = 0; x.g.importContracts = new Set(['oil', 'gas']); x.g.forceDeployments = { ME: { frigate: 4 }, AF: { frigate: 4 } }; x.g.platforms = { ...x.g.platforms, frigate: 8 }; if (lane) { add(x.g, 'germany', 'djibouti', 'naval'); add(x.g, 'germany', 'souda', 'naval'); } months(x, 1); return { imports: x.ui.ledger.Imports, cs: x.g.chokeStatus, cut: laneCut(x.g, ['suez', 'bab', 'hormuz']) }; };
+  const bill = (lane) => {
+    const x=headless('germany');rich(x.g);x.g.gracePeriod=0;x.g.importContracts=new Set(['oil','gas']);
+    x.g.forceDeployments={ME:{frigate:4},AF:{frigate:4}};x.g.platforms={...x.g.platforms,frigate:8};
+    // Isolate basing/lane effects with genuinely crewed, mission-ready purchases.
+    x.g.forces.fleet.ffg.mc=100;x.g.forces.crewShare.sea=.04;x.g.forces.crews.sea=x.g.forces.active*.04;
+    if(lane){add(x.g,'germany','djibouti','naval');add(x.g,'germany','souda','naval');}
+    months(x,1);return {imports:x.ui.ledger.Imports,cs:x.g.chokeStatus,cut:laneCut(x.g,['suez','bab','hormuz'])};
+  };
   const a = bill(false), b = bill(true);
   assert.ok(['secured', 'escorted'].includes(b.cs.bab) && ['secured', 'escorted'].includes(b.cs.suez), JSON.stringify(b.cs));
   assert.equal(b.cut, 2 * NODE_TYPES.naval.mult.lane); assert.ok(b.imports > a.imports, `imports ${a.imports} -> ${b.imports} (less negative) with lane protection`);
+});
+
+test('route protection reads ready package missions: bases support escorts, mixed missions stay separate, and unavailable ships cannot protect access',()=>{
+ const h=headless('usa'),g=h.g;rich(g);g.gracePeriod=0;g.forces.fleet.ddg.mc=100;
+ const make=(id,posture)=>({id,name:`Gulf ${posture}`,service:'navy',template:'detachment',members:{'fleet:usa:ddg':1},plannedMembers:{'fleet:usa:ddg':1},region:'ME',posture});
+ g.forces={...g.forces,packageVersion:1,nextPackageId:3,packages:[make('pkg:1','escort'),make('pkg:2','exercise')]};
+ g.forceDeployments=packageDeployments(g.forces.packages);g.forcePosture={ME:'humanitarian'};g.worldEvent={id:'hormuz_closure',mo:6,why:'test'};
+ let r=routeProtection(g,'hormuz');assert.equal(r.naval,1);assert.equal(r.escortNaval,.5);assert.equal(r.bases,1.5);assert.equal(r.weight,2.5);assert.equal(r.escortWeight,2);assert.equal(r.canEscort,true);
+ assert.equal(protectionWeight(g,'hormuz'),r.weight);assert.equal(escortProtectionWeight(g,'hormuz'),r.escortWeight);
+ months(h,1);assert.equal(g.chokeStatus.hormuz,'escorted');
+ g.forces.packages[0].posture='exercise';r=routeProtection(g,'hormuz');assert.equal(r.weight,2.5);assert.equal(r.canEscort,false,'other missions do not become escorts through a theater default');
+ months(h,1);assert.equal(g.chokeStatus.hormuz,'disrupted');
+ g.forces.packages[0].posture='escort';g.forces.fleet.ddg.mc=0;r=routeProtection(g,'hormuz');assert.equal(r.naval,0);assert.equal(r.escortNaval,0);assert.equal(r.canEscort,false,'a base cannot replace a mission-ready escort');
+ for(const displayed of energySituation(g).routes)assert.equal(displayed.escortWeight,routeProtection(g,displayed.id).escortWeight);
+ months(h,1);assert.equal(g.chokeStatus.hormuz,'disrupted');
 });
 
 test('done-when: an air base in theater raises deployed power for air units within reach; sea and land units untouched; a closed base removes it', () => {
@@ -86,6 +110,7 @@ test('done-when: an air base in theater raises deployed power for air units with
   // the theater weight is what projection and pressure read: a stronger theater suppresses the leading rival faster
   const h2 = headless('usa'); rich(h2.g); h2.g.gracePeriod = 0; h2.g.platforms = { ...h2.g.platforms, fighter_wing: 3 }; h2.g.forceDeployments = { EA: { fighter_wing: 3 } }; h2.g.forcePosture = { EA: 'deter' };
   const h3 = headless('usa'); rich(h3.g); h3.g.gracePeriod = 0; h3.g.platforms = { ...h3.g.platforms, fighter_wing: 3 }; h3.g.forceDeployments = { EA: { fighter_wing: 3 } }; h3.g.forcePosture = { EA: 'deter' };
+  h2.g.forces.fleet.f35a.mc=100;h3.g.forces.fleet.f35a.mc=100;
   setStatus(h3.g, nodeId('usa', 'kadena', 'air'), 'closed'); setStatus(h3.g, nodeId('usa', 'osan', 'air'), 'closed');
   months(h2, 1); months(h3, 1);
   assert.ok(h2.g.sphere.EA.competitors.china < h3.g.sphere.EA.competitors.china, `China's share in East Asia drops faster with Kadena and Osan open (${h2.g.sphere.EA.competitors.china} vs ${h3.g.sphere.EA.competitors.china})`);

@@ -90,10 +90,13 @@ export function buildScene(view, mode = 'sphere') {
         line2: bits[0] || (emb ? `${emb} EMBARGOED` : conc ? 'CONCESSION' : 'NO ROUTE'), line2Color: score >= 3 ? COLOR.accent.alert : score > 0 ? COLOR.accent.energy : COLOR.text.dim,
         line3: bits.slice(1).join(' ') || (emb && bits[0] ? `${emb} EMBARGOED` : ''), hatch: false });
     } else if (mode === 'military') {
-      const bl = blockades[rid]; const post = forcePosture[rid];
+      const bl = blockades[rid];
+      const packages=(view.forces?.packages||[]).filter(p=>p.region===rid);
+      const missions=[...new Set(packages.map(p=>p.posture))];
+      const post=missions.length>1?'Mixed missions':missions[0]||forcePosture[rid];
       const v = Math.min(1, (dep + (bl ? 3 : 0) + (post ? 1 : 0)) / 8);
       Object.assign(base, { fill: ramp('military', v), fillAlpha: 0.2 + v * 0.5, stroke: selectedRegion === rid ? COLOR.text.primary : ramp('military', v), value: v,
-        line2: dep ? `⚓ ${dep} DEPLOYED` : 'NO FORCES', line2Color: dep ? COLOR.accent.commandHi : COLOR.text.dim,
+        line2: packages.length?`${packages.length} PACKAGE${packages.length===1?'':'S'}`:dep ? `⚓ ${dep} DEPLOYED` : 'NO FORCES', line2Color: dep ? COLOR.accent.commandHi : COLOR.text.dim,
         line3: bl ? `BLOCKADE · ${cap(bl.target || '')}`.toUpperCase() : post ? post.toUpperCase() : '', hatch: false });
     } else if (mode === 'intel') {
       const ops = intelOps.filter((o) => o.targetId && INTEL_TARGETS.find((t) => t.id === o.targetId)?.region === rid).length;

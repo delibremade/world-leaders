@@ -4,7 +4,7 @@
 export const PLATFORMS={
   fighter_wing:    {n:'Fighter Wing',          i:'✈️',req:{aircraft:2,propulsion:2},          cost:400, maint:6,  mil:4,deployable:true,dOrder:3},
   missile_brigade: {n:'Missile Brigade',       i:'🚀',req:{missiles:2,munitions:2},           cost:600, maint:8,  mil:6},
-  carrier_group:   {n:'Carrier Strike Group',  i:'🛳️',req:{naval:3,aircraft:3},              cost:1500,maint:22, mil:12,deployable:true,dOrder:1},
+  carrier_group:   {n:'Carrier hull',          i:'🛳️',req:{naval:3,aircraft:3},              cost:1500,maint:22, mil:12,deployable:true,dOrder:1,d:'One carrier hull. Assign carrier aircraft and escorts separately to assemble a carrier strike group.'},
   sub_fleet:       {n:'Attack Submarine Fleet',i:'🌊',req:{naval:4,propulsion:3},             cost:1200,maint:16, mil:10,deployable:true,dOrder:2},
   satellite_net:   {n:'Reconnaissance Constellation',i:'🛰️',req:{space:3,computers:3},        cost:900, maint:10, mil:7},
   cyber_command:   {n:'Cyber Command',         i:'⚡',req:{cyber:3},                          cost:500, maint:7,  mil:5},

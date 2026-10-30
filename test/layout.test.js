@@ -98,7 +98,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
       assert.deepEqual(segs.map((x) => x.id), ['deployments', 'manpower', 'quality', 'training', 'equipment', 'specialized']);
       for (const x of segs) assert.ok(x.h >= (W < 900 ? 44 : 30) && x.w >= 44 && x.r <= W + 0.5, `segment ${JSON.stringify(x)}`);
       const want = {
-        deployments: [/Deploy your forces/, /Destination theater/, /Current assignments/],
+        deployments: [/Force packages/, /Available at home/, /Destination theater/, /Package mission/, /Individual assets/],
         manpower: [/Strength/, /Retention/, /Personnel pay/, /Recruits/, /1,283,000/, /Population bound/], // F7 (#55): headcounts
         quality: [/Force quality index/, /Education/, /Healthcare/, /Food security/, /Stability/, /Equality/],
         training: [/Unfunded/, /Intensive/, /Readiness by branch/, /Crew pipelines/, /Fleet crews and readiness/, /Air: [\d,]+ of [\d,]+ ready/],
@@ -111,7 +111,7 @@ for (const [W, H] of [[390, 844], [1280, 800]]) {
         for (const re of res) assert.match(txt, new RegExp(re.source, 'i'), `${id}: ${re}`); // panel titles are uppercase labels
         const o = await overflow(page, W);
         assert.ok(o.scrollWidth <= W, `${id}: scrollWidth ${o.scrollWidth}`); assert.deepEqual(o.bad, [], `${id}: elements past the right edge`);
-        const small = await page.evaluate(() => [...document.querySelectorAll('[data-forces] .wl-r, [data-forces] .wl-p-head, [data-forces] select, [data-forces] input')].filter((e) => e.getBoundingClientRect().height < (innerWidth < 900 ? 43.5 : 27)).map((e) => e.className || e.tagName));
+        const small = await page.evaluate(() => [...document.querySelectorAll('[data-forces] .wl-r, [data-forces] .wl-p-head, [data-forces] select, [data-forces] input')].filter((e) => !e.closest('details:not([open])') && e.getClientRects().length && e.getBoundingClientRect().height < (innerWidth < 900 ? 43.5 : 27)).map((e) => e.className || e.tagName));
         assert.deepEqual(small, [], `${id}: rows under 44px`);
       }
       // F7 (#55): tap a type, retire a squadron through the confirm sheet; the count drops, the detail stays on screen.

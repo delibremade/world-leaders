@@ -13,6 +13,9 @@ import { ORBAT, MANPOWER, UNIT_PLATFORMS, crewHeads, crewOfLine, manpowerCap } f
 import { FLEET_PACKAGES, unitMeta } from '../data/deployment-catalog.js';
 import { NATIONS } from '../data/nations.js';
 import { PLATFORMS, BLACK_PROGRAMS } from '../data/platforms.js';
+import { retirementQuote } from './force-retirement.js';
+import { missionStrengths } from './force-packages.js';
+import { deploymentAvailabilityBase } from './force-inventory.js';
 import { forceQuality, forceMult, tier1Power, qualityF, manPts, lineW, typeQ, qualMC, fleetFill, fillOf, lineAvail, blkF, lineReady, equipF } from './formulas.js';
 
 const cl = (v, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
@@ -101,7 +104,7 @@ export const retentionTarget = (pay, ns) => cl(retentionTerms(pay, ns).reduce((a
 export const recruitLabor = (ns) => cl(0.5 + (ns.unemployment || 0) / 10, 0.5, 2);
 const exerciseBranches = (g) => {
   const out = new Set();
-  for (const [rid, dep] of Object.entries(g.forceDeployments || {})) if (g.forcePosture?.[rid] === 'exercise') for (const [k, n] of Object.entries(dep || {})) if (n > 0) out.add(crewOf(k).b);
+  for(const missions of Object.values(missionStrengths(g)))for(const [k,n]of Object.entries(missions.exercise||{}))if(n>0)out.add(unitCrew(g,k,g.forces).b);
   return out;
 };
 const readinessTarget = (f, b, ex) => TRAINING[f.train].target + (ex.has(b) ? R.exercise.target : 0);
@@ -235,13 +238,24 @@ function syncFleet(g, f,assign=false) {
     fleet[l.id] = k > 0 ? { ...s, n: s.n + k, at: addAt(s.at, rid0, k) } : { ...s, n: Math.max(0, s.n + k), at: takeAt(s.at, Math.min(s.n, -k), rid0) };
   }
   if(assign){
-  for(const [id,s] of Object.entries(fleet))fleet[id]={...s,at:s.n?{[rid0]:s.n}:{}};
-  for(const [rid,units] of Object.entries(g.forceDeployments||{}))for(const [id,n] of Object.entries(units||{})){
-    const pkg=FLEET_PACKAGES[id],l=pkg?.nid===nid?lineOf(nid,pkg.line):!pkg?buyLine(nid,id):null,per=pkg?.per||UNIT_PLATFORMS[id]?.per;
-    if(!l||!per||rid===rid0)continue;
-    const s=fleet[l.id];if(!s)continue;const k=Math.min(s.at[rid0]||0,n*per);
-    if(k>0)fleet[l.id]={...s,at:addAt(takeAt(s.at,k,rid0),rid,k)};
-  }
+    for(const [id,s] of Object.entries(fleet))fleet[id]={...s,at:s.n?{[rid0]:s.n}:{}};
+    const inventoryForce={...f,fleet,fielded},left={};
+    // Match packageRows: assigned packages receive their physical slices in
+    // persistent package order. Grouping by region first changes who receives a
+    // partial final batch when packages alternate between theaters.
+    const orders=f.packageVersion===1&&Array.isArray(f.packages)
+      ?f.packages.filter(p=>p.region).flatMap(p=>Object.entries(p.members||{}).map(([id,n])=>({rid:p.region,id,n})))
+      :Object.entries(g.forceDeployments||{}).flatMap(([rid,units])=>Object.entries(units||{}).map(([id,n])=>({rid,id,n})));
+    for(const {rid,id,n}of orders){
+      const pkg=FLEET_PACKAGES[id],l=pkg?.nid===nid?lineOf(nid,pkg.line):!pkg?buyLine(nid,id):null,per=pkg?.per||UNIT_PLATFORMS[id]?.per;
+      if(!l||!per||!Number.isInteger(n)||n<=0)continue;
+      const s=fleet[l.id];if(!s)continue;
+      // Supplying the already synchronized force avoids effectiveForces recursion.
+      left[id]??=deploymentAvailabilityBase(g,id,inventoryForce).platforms;
+      const k=Math.min(left[id],n*per,s.at[rid0]||0);left[id]-=k;
+      // A mission in the home region still consumes its alias's physical slice.
+      if(k>0&&rid!==rid0)fleet[l.id]={...s,at:addAt(takeAt(s.at,k,rid0),rid,k)};
+    }
   }
   const crewAux=per(()=>0);
   for(const [id,n] of Object.entries(owned))if(!buyLine(nid,id)||!UNIT_PLATFORMS[id]){const c=crewOf(id);crewAux[c.b]+=c.n*100*n;}
@@ -368,18 +382,9 @@ function modernize(g, S, fx, { line }) {
   fx.toast(`🔧 ${l.n}: block ${s.blk + 1} upgrade — $${cost}M, ${mo} months, ${Math.round(FL.modShare * 100)}% of the fleet in the depot meanwhile`);
 }
 function retire(g, S, fx, { line, n }) {
-  const f = F(g); const l = lineOf(f.nid, line); const s = f.fleet?.[line];
-  if (!l || !s) { fx.toast('⚠ No such fleet line'); return; }
-  const k = Math.min(s.n, Math.max(1, Math.round(+n || 1)));
-  if (!s.n) { fx.toast(`⚠ No ${l.n} left to retire`); return; }
-  const assigned=Object.values(g.forceDeployments||{}).reduce((sum,units)=>sum+Object.entries(units).reduce((a,[id,n])=>{
-    const pkg=FLEET_PACKAGES[id],target=pkg?.line||buyLine(f.nid,id)?.id;
-    return a+(target===line?n*(pkg?.per||UNIT_PLATFORMS[id]?.per||0):0);
-  },0),0);
-  if(k>s.n-assigned){fx.toast('⚠ Recall deployed units before retiring these platforms');return;}
-  const before = maintCost(f); const f1 = { ...f, fleet: { ...f.fleet, [line]: { ...s, n: s.n - k, at: takeAt(s.at, k, home(f.nid)) } } };
-  setF(g, S, f1);
-  fx.toast(`📦 Retired ${k} ${l.n} — ${s.n - k} left, saves $${Math.round(before - maintCost(f1))}M/mo maintenance`);
+  const q=retirementQuote(g,{line,n});if(q.block){fx.toast(`⚠ ${q.block}`);return false;}
+  const f=F(g),l=lineOf(f.nid,line),before=maintCost(f);setF(g,S,q.nextForces);
+  fx.toast(`📦 Retired ${q.count} ${l.n} — ${q.nextForces.fleet[line].n} left, saves $${Math.round(before-maintCost(q.nextForces))}M/mo maintenance`);return true;
 }
 export const FORCE_VERBS = {
   setMaintenance: (g, S, fx, p) => setMaintenance(g, S, fx, p || {}),
@@ -416,12 +421,19 @@ export function theaterCapability(g, rid) {
   return Object.entries(f.fleet).reduce((a, [id, s]) => { const l = lineOf(f.nid, id); return a + (l && s.at[rid] ? lineReady(f, l, fill, s.at[rid]) * basingMult(g, rid, l) : 0); }, 0);
 }
 // Every number on the Equipment and Manpower screens, from the same rules as the month.
+export function readyCount(f,l,fill=fleetFill(f).fill){
+  const s=f.fleet?.[l.id];if(!s)return 0;
+  const crewed=Math.floor(s.n*fillOf(fill,l)+1e-9),expected=crewed*lineAvail(s)*s.mc/100;
+  // Hull rates represent aggregate rotational availability. Round to a hull, so a
+  // single generally operational ship is not permanently unavailable at 55% MC.
+  return Math.min(crewed,l.cls==='airframe'?Math.floor(expected+1e-9):Math.round(expected));
+}
 export function fleetView(g) {
   const f = F(g); if (!f.fleet) return null;
   const { fill, need } = fleetFill(f); const m = MANPOWER[f.nid]; const s0 = g.stats || {}; const pay = Math.max(0, g.personnelPay ?? 100);
   const lines = (ORBAT[f.nid] || []).filter((l) => f.fleet[l.id]).map((l) => {
     const s = f.fleet[l.id]; const fl = fillOf(fill, l); const crewed = Math.floor(s.n * fl + 1e-9);
-    const ready = Math.floor(crewed * lineAvail(s) * s.mc / 100 + 1e-9); const c = crewOfLine(l);
+    const ready = readyCount(f,l,fill); const c = crewOfLine(l);
     return { id: l.id, n: l.n, b: l.b, cls: l.cls, role: l.role, gen: l.gen, reserve: !!l.reserve, count: s.n, count2024: l.count, mc: s.mc, mc2024: l.mc,
       target: mcTarget(f, l, s), mx: s.mx, blk: s.blk, mod: s.mod, lost: s.lost, at: s.at, crewed, ready, unready: s.n - ready, crewless: s.n - crewed,
       crewRatio: c.sets, crewSize: c.heads, maintainers: c.mx, heads: crewHeads(l, s.n), quality: typeQ(f.quality, l), cost: s.n * lineW(l) * FL.om * s.mx / 100,

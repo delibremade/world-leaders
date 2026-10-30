@@ -1,23 +1,20 @@
-// The map, force inventory and action gate share the same owned packages and trained personnel.
-import { BLACK_PROGRAMS } from '../data/platforms.js';
-import { UNIT_PLATFORMS } from '../data/orbat.js';
+// Every deployment surface reads the same physical inventory and package reservations.
 import { FLEET_PACKAGES, deploymentIds, unitMeta } from '../data/deployment-catalog.js';
-import { crewBlock, crewStatus, effectiveForces, buyLine } from './forces.js';
-export function ownedUnits(g,pid,force){
-  const pkg=FLEET_PACKAGES[pid];
-  if(!pkg)return BLACK_PROGRAMS[pid]?(+g.blackPrograms?.[pid]||0):((g.platforms?.[pid]||0)+(g.platformsImported?.[pid]||0));
-  if(pkg.nid!==g.country?.id||!g.forces)return 0;
-  const f=force||effectiveForces(g),line=f.fleet?.[pkg.line];if(!line)return 0;
-  // Purchases have their own package IDs. Count the surviving starting fleet once.
-  const additions=Object.entries(f.fielded||{}).reduce((n,[id,k])=>n+(buyLine(f.nid,id)?.id===pkg.line?k*(UNIT_PLATFORMS[id]?.per||0):0),0);
-  return Math.floor(Math.max(0,Math.min(pkg.initial,line.n-additions))/pkg.per);
-}
+import { crewBlock, crewStatus } from './forces.js';
+import { deploymentAvailabilityBase } from './force-inventory.js';
+import { packageState, packageReservations, packageDeployments } from './force-packages.js';
+export { ownedUnits } from './force-inventory.js';
 export const deployedTotal=(g,pid)=>Object.values(g.forceDeployments||{}).reduce((a,o)=>a+(o?.[pid]||0),0);
 export function deploymentOptions(g,region) {
-  const f=effectiveForces(g),crews=crewStatus(g,f);
+  const f=packageState(g),reserved=packageReservations({...g,forces:f}),deployments=packageDeployments(f.packages),view={...g,forces:f,forceDeployments:deployments},crews=crewStatus(view,f);
   return deploymentIds(g.country?.id).map(id=>{
-    const meta=unitMeta(id),owned=ownedUnits(g,id,f),deployed=deployedTotal(g,id);
-    const here=g.forceDeployments?.[region]?.[id]||0,free=Math.max(0,owned-deployed);
-    return {id,name:meta.n,owned,here,free,source:FLEET_PACKAGES[id]?'Starting fleet':'Procurement',reason:free?crewBlock(g,id,crews,f):'No free units. Build or recall this platform.'};
+    const meta=unitMeta(id),availability=deploymentAvailabilityBase(g,id,f),{owned,ready}=availability;
+    const home=f.packages.filter(p=>!p.region&&(p.template==='detachment'||p.legacy)&&Object.keys(p.members).length===1&&p.members[id]===1&&(p.plannedMembers?.[id]||p.members[id])===1).length;
+    const reusable=Math.min(home,Math.max(0,ready-Math.max(0,(reserved[id]||0)-home)));
+    const here=deployments[region]?.[id]||0,free=Math.max(0,Math.min(owned,ready)-(reserved[id]||0))+reusable;
+    const assigned=f.packages.filter(p=>p.region===region&&p.members[id]);
+    const recallable=assigned.filter(p=>Object.keys(p.members).length===1&&(p.template==='detachment'||p.legacy)).reduce((n,p)=>n+p.members[id],0);
+    const reason=free?crewBlock(view,id,crews,f):!ready?'No mission-ready units. Inspect fleet maintenance and trained personnel.':reserved[id]?'Reserved in force packages. Assign the package or disband an unassigned package to release its assets.':'No free units. Build or recall this platform.';
+    return {id,name:meta.n,...availability,owned,here,free,reserved:reserved[id]||0,recallable,recallReason:here>recallable?'This asset belongs to a force package. Recall the complete package.':null,packages:assigned.map(p=>({id:p.id,name:p.name})),source:FLEET_PACKAGES[id]?'Starting fleet':'Procurement',reason};
   }).filter(o=>o.owned||o.here);
 }

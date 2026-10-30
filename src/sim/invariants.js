@@ -3,7 +3,7 @@ import { BLACK_PROGRAMS, PLATFORMS } from '../data/platforms.js';
 import { BRANCH_IDS, TRAINING, SOF_RULES, FORCE_RULES, FLEET_RULES as FL } from '../data/forces.js';
 import { ORBAT, manpowerCap } from '../data/orbat.js';
 import { sofOrbat, sofUnit, unitCap } from '../data/sof.js';
-import { REGIONS } from '../data/regions.js';
+import { REGIONS, POSTURE_LABELS } from '../data/regions.js';
 import { manPts } from './formulas.js';
 import { NATIONS } from '../data/nations.js';
 import { ALLIED_PROGRAMS, TIERS, ACCESS_RULES } from '../data/alliance.js';
@@ -12,6 +12,11 @@ import { MINERALS, MINERAL_IDS, MINERAL_RULES as MR } from '../data/minerals.js'
 import { SITES, NODE_TYPES, BASE_RULES, TENURES } from '../data/bases.js';
 import { INTEL_OPS } from '../data/intel.js';
 import { PERMANENT } from './effects.js';
+import { canStation } from '../data/deployment-catalog.js';
+import { PACKAGE_TEMPLATES } from '../data/force-package-templates.js';
+import { SERVICE_IDS } from '../data/services.js';
+import { ownedUnits } from './force-inventory.js';
+import { packageDeployments } from './force-packages.js';
 
 const in01 = (v) => Number.isFinite(v) && v >= 0 && v <= 100;
 
@@ -52,6 +57,11 @@ export function assertInvariants(state) {
 // v57 engine state (src/sim/state.js STATE_FIELDS). Ruling 6: the player never appears as a rival anywhere.
 const pid = (g) => g.country?.id;
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
+const record = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const packageRows = (g) => Array.isArray(g.forces?.packages) ? g.forces.packages : [];
+const hasPackages = (g) => g.forces?.packageVersion !== undefined;
+const memberCounts = (g, members) => record(members) && Object.entries(members).every(([id, n]) => canStation(pid(g), id) && Number.isInteger(n) && n > 0);
+const sortedDeployments = (deployments) => Object.entries(deployments || {}).sort(([a], [b]) => a.localeCompare(b)).map(([region, units]) => [region, Object.entries(units || {}).sort(([a], [b]) => a.localeCompare(b))]);
 export const V57_INVARIANTS = [
   ['player not in rivalTension', (g) => !pid(g) || !(pid(g) in (g.rivalTension || {}))],
   ['player not in rivalHolds', (g) => !pid(g) || !(g.rivalHolds || {})[pid(g)]],
@@ -106,6 +116,32 @@ export const V57_INVARIANTS = [
     && Number.isInteger(s.mod) && s.mod >= 0 && finite(s.loss) && s.loss >= 0 && s.loss < 1 && Object.entries(s.at).every(([r, k]) => REGIONS[r] && Number.isInteger(k) && k > 0)
     && Object.values(s.at).reduce((a, k) => a + k, 0) === s.n))],
   ['fleet (F7): units already fielded into the fleet are integer counts >= 0', (g) => !g.forces?.fleet || Object.values(g.forces.fielded || {}).every((k) => Number.isInteger(k) && k >= 0)],
+  // Persistent task organization is a reservation of this inventory, never another inventory.
+  // Mission readiness can fall while assigned; that is gameplay, not an invalid save.
+  ['force packages: version, unique ids and next id are valid', (g) => !hasPackages(g) || (g.forces.packageVersion === 1 && Array.isArray(g.forces.packages)
+    && Number.isInteger(g.forces.nextPackageId) && g.forces.nextPackageId > 0
+    && new Set(packageRows(g).map((p) => p?.id)).size === packageRows(g).length
+    && packageRows(g).every((p) => record(p) && /^pkg:[1-9]\d*$/.test(p.id) && Number(p.id.slice(4)) < g.forces.nextPackageId))],
+  ['force packages: identity, service, template, destination and mission are known', (g) => !hasPackages(g) || packageRows(g).every((p) => record(p)
+    && typeof p.name === 'string' && p.name.trim().length > 0 && SERVICE_IDS.includes(p.service) && Object.hasOwn(PACKAGE_TEMPLATES,p.template)
+    && (p.region === null || Object.hasOwn(REGIONS,p.region)) && Object.hasOwn(POSTURE_LABELS,p.posture))],
+  ['force packages: members, plans and required components are positive whole known units with consistent requirements', (g) => !hasPackages(g) || packageRows(g).every((p) => {
+    if (!record(p) || !memberCounts(g, p.members)) return false;
+    const planned = p.plannedMembers || p.members, required = p.requiredMembers || planned;
+    return memberCounts(g, planned) && memberCounts(g, required)
+      && Object.entries(p.members).every(([id, n]) => n <= (planned[id] || 0))
+      && Object.entries(required).every(([id, n]) => n <= (planned[id] || 0));
+  })],
+  ['force packages: combined reservations never exceed surviving owned inventory', (g) => !hasPackages(g) || (() => {
+    const reserved = {};
+    for (const p of packageRows(g)) {
+      if (!record(p) || !memberCounts(g, p.members)) return false;
+      for (const [id, n] of Object.entries(p.members)) reserved[id] = (reserved[id] || 0) + n;
+    }
+    return Object.entries(reserved).every(([id, n]) => n <= ownedUnits(g, id));
+  })()],
+  ['force packages: theater assignments equal the package projection', (g) => !hasPackages(g) || (packageRows(g).every((p) => record(p) && memberCounts(g, p.members))
+    && JSON.stringify(sortedDeployments(g.forceDeployments)) === JSON.stringify(sortedDeployments(packageDeployments(packageRows(g)))))],
   ['crew personnel allocations never exceed active strength',g=>g.forces?.crewVersion!==2||Object.values(g.forces.crewShare||{}).reduce((n,s)=>n+s,0)<=1+1e-9],
   ['crew pipeline: known branch with integer months > 0; training level is known', (g) => !g.forces || (g.forces.pipe.every((p) => BRANCH_IDS.includes(p.b) && Number.isInteger(p.mo) && p.mo > 0 && (p.n==null||(Number.isInteger(p.n)&&p.n>0))) && !!TRAINING[g.forces.train])],
   // F8 (#56): named SOF units

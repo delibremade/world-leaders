@@ -52,6 +52,8 @@ const EVENT_FIELDS = ['worldEvent', 'log', 'flashpoint', 'usedDecisions', 'activ
 // intentionally change military capability and event draws. Five replay hashes re-pinned; prefix and verb coverage unchanged.
 // 0.95: covert gates reject duplicate/invalid orders, standing ops respect infrastructure and SOF availability,
 // and defensive sweeps expire without a foreign discovery roll. Re-pin only affected verb replays; assertions stay intact.
+// 0.98: service-owned package missions, actual ready inventory and full-cycle standing costs
+// intentionally change military projection and charges. Re-pin runs without weakening prefix or verb checks.
 const NEW_KEYS = ['arsenal', 'minerals', 'forces', 'bases'];
 const dropNew = (s) => { if (!NEW_KEYS.some((k) => s.includes(`"${k}"`))) return s; const o = JSON.parse(s); for (const k of NEW_KEYS) delete o[k]; return JSON.stringify(o); };
 const strip = (s) => { const o = JSON.parse(dropNew(s)); delete o.evState; return JSON.stringify(o); };

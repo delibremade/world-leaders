@@ -1,9 +1,10 @@
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {launch,openGame,settle,overflow} from './util/browser.js';
+import {openIndividualAssets} from './util/force-packages-browser.js';
 import {CRISIS_STOLEN} from '../src/data/intel.js';
 let browser;before(async()=>{browser=await launch();});after(async()=>{await browser?.close();});
-for(const [width,height] of [[1280,800],[1440,900],[390,844]]){
+for(const [width,height] of [[1280,800],[1440,900],[1920,1080],[390,844]]){
  test(`${width}px: Situation launches covert orders, explains locks, responds to crises and exposes complete nuclear records`,async()=>{
   const {ctx,page,errors}=await openGame(browser,{width,height,svg:true});
   try{
@@ -12,10 +13,46 @@ for(const [width,height] of [[1280,800],[1440,900],[390,844]]){
    assert.match(home.line2,/HOME · USA/);assert.equal(home.home,true);assert.equal(home.hatch,false);
    await page.locator('[data-seg=sitroom]').click();await settle(page);
    assert.equal(await page.locator('[data-covert-op]').count(),6);
+   assert.equal(await page.locator('[data-intel-lead]').innerText(),'CIA');
+   assert.equal(await page.locator('[data-intel-domestic-lead]').innerText(),'FBI');
+   await page.locator('[data-intel-services] summary').click();
+   assert.equal(await page.locator('[data-intel-service]').count(),6,'existing national programs have explicit service responsibilities');
+   assert.match(await page.locator('[data-intel-services]').innerText(),/One national intelligence budget/);
+   const directory=await overflow(page,width);assert.equal(directory.scrollWidth,width);assert.deepEqual(directory.bad,[]);
+   await page.locator('[data-intel-services] summary').click();
    await page.locator('[data-covert-target]').selectOption('china');
    await page.locator('[data-covert-op=mole]').click();await settle(page);
    assert.match(await page.locator('[data-covert-assessment]').innerText(),/Requires 3\+ Overseas Stations/);assert.equal(await page.locator('[data-covert-launch]').isDisabled(),true);
-   await page.locator('[data-covert-op=influence]').click();await page.locator('[data-covert-launch]').click();await settle(page);
+   assert.equal(await page.locator('[data-intel-remedy]').count(),1,'infrastructure lock has a reachable remedy');
+   await page.evaluate(()=>window.__wl.infra({paramilitary:1}));await page.locator('[data-covert-op=sabotage]').click();await settle(page);
+   const commitment=page.locator('[data-covert-assessment] [data-intel-commitment]').first();
+   assert.match(await commitment.innerText(),/Army|Navy|Air Force|Marine/);
+   assert.match(await commitment.innerText(),/6 mo recovery/);
+   assert.equal(await commitment.evaluate(e=>e.scrollHeight>e.clientHeight+1),false,'named personnel and recovery are not vertically clipped');
+   const commitmentsFit=await overflow(page,width);assert.equal(commitmentsFit.scrollWidth,width);assert.deepEqual(commitmentsFit.bad,[]);
+   await page.locator('[data-covert-op=influence]').click();await settle(page);
+   const repeatPrice=(await page.locator('[data-intel-repeat-cost]').innerText()).match(/\$[\d,]+M/)[0];
+   const ordersBeforeRepeat=await page.evaluate(()=>window.__wl.dispatched().length);
+   await page.locator('[data-intel-repeat]').click();await settle(page);
+   assert.ok((await page.locator('[data-confirm]').innerText()).includes(`${repeatPrice} per automatic launch`),'repeat review preserves the displayed cycle price');
+   assert.equal(await page.evaluate(()=>window.__wl.dispatched().length),ordersBeforeRepeat,'repeat review does not issue an order');
+   await page.locator('[data-confirm-cancel]').click();await settle(page);
+   assert.equal(await page.locator('[data-intel-repeat]').getAttribute('aria-pressed'),'false');
+   await page.locator('[data-intel-repeat]').click();await page.locator('[data-confirm-ok]').click();await settle(page);
+   assert.equal(await page.locator('[data-intel-repeat]').getAttribute('aria-pressed'),'true');
+   await page.locator('[data-intel-repeat]').click();await settle(page);
+   assert.equal(await page.locator('[data-intel-repeat]').getAttribute('aria-pressed'),'false','stopping repeats is available immediately');
+   const ordersBeforeSupport=await page.evaluate(()=>window.__wl.dispatched().length);
+   await page.locator('[data-intel-assign-support]').click();await settle(page);
+   assert.equal(await page.locator('[data-force-package-desk=full]').count(),1);
+   assert.equal(await page.locator('[data-package-destination]').inputValue(),'EA','reconnaissance orders retain the foreign target theater');
+   assert.equal(await page.locator('[data-package-mission]').inputValue(),'isr','reconnaissance orders retain their intended mission');
+   const supportId=await page.locator('[data-package-inspector]').getAttribute('data-package-inspector');
+   assert.ok(await page.evaluate(id=>window.__wl.packages().packages.find(p=>p.id===id)?.capabilities.includes('isr'),supportId),'the proposed formation has actual collection assets');
+   assert.equal(await page.evaluate(()=>window.__wl.dispatched().length),ordersBeforeSupport,'opening support orders makes no deployment or purchase');
+   await page.locator('[data-nav] [data-tab=overview]').click();await page.locator('[data-seg=sitroom]').click();await settle(page);
+   await page.locator('[data-covert-target]').selectOption('china');await page.locator('[data-covert-op=influence]').click();
+   await page.locator('[data-covert-launch]').click();await settle(page);
    assert.match(await page.locator('[data-confirm]').innerText(),/influence \+10/);await page.locator('[data-confirm-ok]').click();await settle(page);
    assert.equal(await page.locator('[data-situation-op=influence]').count(),1);assert.equal(await page.locator('[data-covert-launch]').isDisabled(),true);
    await page.locator('[data-covert-posture]').selectOption('expel');await settle(page);
@@ -43,6 +80,7 @@ for(const [width,height] of [[1280,800],[1440,900],[390,844]]){
    assert.equal(await register.locator('.wl-p-title').evaluate(el=>el.scrollWidth>el.clientWidth+1),false,'full nuclear heading wraps in Arsenal too');
    await page.locator('[data-nav] [data-tab=overview]').click();await page.locator('[data-seg=sitroom]').click();await settle(page);
    await page.locator('[data-assign-forces=ME]').first().click();await settle(page);
+   await openIndividualAssets(page);
    await page.getByLabel('Force package',{exact:true}).selectOption('fleet:usa:cvn');await settle(page);
    assert.equal(await page.locator('[data-map-deploy="fleet:usa:cvn"]').isDisabled(),false);
    const o=await overflow(page,width);assert.equal(o.scrollWidth,width);assert.deepEqual(o.bad,[]);assert.deepEqual(errors,[]);

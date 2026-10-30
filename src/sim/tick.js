@@ -1,6 +1,7 @@
-import {intelResolutionOdds,intelOrder} from './intel-operations.js';
+import {intelResolutionOdds,intelOrder,intelCycleCost} from './intel-operations.js';
+import {initializePackages,syncPackages,missionDeployments,missionStrengths,regionalMissionEffects,packageSupport} from './force-packages.js';
 import { foreignFlashpoint, flashpointEligible } from './flashpoints.js';
-import { importCost } from './energy-view.js';
+import { importCost, routeProtection } from './energy-view.js';
 import { applyAction } from './actions.js';
 import { renewableTotal, oilPriceTerms, influencePool, influenceGain, compliance, variantEff, opOdds, opOddsTerms } from './selectors.js';
 import { ALLIED_PROGRAMS, TIERS, ACCESS_RULES, MEMBER_INCOME, LEAK } from '../data/alliance.js';
@@ -69,12 +70,13 @@ function economy(g,S,fx,m){
   // ── CHOKEPOINTS: status = disrupted (event / blockade in governing region) | secured (your naval weight ≥2 there) | open
   const homeRid=Object.entries(REGIONS).find(([,r])=>r.homeFor?.includes(c.id))?.[0];
   // F9c (#57): the weight at a chokepoint is the ships in its theater plus your bases within reach, less half of the rivals' (reach.js).
-  const navalW=rid=>navalWeight(g.forceDeployments?.[rid]);
+  const missionStrength=missionStrengths(g);
+  const combined=rid=>Object.values(missionStrength[rid]||{}).reduce((out,units)=>{for(const [id,n]of Object.entries(units))out[id]=(out[id]||0)+n;return out;},{});
+  const navalW=rid=>navalWeight(combined(rid));
   const cs={};Object.entries(CHOKEPOINTS).forEach(([k,cp])=>{
     const disrupted=(g.worldEvent&&WORLD_EVENTS[g.worldEvent.id]?.choke===k)||!!g.blockades[cp.region];
-    const w=navalW(cp.region)+chokeWeight(g,k);
-    const escort=g.forcePosture[cp.region]==='escort'&&w>=2;
-    cs[k]=disrupted?(escort?'escorted':'disrupted'):(w>=2?'secured':'open');});
+    const protection=routeProtection(g,k,missionStrength);
+    cs[k]=disrupted?(protection.canEscort?'escorted':'disrupted'):(protection.weight>=2?'secured':'open');});
   g.chokeStatus=cs;S.setChokeStatus(cs);
   const myRoutes=IMPORT_ROUTES[homeRid]||[];
   const fossilImports=['oil','gas','coal'].some(k=>g.importContracts.has(k));
@@ -296,6 +298,9 @@ function economy(g,S,fx,m){
   // Force projection: blue-water and air power extends influence into contested regions
   const projUnits=(g.platforms.carrier_group||0)*2+(g.platforms.sub_fleet||0)+(g.platforms.fighter_wing||0)*0.5+(g.platforms.drone_swarm||0)+(g.platforms.hypersonic_bty||0)+((g.platformsImported.carrier_group||0)*2+(g.platformsImported.sub_fleet||0)+(g.platformsImported.fighter_wing||0)*0.5+(g.platformsImported.drone_swarm||0))*0.9;
   const fdTot=Object.values(g.forceDeployments||{}).reduce((a,b)=>a+sumDep(b),0);
+  // Assignment quotes are incremental monthly costs, billed even during the opening grace period.
+  cash('Forward basing',-fdTot*4);
+  cash('Humanitarian ops',-Object.keys(REGIONS).reduce((n,rid)=>n+sumDep(missionDeployments(g,rid,'humanitarian')),0)*30);
   // Military LEVERAGE: a strong military backing forces deployed in regions you dominate
   // lets you extract security guarantees — protection income from aligned nations there.
   if(fdTot>0&&(ns.military||0)>=55&&g.dominance.count>0){
@@ -310,25 +315,19 @@ function economy(g,S,fx,m){
       const pv=sph.player||0;let gain=0;
       if(projRate>0&&pv>25&&pv<60)gain+=projRate;
       if(nodeSphere[rid]&&pv<95)gain+=nodeSphere[rid];
-      const dep=sumDep(g.forceDeployments?.[rid]);
-      const wdep=theaterWeight(g,rid); // E8: posture weight reads capability; F9c: and the bases within reach
-      if((g.forceDeployments?.[rid]?.sr72||0)>0&&pv<95)gain+=0.04; // SR-72 on station: persistent regional reconnaissance
-      const post=g.forcePosture[rid]||'deter';
-      const perUnit=post==='deter'?0.12:post==='humanitarian'?((g.flashpoint?.rid===rid||(g.worldEvent&&WORLD_EVENTS[g.worldEvent.id]?.choke&&CHOKEPOINTS[WORLD_EVENTS[g.worldEvent.id].choke]?.region===rid))?0.2:0.04):0.06;
-      if(dep>0&&pv<95)gain+=Math.min(0.6,dep*perUnit);
-      if(post==='humanitarian'&&dep>0){cash('Humanitarian ops',-dep*30);const relH={...g.nationRelations};let hCh=false;DIP_TARGETS.forEach(t=>{if(t.region===rid){relH[t.id]=Math.min(100,(relH[t.id]||0)+1);hCh=true;}});if(hCh){g.nationRelations=relH;S.setNationRelations(relH);}}
-      if(post==='exercise'&&dep>0){const relX={...g.nationRelations};let xCh=false;DIP_TARGETS.forEach(t=>{if(t.region===rid&&(isAllyOf(c.id,t.id)||g.defensePacts.has(t.id)||(relX[t.id]||0)>=60)){relX[t.id]=Math.min(100,(relX[t.id]||0)+0.5);xCh=true;}});if(xCh){g.nationRelations=relX;S.setNationRelations(relX);}}
-      if(post==='escort'&&dep>0&&wdep>=1){const top=topHostile(sph.competitors,c.id);if(top&&g.tickCount%2===0)S.setRivalTension(p=>({...p,[top[0]]:Math.min(99,(p[top[0]]||0)+1)}));}
+      const effects=regionalMissionEffects(g,rid,missionStrength),{counts,total:dep}=effects;
+      if(dep>0&&pv<95)gain+=effects.influence+effects.sr72Bonus;
+      if(counts.humanitarian>0){const relH={...g.nationRelations};let hCh=false;DIP_TARGETS.forEach(t=>{if(t.region===rid){relH[t.id]=Math.min(100,(relH[t.id]||0)+1);hCh=true;}});if(hCh){g.nationRelations=relH;S.setNationRelations(relH);}}
+      if(counts.exercise>0){const relX={...g.nationRelations};let xCh=false;DIP_TARGETS.forEach(t=>{if(t.region===rid&&(isAllyOf(c.id,t.id)||g.defensePacts.has(t.id)||(relX[t.id]||0)>=60)){relX[t.id]=Math.min(100,(relX[t.id]||0)+0.5);xCh=true;}});if(xCh){g.nationRelations=relX;S.setNationRelations(relX);}}
+      if(counts.escort>0&&effects.weights.escort>=1){const top=topHostile(sph.competitors,c.id);if(top&&g.tickCount%2===0)S.setRivalTension(p=>({...p,[top[0]]:Math.min(99,(p[top[0]]||0)+1)}));}
       // Deployed forces actively suppress the leading rival — influence is contested, not parallel
       let comps=sph.competitors;
-      const suppM=post==='deter'?1:post==='isr'?0.5:0; // escort/exercise/humanitarian forces aren't pushing
-      if(dep>0&&suppM>0){const top=topHostile(comps,c.id);if(top&&top[1]>5){comps={...comps,[top[0]]:Math.max(0,top[1]-Math.min(0.5,wdep*0.08*suppM))};}}
+      if(effects.suppression>0){const top=topHostile(comps,c.id);if(top&&top[1]>5){comps={...comps,[top[0]]:Math.max(0,top[1]-effects.suppression)};}}
       // Coalition: allied bloc presence alongside your forces is reinforcement, not rivalry
-      {const allied=Object.entries(comps||{}).filter(([cid,v])=>isAllyOf(c.id,cid)&&v>=25).length;if(allied>0&&dep>0&&pv<95)gain+=0.03*allied*(post==='exercise'?2:1);}
+      {const allied=Object.entries(comps||{}).filter(([cid,v])=>isAllyOf(c.id,cid)&&v>=25).length;if(allied>0&&dep>0&&pv<95)gain+=0.03*allied*(counts.exercise>0?2:1);}
       if(gain>0||comps!==sph.competitors){sphP[rid]={...sph,player:Math.min(100,pv+gain),competitors:comps};projHit=true;}
     });
     if(projHit)S.setSphere(sphP);
-    cash('Forward basing',-fdTot*4);
   }
   // Naval platforms secure trade lanes — direct treasury utility
   cash('Power projection',Math.round((((g.platforms.carrier_group||0)+(g.platforms.sub_fleet||0)+((g.platformsImported.carrier_group||0)+(g.platformsImported.sub_fleet||0))*0.9)*10)));
@@ -579,7 +578,7 @@ function pressure(g,S,fx,m){
       const resp=responses[Math.floor(rng()*responses.length)];
       const moleM=(g.moles?.[compId]||0)>0?0.5:1;
       const detM=Math.min(nm,milM)*moleM;
-      const isrDamp=rids.filter(r2=>g.forcePosture[r2]==='isr'&&sumDep(g.forceDeployments?.[r2])>0).length;
+      const isrDamp=rids.filter(r2=>packageSupport(g,r2).length>0||packageSupport(g,r2,'maritime_isr').length>0).length;
       const scale=Math.min(1.6,1+0.2*(rids.length-1))*((g.rivalTension[compId]||0)>=40?1.25:1)*Math.max(0.4,1-0.3*isrDamp)*(g.embargoes.has(compId)?0.75:1);
       S.setStats(p=>{const ns2={...p};Object.entries(resp.effect||{}).forEach(([k,v])=>{if(k in ns2&&typeof v==='number')ns2[k]+=((k==='stability'||k==='inflation')?v*shockMult:v)*detM*scale;});return ns2;});
       rids.forEach(rid=>{
@@ -870,13 +869,13 @@ function counterIntel(g,S,fx,m){
       const op=INTEL_OPS.find(o=>o.id===opId);if(!op||op.type!=='covert')return;
       const running=g.intelOps.some(o=>o.opId===opId&&o.targetId===targetId);
       if(!running){
-        const monthlyCost=Math.round((op.cost/Math.max(1,op.mo))*1.6); // ~1.6x premium for standing posture
-        const order=intelOrder({...g,stats:ns},opId,targetId,{cost:monthlyCost});
+        const cycleCost=intelCycleCost(g,opId,{standing:true});
+        const order=intelOrder({...g,stats:ns},opId,targetId,{cost:cycleCost});
         if(!order.block){
-          cash('Intel operations',-monthlyCost);
+          cash('Intel operations',-cycleCost);
           if(order.plan)commitPlan(g,S,fx,order.plan,targetId);
           const {successRate,discoverRate}=opOddsTerms(g,opId); // FIX 3: a relaunch is stamped like a hand launch (id, odds, type); unstamped it resolved as NaN and never succeeded
-          S.setIntelOps(p=>[...p,{id:`${opId}_${targetId}_c${g.tickCount}`,opId,targetId,monthsLeft:op.mo,totalMonths:op.mo,successRate,discoverRate,type:op.type,continuous:true}]);
+          S.setIntelOps(p=>[...p,{id:`${opId}_${targetId}_c${g.tickCount}`,opId,targetId,monthsLeft:op.mo,totalMonths:op.mo,successRate,discoverRate,type:op.type,continuous:true,commitments:order.commitments}]);
         }
       }
     });
@@ -1076,7 +1075,7 @@ function world(g,S,fx,m){
 // resources (E4, #16): processing plants, inflows, AI export controls on us, queued tranches waiting for minerals.
 function minerals(g,S,fx,m){stepMinerals(g,S,fx,m.cash,m.ns);}
 // forces (E8, #20): manpower, quality, training and readiness, crew pipelines, SOF selection.
-function forces(g,S,fx,m){stepForces(g,S,fx,m.cash,m.ns);}
+function forces(g,S,fx,m){stepForces(g,S,fx,m.cash,m.ns);syncPackages(g,S);}
 // bases (F9, #57): build countdowns, host consent, upkeep and basing agreements, foreign-presence tension, AI placement.
 function bases(g,S,fx,m){stepBases(g,S,fx,m.cash);}
 
@@ -1098,6 +1097,7 @@ export const MONTH_PHASES=[
 // One month of v57. Returns false when a phase ended the month early (no country yet, or an empty attacker pool).
 export function runMonth(g,S,fx){
   const m={};
+  if(g.country&&g.stats)initializePackages(g,S);
   // fx.phase is a presentation hook (notification feed class); engine fx objects without it are unaffected.
   const ph=fx&&fx.phase;
   try{for(const p of MONTH_PHASES){if(ph)ph(p.id);if(p.run(g,S,fx,m)===STOP)return false;}}finally{if(ph)ph(null);}

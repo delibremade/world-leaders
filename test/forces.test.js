@@ -128,7 +128,10 @@ test('done-when: crewless F-47 wings cannot deploy; the gap is shown; trained cr
 test('training: readiness decays unfunded, holds at standard, Joint Exercises posture lifts it; Training is a ledger line', () => {
   const none = headless('usa', 5); const std = headless('usa', 5); const ex = headless('usa', 5);
   none.run('setTraining', { level: 0 });
-  ex.g.platforms = { fighter_wing: 2 }; ex.g.forceDeployments = { WE: { fighter_wing: 2 } }; ex.g.forcePosture = { WE: 'exercise' };
+  ex.g.platforms = { fighter_wing: 2 };
+  assert.equal(ex.run('deployUnit', { region: 'WE', unit: 'fighter_wing' }), true);
+  const exercising=ex.g.forces.packages.find(p=>p.region==='WE'&&p.members.fighter_wing);
+  assert.equal(ex.run('assignForcePackage', { package: exercising.id, region: 'WE', posture: 'exercise' }), true);
   months(none, 12); months(std, 12); months(ex, 12);
   assert.ok(none.g.forces.readiness.air <= FORCE_RULES.start.readiness - 10, `unfunded ${none.g.forces.readiness.air}`);
   assert.equal(Math.round(std.g.forces.readiness.air), FORCE_RULES.start.readiness);

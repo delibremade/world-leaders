@@ -9,20 +9,22 @@ import { PLATFORMS, DV, DEPLOYABLE } from '../../data/platforms.js';
 import { REGIONS } from '../../data/regions.js';
 import { MINERALS } from '../../data/minerals.js';
 import { platformAcquisition } from '../../sim/procurement-view.js';
-import { deployedTotal } from '../../sim/deployment-view.js';
+import { deployedTotal, deploymentOptions } from '../../sim/deployment-view.js';
+import { retirementQuote } from '../../sim/force-retirement.js';
 import { meetsReq, procurementCost, recapCost } from '../../sim/formulas.js';
 
 const POLICIES = [['efficiency', '💲 Efficiency', 'Build −15%, maint −15%, effectiveness −5%'], ['balanced', '⚖️ Balanced', 'Standard terms'], ['surge', '🚀 Surge', 'Build +25%, maint +20%, effectiveness +8%']];
 
-function PlatformRow({ pid, v, dispatch, onJump }) {
+function PlatformRow({ pid, v, dispatch, onJump, availability }) {
   const acquisition=platformAcquisition(v,pid),[region,setRegion]=useState('');
-  const available=acquisition.owned-deployedTotal(v,pid);
+  const available=availability?.free||0;
+  const domesticRetire=retirementQuote(v,{platform:pid,source:'domestic'}),importedRetire=retirementQuote(v,{platform:pid,source:'imported'});
   const { platforms, platformsImported, platformDev, developed, defLevels, procureMode } = v; const p = PLATFORMS[pid];
     const ct = platforms[pid] || 0; const imp = platformsImported[pid] || 0; const ok = meetsReq(p.req, defLevels);
   const over = Object.entries(p.req).reduce((o, [vv, rq]) => o + Math.max(0, (defLevels[vv] || 0) - rq), 0);
   const e = Math.min(2, 1 + 0.07 * over) * (procureMode === 'surge' ? 1.08 : procureMode === 'efficiency' ? 0.95 : 1);
   const pd = platformDev[pid];
-  return <Row key={pid} data-platform={pid} title={`${p.i} ${p.n}`} value={ct > 0 || imp > 0 ? `×${ct}${imp > 0 ? ` +${imp}🌐` : ''}` : undefined} tone="good"
+  return <Row key={pid} data-platform={pid} title={`${p.i} ${p.n}`} value={ct > 0 || imp > 0 ? `×${acquisition.owned} surviving` : undefined} tone="good"
     sub={`+${(p.mil * e).toFixed(1)} military each${e > 1 ? ` (${Math.round((e - 1) * 100)}% tech bonus)` : ''} · $${p.maint}M/mo · ${DEPLOYABLE.includes(pid) ? 'theater asset' : 'national asset'}${p.triad ? ' · ☢ strategic, domestic only' : ''}`}>
     <div className="wl-acquisition-path" data-acquisition-phase={acquisition.phase}><b>{acquisition.phase}</b><small>Research → Develop → Produce → Deliver → Deploy</small></div>
     <small style={{ display: 'block' }}>Req: {Object.entries(p.req).length ? Object.entries(p.req).map(([vv, rq]) => <span key={vv} data-tone={(defLevels[vv] || 0) >= rq ? 'good' : 'alert'} style={{ marginRight: 6 }}>{DV[vv]?.n} L{rq}{(defLevels[vv] || 0) >= rq ? ' ✓' : ` (you: ${defLevels[vv] || 0})`}</span>) : 'none'}</small>
@@ -31,17 +33,19 @@ function PlatformRow({ pid, v, dispatch, onJump }) {
       {p.dev && !developed.has(pid) && !pd && <button type="button" className="wl-btn wl-btn-primary" disabled={!!acquisition.reason} onClick={() => dispatch({ type: 'developPlatform', payload: { platform: pid } })}>🔬 Develop ${p.dev.cost}M · {p.dev.mo}mo</button>}
       {(!p.dev || developed.has(pid)) && <button type="button" className="wl-btn wl-btn-primary" disabled={!!acquisition.reason} onClick={() => dispatch({ type: 'buildPlatform', payload: { platform: pid } })}>Build ${procurementCost(p, procureMode)}M</button>}
       {!ok && !p.triad && !p.dev && <button type="button" className="wl-btn wl-btn-warn" onClick={() => dispatch({ type: 'importPlatform', payload: { platform: pid } })}>🌐 Purchase ${Math.round(p.cost * 1.8)}M</button>}
-      {ct > 0 && <button type="button" className="wl-btn wl-btn-alert" onClick={() => dispatch({ type: 'decommissionPlatform', payload: { platform: pid } })}>−1</button>}
-      {imp > 0 && <button type="button" className="wl-btn wl-btn-warn" onClick={() => dispatch({ type: 'retireImported', payload: { platform: pid } })}>−1🌐</button>}
+      {ct > 0 && <button type="button" className="wl-btn wl-btn-alert" disabled={!!domesticRetire.block} title={domesticRetire.block||'Retire one domestic purchase'} onClick={() => dispatch({ type: 'decommissionPlatform', payload: { platform: pid } })}>Retire 1</button>}
+      {imp > 0 && <button type="button" className="wl-btn wl-btn-warn" disabled={!!importedRetire.block} title={importedRetire.block||'Retire one imported purchase'} onClick={() => dispatch({ type: 'retireImported', payload: { platform: pid } })}>Retire 1 import</button>}
     </div>
     {acquisition.reason&&<p className="wl-reason" data-procurement-gate>{acquisition.reason}</p>}
+    {(ct>0&&domesticRetire.block||imp>0&&importedRetire.block)&&<p className="wl-reason" data-retirement-gate>{ct>0?domesticRetire.block:importedRetire.block}</p>}
     {onJump&&<div className="wl-map-shortcuts">{!ok&&<button data-procurement-research onClick={()=>onJump({tab:"technology"})}>Open required research →</button>}{acquisition.supply.binding&&<button data-procurement-supply={pid} onClick={()=>onJump({tab:"resources",sub:"deals",mineral:acquisition.supply.binding})}>Secure {MINERALS[acquisition.supply.binding]?.n} supply →</button>}{acquisition.crewReason&&<button onClick={()=>onJump({tab:"forces",sub:"training"})}>Crews & training →</button>}{DEPLOYABLE.includes(pid)&&acquisition.owned>0&&<button data-procurement-orders={pid} onClick={()=>onJump({tab:"forces",sub:"deployments",region:region||undefined,unit:pid})}>Assignments & recall →</button>}</div>}
     {acquisition.supply.queued.length>0&&<p className="wl-note" data-production-queue>{acquisition.supply.queued.length} paid order(s) waiting on minerals. Next delivery: {acquisition.supply.queued[0].months===Infinity?'supply needed':`about ${acquisition.supply.queued[0].months} months`}. {acquisition.supply.binding&&`Binding input: ${MINERALS[acquisition.supply.binding]?.n}.`}</p>}
-    {DEPLOYABLE.includes(pid)&&acquisition.owned>0&&<div className="wl-procurement-station"><p>{available} available · {deployedTotal(v,pid)} stationed{acquisition.crewReason?` · ${acquisition.crewReason}`:''}</p><select className="wl-sel" aria-label="Deploy purchased platform to" value={region} onChange={e=>setRegion(e.target.value)}><option value="">Choose destination…</option>{Object.entries(REGIONS).map(([id,r])=><option key={id} value={id}>{r.n}</option>)}</select><button type="button" className="wl-btn wl-btn-primary" data-procurement-deploy={pid} disabled={!region||available<=0||!!acquisition.crewReason} onClick={()=>dispatch({type:'deployUnit',payload:{unit:pid,region}})}>Deploy {p.n}</button></div>}
+    {DEPLOYABLE.includes(pid)&&acquisition.owned>0&&<div className="wl-procurement-station"><p>{available} ready & available · {availability?.reserved||0} reserved in packages · {deployedTotal(v,pid)} stationed</p>{availability?.reason&&<p className="wl-reason">{availability.reason}</p>}<select className="wl-sel" aria-label="Deploy purchased platform to" value={region} onChange={e=>setRegion(e.target.value)}><option value="">Choose destination…</option>{Object.entries(REGIONS).map(([id,r])=><option key={id} value={id}>{r.n}</option>)}</select><button type="button" className="wl-btn wl-btn-primary" data-procurement-deploy={pid} disabled={!region||available<=0||!!availability?.reason} onClick={()=>dispatch({type:'deployUnit',payload:{unit:pid,region}})}>Deploy {p.n}</button></div>}
   </Row>;
 }
 
 export function Procurement({ v, dispatch, initialPlatform, onJump }) {
+  const availability=Object.fromEntries(deploymentOptions(v).map(o=>[o.id,o]));
   const { platforms, platformsImported, platformDev, developed, defLevels, defResearch, procureMode, stats, sectorAge, activePolicies, country } = v;
   const units = Object.values(platforms).reduce((a, b) => a + (b || 0), 0);
   const maint = Object.entries(platforms).reduce((s, [pid, ct]) => s + (PLATFORMS[pid]?.maint || 0) * (ct || 0), 0);
@@ -83,7 +87,7 @@ export function Procurement({ v, dispatch, initialPlatform, onJump }) {
   );
   const platformsPanel = (
     <Panel id="platforms" title="Platforms" figure={Object.keys(PLATFORMS).length}>
-      {search}{visibleIds.map((pid) => <PlatformRow key={pid} pid={pid} v={v} dispatch={dispatch} onJump={onJump} />)}
+      {search}{visibleIds.map((pid) => <PlatformRow key={pid} pid={pid} v={v} dispatch={dispatch} onJump={onJump} availability={availability[pid]} />)}
     </Panel>
   );
   const rd = (
@@ -103,7 +107,7 @@ export function Procurement({ v, dispatch, initialPlatform, onJump }) {
     ];
     return <div className="wl-md" data-master-detail="platforms">
       <div>{search}<DataTable id="platforms" label="Platforms" title="Platforms" columns={cols} rows={ids} rowId={(pid) => pid} selected={cur} onSelect={setSel} /></div>
-      <div data-detail="platforms">{cur&&<Panel key={cur} id="platform-detail" title="Selected platform" figure={PLATFORMS[cur].n}><PlatformRow pid={cur} v={v} dispatch={dispatch} onJump={onJump} /></Panel>}{structure}{aging}{article9}{policy}{rd}</div>
+      <div data-detail="platforms">{cur&&<Panel key={cur} id="platform-detail" title="Selected platform" figure={PLATFORMS[cur].n}><PlatformRow pid={cur} v={v} dispatch={dispatch} onJump={onJump} availability={availability[cur]} /></Panel>}{structure}{aging}{article9}{policy}{rd}</div>
     </div>;
   }
   return <>
