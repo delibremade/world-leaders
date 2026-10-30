@@ -40,7 +40,7 @@ try{
    await page.evaluate(()=>window.__wl.decision('crew_shortfall','Sea needs qualified personnel for newly ordered hulls'));await shot('brief-summary');
    await page.locator('[data-review-card=decision]').click();await shot('brief-reader');await page.locator('[data-decision-close]').click();
    await page.locator('[data-nav] [data-tab=resources]').click();await page.locator('[data-seg=deals]').click();await shot('trade-desk');
-   await page.locator('[data-nav] [data-tab=arsenal]').click();await page.locator('[data-open-faxx]').click();await shot('faxx-acquisition');
+   await page.locator('[data-nav] [data-tab=arsenal]').click();await page.locator('[data-seg=programs]').click();await page.locator('[data-open-faxx]').click();await shot('faxx-acquisition');
    if(width>=1100){await page.locator('[data-nav] [data-tab=overview]').click();await page.locator('[aria-label="Clear map selection"]').click();await page.locator('[data-map-mode-btn=sphere]').click();await page.locator('[data-locate-region=EA]').click();await selectOperationalPackage(page,carrier);await shot('starting-carrier');}
    await page.locator('[data-nav] [data-tab=overview]').click();
    if(width<1100){await page.keyboard.press('Escape');await settle(page);}
