@@ -39,15 +39,15 @@ test('path: hit test finds each region from inside its largest island, nothing i
 
 const view = (over = {}) => ({ country: COUNTRIES[0], sphere: { NA: { player: 80, competitors: { china: 10 } }, EA: { player: 40, competitors: { china: 70 } }, ME: { player: 50, competitors: { russia: 40 } } }, ...over });
 
-test('scene: six modes, ten regions each, valid fills, legend per mode, every v57 overlay present', () => {
-  assert.deepEqual(MAP_MODES.map((m) => m.id), ['sphere', 'tension', 'trade', 'energy', 'military', 'intel']);
+test('scene: seven modes, original six overlays across ten regions, valid fills, legend per mode, every v57 overlay present', () => {
+  assert.deepEqual(MAP_MODES.map((m) => m.id), ['sphere', 'tension', 'trade', 'energy', 'military', 'intel', 'economy']);
   const v = view({
     forceDeployments: { ME: { carrier: 2, frigate: 3 } }, flashpoint: { rid: 'AF', type: 'coup', t: 4 }, sphereTrend: { EA: -3, NA: 1 },
     intelOps: [{ targetId: 'china', monthsLeft: 2 }], defExports: { a: { buyerId: 'japan' } }, nationRelations: { france: 60 }, embassies: new Set(['india']), defensePacts: new Set(['japan']),
     chokeStatus: { hormuz: 'disrupted', panama: 'secured' }, rivalTension: { russia: 82, china: 30 }, blockades: { EA: { target: 'china' } }, tradeAgreements: new Set(['india']), importContracts: { saudi: 1 },
     embargoes: new Set(['venezuela']), forcePosture: { ME: 'escort' }, sanctions: new Set(['russia']), moles: { china: 1 }, expelled: {}, concessions: {},
   });
-  for (const m of MAP_MODES) {
+  for (const m of MAP_MODES.filter(m=>m.id!=='economy')) {
     const s = buildScene(v, m.id);
     assert.equal(s.mode, m.id); assert.equal(s.regions.length, 10);
     for (const r of s.regions) { assert.match(r.fill, HEX, `${m.id} ${r.rid}`); assert.match(r.stroke, HEX); assert.ok(r.fillAlpha > 0 && r.fillAlpha <= 1); assert.ok(typeof r.line2 === 'string' && r.line2.length); assert.ok(r.value >= 0 && r.value <= 1); assert.equal(r.name, REGIONS[r.rid].n); }
@@ -80,7 +80,7 @@ test('scene: the player never appears as a rival in tension mode (ruling 6)', ()
   assert.equal(buildScene(view({ rivalTension: { usa: 99 } }), 'tension').regions.find((r) => r.rid === 'NA').line2, 'CALM');
 });
 
-test('App: map renders (SVG fallback in jsdom), six mode chips switch fills and legend, region tap opens the panel, 120 months stay clean', async () => {
+test('App: map renders (SVG fallback in jsdom), seven mode chips switch fills and legend, region tap opens the panel, 120 months stay clean', async () => {
   const origErr = console.error; console.error = () => {};
   const g = await mount(BUNDLES.app, { testHook: true });
   try {
@@ -88,7 +88,7 @@ test('App: map renders (SVG fallback in jsdom), six mode chips switch fills and 
     g.doc.querySelector('[data-event-card=doctrine] .wl-opt').click(); await flush(); await flush();
     const { doc } = g;
     assert.equal(doc.querySelector('[data-map]')?.getAttribute('data-map-renderer'), 'svg');
-    assert.equal(doc.querySelectorAll('[data-map-mode-btn]').length, 6);
+    assert.equal(doc.querySelectorAll('[data-map-mode-btn]').length, 7);
     assert.equal(doc.querySelectorAll('svg g[data-region]').length, 10);
     const fillOf = (rid) => doc.querySelector(`svg g[data-region=${rid}] path`).getAttribute('fill');
     const before = fillOf('EA');

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.97.0 (2026-10-24) — Civilian economic geography
+- New Economy map layer with seven sector filters, 25 US hubs across the West Coast, inland, Gulf and East Coast, and starter hubs for every other playable country. Cities are separate from military sites.
+- Select a city or clustered group, search by city/activity, and open relevant energy, processing, supplier, research, service and trade controls. Nation and Economy link directly to the layer.
+- City funding uses the existing national allocation widget, including pool holds and locks. Food assistance uses its existing national policy action.
+- National scope is explicit: these are geographic entry points into existing systems, not fabricated city GDP, jobs or local production. No simulation formulas, save state or replay baselines change.
+
 ## 0.96.0 (2026-10-24) — Commands where you need them
 - Selected bases and theaters expose the same Deploy, Recall and posture controls. Defense opens a new Forces deployment workspace with explicit destinations, package availability, cost and current assignments.
 - Starting fleet types, procurement and the map preserve deployment context. Theater commands open planning instead of silently deploying the first unit or purchasing the cheapest intelligence operation.

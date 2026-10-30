@@ -16,7 +16,7 @@ export function layoutSites(sites, { zoom=1, scale=1, tilt=1, build=false }={}) 
   return groups;
 }
 // Move only the label, never its geographic anchor. A leader line connects any displaced callout.
-export function layoutLabels(items,{width,height}) {
+export function layoutLabels(items,{width,height,obstacles=[]}) {
   const placed=[];
   for(const item of items){
     let found=null;
@@ -24,7 +24,7 @@ export function layoutLabels(items,{width,height}) {
       const offsets=radius?[[0,-radius],[0,radius],[-radius,0],[radius,0],[-radius,-radius],[radius,-radius],[-radius,radius],[radius,radius]]:[[0,0]];
       for(const [dx,dy]of offsets){const p={...item,x:item.x+dx,y:item.y+dy};
         if(p.x-p.w/2<12||p.x+p.w/2>width-12||p.y-p.h/2<48||p.y+p.h/2>height-80)continue;
-        if(placed.some(a=>Math.abs(a.x-p.x)<(a.w+p.w)/2+4&&Math.abs(a.y-p.y)<(a.h+p.h)/2+4))continue;
+        if([...placed,...obstacles].some(a=>Math.abs(a.x-p.x)<(a.w+p.w)/2+4&&Math.abs(a.y-p.y)<(a.h+p.h)/2+4))continue;
         found=p;break;
       }if(found)break;
     }

@@ -9,9 +9,10 @@ import { sumDep, isAllyOf } from '../../sim/formulas.js';
 import { NODE_TYPES, SITES, SITE_IDS, KM_PER_PX } from '../../data/bases.js';
 import { hostName } from '../../sim/bases.js';
 import { COLOR } from '../tokens.js';
+import {economicHubs,ECONOMIC_SECTORS} from '../../data/economic-hubs.js';
 
-// v2 §3: map-mode hotkeys, dock order. Sphere Q, Tension W, Trade E, Energy R, Military T, Intel Y.
-export const MODE_KEYS = ['Q', 'W', 'E', 'R', 'T', 'Y'];
+// v2 §3: map-mode hotkeys, dock order. Sphere Q, Tension W, Trade E, Energy R, Military T, Intel Y, Economy U.
+export const MODE_KEYS = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U'];
 export const MAP_MODES = [
   { id: 'sphere', label: 'Sphere', icon: '🌍', hint: 'Regional diplomatic influence, not territorial ownership. Home theater stays marked; hatch = close foreign influence race.' },
   { id: 'tension', label: 'Tension', icon: '🔥', hint: 'Highest rival tension present in each region (ruling 2: always visible).' },
@@ -19,6 +20,7 @@ export const MAP_MODES = [
   { id: 'energy', label: 'Energy', icon: '⚡', hint: 'Chokepoint state, your import routes, embargoes, concessions.' },
   { id: 'military', label: 'Military', icon: '🛡️', hint: 'Deployed units, posture and blockades per theater.' },
   { id: 'intel', label: 'Intel', icon: '🕵️', hint: 'Operations in progress, embassies, moles and expulsions per region.' },
+  { id: 'economy', label: 'Economy', icon: '▥', hint: 'Civilian cities and economic sectors. Select a hub to manage its related national systems.' },
 ];
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
@@ -57,7 +59,9 @@ export function buildScene(view, mode = 'sphere') {
       line2: home ? `HOME · ${pid.toUpperCase()}` : `${isP ? 'YOU' : (topC?.[0] || '').toUpperCase()} ${Math.round(lead)}%`, line2Color: isP ? COLOR.accent.commandHi : affil,
       line3: home ? `${Math.round(pv)}% INFLUENCE` : margin < 15 ? `CONTESTED ±${Math.round(margin)}` : '', hatch: !home && margin < 15, value: lead / 100,
     };
-    if (mode === 'tension') {
+    if (mode === 'economy') {
+      Object.assign(base,{fill:home?'#4d9b83':'#284650',stroke:'#4d797f',fillAlpha:home?.35:.12,hatch:false,deployed:0,trend:0,intel:false,flashpoint:null,line2:'',line3:''});
+    } else if (mode === 'tension') {
       const cands = new Set([...(REGIONS[rid].contestedBy || []), ...ids]);
       let top = null, tv2 = 0;
       for (const cid of cands) { if (cid === pid) continue; const t = rivalTension[cid] || 0; if (t > tv2) { tv2 = t; top = cid; } }
@@ -132,10 +136,12 @@ export function buildScene(view, mode = 'sphere') {
     const s = SITES[selectedSite]; rings.push({site:selectedSite,x:s.x,y:s.y,r:+(NODE_TYPES[previewType].reach/KM_PER_PX).toFixed(1),type:previewType,mine:true,color:COLOR.accent.good,preview:true});
   }
   const energyLanes = h && ['oil','gas','coal'].some(k=>importContracts.has?.(k)) ? [...myRoutes].map(k=>({id:k,rid:CHOKEPOINTS[k].region,x1:CHOKEPOINTS[k].x,y1:CHOKEPOINTS[k].y,x2:h.cx,y2:h.cy,color:chokeStatus[k]==='disrupted'?COLOR.accent.alert:COLOR.accent.energy})) : [];
-  return { mode, pid, homeRid, regions, routes: mode==='energy'?energyLanes:routes, influence, chokepoints, sites, rings, build, legend: legendFor(mode, country, (bases?.nodes || []).length > 0) };
+  const hubs=mode==='economy'?economicHubs(pid,view.economicSector||'all').map(h=>({...h,selected:h.id===view.selectedHub,color:ECONOMIC_SECTORS[view.economicSector]?.color||'#93d9bc'})):[];
+  return { mode, pid, homeRid, regions, routes: mode==='energy'?energyLanes:routes, influence, chokepoints, hubs, sites:mode==='economy'?[]:sites, rings:mode==='economy'?[]:rings, build:mode!=='economy'&&build, legend: legendFor(mode, country, (bases?.nodes || []).length > 0) };
 }
 
 export function legendFor(mode, country, withBases = false) {
+  if(mode==='economy')return {title:'Civilian economic hubs',items:[['#93d9bc','City / production area']],glyphs:'Select a city · filter by sector · national controls'};
   const glyphs = '⚓ deployed · ⚠ flashpoint · ▲▼ 6-mo trend · ● intel op' + (withBases ? ' · select your base for reach' : '');
   if (mode === 'sphere') return { title: 'Regional influence', items: [[COLOR.faction.player, 'You / home theater'], [COLOR.faction.russia, 'Russia'], [COLOR.faction.china, 'China'], [COLOR.faction.usa, 'USA'], [COLOR.faction.germany, 'Germany'], ['hatch', 'Contested (±15)']].filter(([,name])=>name!==(country?.id==='usa'?'USA':NATIONS[country?.id]?.n)), glyphs };
   const stops = { tension: ['Calm', '25', '50', '75', 'Brink'], trade: ['None', '1', '2', '3', '4+ deals'], energy: ['Clear', 'Route', 'Transit', 'Threat', 'Cut'], military: ['None', '2', '4', '6', '8+ units'], intel: ['Dark', 'Embassy', 'Op', 'Ops+', 'Saturated'] }[mode];
