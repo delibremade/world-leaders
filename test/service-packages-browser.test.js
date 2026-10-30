@@ -50,6 +50,7 @@ for(const [width,height] of [[1280,800],[1440,900],[1920,1080],[390,844]]){
    const before=await page.evaluate(()=>({orders:window.__wl.dispatched().length,assignments:window.__wl.assignments()}));
    await page.locator('[data-package-review=assignForcePackage]').click();await settle(page);
    assert.match(await page.locator('[data-package-quote]').innerText(),/\$[\d,.]+M\/mo/);
+   assert.ok(await pointerReachable(page.locator('[data-package-confirm]')),'opening a review exposes the entire confirmation control above fixed navigation');
    const quotedCost=Number((await page.locator('[data-package-quote] .wl-package-quote-cost strong').innerText()).replace(/[^\d.]/g,''));
    assert.ok(quotedCost>0,'deployment review exposes its ongoing commitment');
    assert.equal(await page.evaluate(()=>window.__wl.dispatched().length),before.orders,'review has not issued a command');

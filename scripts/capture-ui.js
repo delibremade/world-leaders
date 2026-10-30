@@ -18,7 +18,7 @@ try{
    await page.locator('[data-pulse=forces]').click();await selectOperationalPackage(page,carrier);await page.locator('[data-package-destination]').selectOption('ME');await shot('force-packages');
    await page.locator('[data-package-review=assignForcePackage]').click();await shot('package-review');
    await page.locator('[data-package-confirm]').click();await shot('deployment-orders');
-   await page.locator('[data-package-composition] summary').click();await shot('package-composition');await page.locator('[data-package-composition] summary').click();
+   await page.locator('[data-package-composition] summary').click();await page.locator('[data-package-composition] .wl-package-component').last().scrollIntoViewIfNeeded();await shot('package-composition');await page.locator('[data-package-composition] summary').click();
    await page.locator('[data-nav] [data-tab=overview]').click();
    await page.locator('[data-seg=nation]').click();await shot('nation');
    await page.locator('[data-nation-economy]').click();await shot('economic-layer');
@@ -48,11 +48,11 @@ try{
    if(width<1100){await page.getByRole('button',{name:'Close sheet',exact:true}).click();await settle(page);}
    await page.evaluate(()=>window.__wl.region('WE'));await shot('theater-commands');await page.locator('[data-cmd=intel]').click();
    await page.locator('[data-covert-target]').selectOption('china');await page.locator('[data-covert-op=influence]').click();await shot('situation-desk');
-   await page.evaluate(()=>window.__wl.infra({paramilitary:1}));await page.locator('[data-covert-op=sabotage]').click();await shot('intel-force-elements');
+   await page.evaluate(()=>window.__wl.infra({paramilitary:1}));await page.locator('[data-covert-op=sabotage]').click();await page.locator('[data-covert-assessment] [data-intel-commitment]').first().scrollIntoViewIfNeeded();await shot('intel-force-elements');
    await page.locator('[data-intel-repeat]').click();await shot('intel-repeat-review');await page.locator('[data-confirm-cancel]').click();
-   await page.locator('[data-intel-services] summary').click();await page.locator('[data-intel-services]').scrollIntoViewIfNeeded();await shot('intel-services');await page.locator('[data-intel-services] summary').click();
+   await page.locator('[data-intel-services] summary').click();await page.locator('[data-intel-service]').last().scrollIntoViewIfNeeded();await shot('intel-services');await page.locator('[data-intel-services] summary').click();
    await page.evaluate(()=>window.__wl.nukes([{actor:'usa',target:'russia',region:'EE',type:'demonstration',mo:9,yr:2026},{actor:'russia',target:'usa',region:'NA',type:'ultimatum',mo:10,yr:2026}]));
-   await page.locator('[data-situation-panel=nukes]').scrollIntoViewIfNeeded();await shot('nuclear-register');
+   await page.locator('[data-situation-panel=nukes] [data-nuke-entry]').last().scrollIntoViewIfNeeded();await shot('nuclear-register');
    await page.evaluate(responses=>window.__wl.crisis({type:'stolen',targetId:'china',opId:'tech_acq',responses}),CRISIS_STOLEN);await shot('intel-response');
 
   }catch(e){results.push({width,error:String(e)});await page.screenshot({path:`${out}/error-${width}.png`}).catch(()=>{});}

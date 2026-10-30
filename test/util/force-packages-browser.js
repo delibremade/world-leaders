@@ -24,6 +24,7 @@ export async function selectOperationalPackage(page,pkg){
 export async function confirmPackageOrder(page,type){
   await page.locator(`[data-package-review="${type}"]`).click();await settle(page);
   assert.equal(await page.locator('[data-package-quote]').count(),1,'one visible order review');
+  assert.ok(await pointerReachable(page.locator('[data-package-confirm]')),`${type} confirmation is fully visible before automatic click scrolling`);
   await page.locator('[data-package-confirm]').click();await settle(page);
 }
 
@@ -37,7 +38,9 @@ export async function pointerReachable(locator){
         const b=p.getBoundingClientRect();top=Math.max(top,b.top);bottom=Math.min(bottom,b.bottom);
       }
     }
+    const cx=r.x+r.width/2,cy=r.y+r.height/2;
+    const points=[[cx,cy],[cx,r.top+1],[cx,r.bottom-1],[r.left+1,cy],[r.right-1,cy]];
     return r.top>=top-.5&&r.bottom<=bottom+.5&&r.left>=0&&r.right<=innerWidth+.5
-      &&el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));
+      &&points.every(([x,y])=>el.contains(document.elementFromPoint(x,y)));
   });
 }

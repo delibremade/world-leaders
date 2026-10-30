@@ -58,6 +58,9 @@ button.wl-opt{text-align:left;font-family:inherit;width:100%}
 .wl-main{grid-area:main;display:flex;min-height:0;overflow:hidden}
 .wl-body{grid-area:main;overflow-x:clip;min-width:0}
 .wl-body>*{min-width:0}
+/* The closed outliner overlays the phone's main scrollport above the nav. Keep
+   final rows and browser-driven scroll targets clear of that fixed handle. */
+@media(max-width:${BREAK.tablet-1}px){.wl-body{padding-bottom:36px;scroll-padding-bottom:44px}}
 .wl-nav{grid-area:nav;display:flex;background:${c.bg.panel};border-top:1px solid ${c.border.base};padding-bottom:env(safe-area-inset-bottom)}
 .wl-nav button{position:relative;flex:1 1 0;min-width:0;min-height:56px;border:none;background:transparent;color:${c.text.dim};font-size:${SIZE.caption}px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:${SPACE[2]}px 0}
 .wl-nav button span:first-child{font-size:18px;line-height:1}

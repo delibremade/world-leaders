@@ -28,8 +28,12 @@ function OrderReview({order,onCancel,onConfirm,reviewRef}){
   <div className="wl-package-quote-cost"><strong>{money(order.costMonthly)}</strong><span>{order.costDelta>0?'+':order.costDelta<0?'−':''}{money(Math.abs(order.costDelta||0))} change</span></div>
   {(order.lines||[]).map((line,i)=><p key={i}>{line}</p>)}
   {order.block&&<p className="wl-package-warning" role="status">{order.block}</p>}
-  <div className="wl-package-action-pair"><button type="button" className="wl-btn" data-package-cancel onClick={onCancel}>Cancel</button><button type="button" className="wl-btn wl-btn-primary" data-package-confirm disabled={!!order.block} onClick={onConfirm}>Confirm order</button></div>
+  <div className="wl-package-action-pair" data-package-review-actions><button type="button" className="wl-btn" data-package-cancel onClick={onCancel}>Cancel</button><button type="button" className="wl-btn wl-btn-primary" data-package-confirm disabled={!!order.block} onClick={onConfirm}>Confirm order</button></div>
  </section>;
+}
+
+function PackageReadiness({p}){
+ return <div className="wl-package-state"><span className="wl-package-status" data-status={p.ready&&!reduced(p)?'ready':'limited'}>{readinessLabel(p)}</span><strong>{money(p.costMonthly??p.monthlyCost)}</strong></div>;
 }
 
 // The full Forces workspace and compact map inspector share the same selector, quote and atomic verbs.
@@ -62,7 +66,14 @@ export function ForcePackageDesk({g,region,initialPackage,initialMission,dispatc
  useEffect(()=>{if(region!==undefined)setDestination(region||'');},[region]);
  useEffect(()=>{if(initialPackage||initialMission){setSelectedId(initialPackage||requested?.id||null);setPosture(initialMission||'deter');setService('all');setQuery('');setFilter('all');}},[initialPackage,initialMission]);
  useEffect(()=>{if(selected){setPosture(selected.missions?.includes(initialMission)?initialMission:selected.posture||selected.missions?.[0]||'deter');if(!region)setDestination(selected.region||'');onPackage?.(selected.id);}setPending(null);},[selected?.id]);
- useEffect(()=>{if(pending)reviewRef.current?.scrollIntoView?.({block:'nearest'});},[pending]);
+ useEffect(()=>{
+  if(!pending)return;
+  const review=reviewRef.current;
+  review?.focus?.({preventScroll:true});
+  // Center the decisions themselves: the viewport includes fixed phone navigation,
+  // so merely bringing the quote's outer edge into view can leave buttons covered.
+  (review?.querySelector('[data-package-review-actions]')||review)?.scrollIntoView?.({block:'center',inline:'nearest'});
+ },[pending]);
  const chooseDestination=value=>{setDestination(value);setPending(null);onRegion?.(value);};
  const review=(type,payload)=>setPending({type,payload});
  const commit=()=>{if(!pending||quoted?.block)return;dispatch({type:pending.type,payload:pending.payload});if(pending.type==='assembleForcePackage'&&quoted.package?.id){setSelectedId(quoted.package.id);setQuery('');setFilter('all');}setPending(null);};
@@ -76,20 +87,21 @@ export function ForcePackageDesk({g,region,initialPackage,initialMission,dispatc
   </div>}
   <div className="wl-package-layout">
    <div className="wl-package-roster">
-    {compact?matches.length>0&&<label className="wl-package-field"><span>Operational package</span><select data-package-select aria-label="Operational force package" value={selected?.id||''} onChange={e=>setSelectedId(e.target.value)}>{services.map(s=><optgroup key={s.id} label={s.name}>{matches.filter(p=>p.service===s.id).map(p=><option value={p.id} key={p.id}>{p.name} · {status(p)}</option>)}</optgroup>)}</select></label>:<><div className="wl-package-list-label">{matches.length} formations</div><div className="wl-package-list">{matches.map(p=><button type="button" key={p.id} className="wl-package-card" data-force-package-card={p.id} aria-pressed={p.id===selected?.id} onClick={()=>setSelectedId(p.id)}><div><strong>{p.name}</strong><span className="wl-package-status" data-status={p.ready?'ready':'limited'}>{status(p)}</span></div><small>{serviceName(g,p.service)}</small><span className="wl-package-location">{locationName(p)}{p.region?` · ${missionName(p.posture)}`:''}</span></button>)}</div></>}
+    {compact?matches.length>0&&<label className="wl-package-field"><span className={region?'wl-package-destination':undefined} data-package-destination={region||undefined}>{region?<>Package to <b>{REGIONS[region]?.n}</b></>:'Operational package'}</span><select data-package-select aria-label="Operational force package" value={selected?.id||''} onChange={e=>setSelectedId(e.target.value)}>{services.map(s=><optgroup key={s.id} label={s.name}>{matches.filter(p=>p.service===s.id).map(p=><option value={p.id} key={p.id}>{p.name} · {status(p)}</option>)}</optgroup>)}</select></label>:<><div className="wl-package-list-label">{matches.length} formations</div><div className="wl-package-list">{matches.map(p=><button type="button" key={p.id} className="wl-package-card" data-force-package-card={p.id} aria-pressed={p.id===selected?.id} onClick={()=>setSelectedId(p.id)}><div><strong>{p.name}</strong><span className="wl-package-status" data-status={p.ready?'ready':'limited'}>{status(p)}</span></div><small>{serviceName(g,p.service)}</small><span className="wl-package-location">{locationName(p)}{p.region?` · ${missionName(p.posture)}`:''}</span></button>)}</div></>}
     {!matches.length&&<div className="wl-package-empty"><b>No matching packages</b><p>{descriptor?.note||'Change the filters or assemble a formation from available equipment.'}</p>{descriptor?.coverage==='not-modeled'&&<p>No inventory has been invented for this service.</p>}</div>}
    </div>
    {selected&&<article className="wl-package-inspector" data-package-inspector={selected.id}>
     {!compact&&<header><span className="wl-eyebrow">{serviceName(g,selected.service)}</span><h3>{selected.name}</h3><p>{locationName(selected)}{selected.region?` · ${missionName(selected.posture)}`:''}</p></header>}
-    <div className="wl-package-state"><span className="wl-package-status" data-status={selected.ready&&!reduced(selected)?'ready':'limited'}>{readinessLabel(selected)}</span><strong>{money(selected.costMonthly??selected.monthlyCost)}</strong></div>
+    {!compact&&<PackageReadiness p={selected}/>}
     {selected.block&&selected.block!==assignment?.block&&<p className="wl-package-warning" data-package-readiness-block>{selected.block}</p>}
     <div className="wl-package-orders">
-     {compact&&region?<p className="wl-package-destination" data-package-destination={region}>To <b>{REGIONS[region]?.n}</b>{selected.region&&<small>Currently: {locationName(selected)}</small>}</p>:<label className="wl-package-field"><span>Destination theater</span><select data-package-destination aria-label="Package destination" value={destination} onChange={e=>chooseDestination(e.target.value)}><option value="">Choose a theater…</option>{Object.entries(REGIONS).map(([id,r])=><option key={id} value={id}>{r.n}</option>)}</select></label>}
+     {(!compact||!region)&&<label className="wl-package-field"><span>Destination theater</span><select data-package-destination aria-label="Package destination" value={destination} onChange={e=>chooseDestination(e.target.value)}><option value="">Choose a theater…</option>{Object.entries(REGIONS).map(([id,r])=><option key={id} value={id}>{r.n}</option>)}</select></label>}
      <label className="wl-package-field"><span>Package mission</span><select data-package-mission aria-label="Package mission" value={chosenPosture} onChange={e=>{setPosture(e.target.value);setPending(null);}}>{missions.map(id=><option key={id} value={id}>{missionName(id)}</option>)}</select></label>
      <button type="button" className="wl-btn wl-btn-primary wl-package-primary" data-package-review="assignForcePackage" disabled={!!assignment?.block} title={assignment?.block||'Review the full package order'} onClick={()=>review('assignForcePackage',payload)}>{selected.region?'Review mission & destination':'Review deployment'}</button>
      {assignment?.block&&<p className="wl-package-warning" data-package-block role="status">{assignment.block}</p>}
      {selected.region&&<button type="button" className="wl-btn" data-package-review="recallForcePackage" disabled={!!recall?.block} title={recall?.block||'Return the package to the available force'} onClick={()=>review('recallForcePackage',{package:selected.id})}>Review recall</button>}
     </div>
+    {compact&&<><PackageReadiness p={selected}/>{selected.region&&<p className="wl-package-note">Currently assigned: {locationName(selected)}</p>}</>}
     {quoted&&pending.type!=='assembleForcePackage'&&<OrderReview order={quoted} reviewRef={reviewRef} onCancel={()=>setPending(null)} onConfirm={commit}/>}
     {selected.missionEffects?.length>0&&<div data-package-effects>{selected.missionEffects.map((line,i)=><p className="wl-package-note" key={i}>{line}</p>)}</div>}
     <PackageComposition p={selected} g={g}/>
