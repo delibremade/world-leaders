@@ -2,6 +2,7 @@ import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {launch,openGame,settle,overflow} from './util/browser.js';
 import {packageSnapshot,selectOperationalPackage,confirmPackageOrder,pointerReachable} from './util/force-packages-browser.js';
+import {unitProfile} from '../src/data/services.js';
 
 let browser;
 before(async()=>{browser=await launch();});
@@ -32,7 +33,8 @@ for(const [width,height] of [[1280,800],[1440,900],[1920,1080],[390,844]]){
    const aviation=carrier.components.filter(c=>c.role==='fighter');
    assert.equal(escorts.reduce((n,c)=>n+c.count,0),2,'carrier formation reserves two actual escorts');
    assert.equal(aviation.reduce((n,c)=>n+c.count,0),2,'carrier formation reserves two actual naval fighter squadrons');
-   assert.ok([...escorts,...aviation].every(c=>c.service==='navy'&&carrier.members[c.id]===c.count));
+   assert.ok(escorts.every(c=>c.service==='navy'&&carrier.members[c.id]===c.count));
+   assert.ok(aviation.every(c=>['navy','joint'].includes(c.service)&&unitProfile('usa',c.id).carrierAir&&carrier.members[c.id]===c.count),'naval or shared-service aviation is carrier-qualified and physically reserved');
 
    await selectOperationalPackage(page,carrier);
    const shown=await page.locator('[data-force-package-card]').evaluateAll(es=>es.map(e=>e.dataset.forcePackageCard));
