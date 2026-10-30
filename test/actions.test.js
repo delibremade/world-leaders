@@ -30,6 +30,8 @@ test('every verb the UI dispatches exists, and every verb is dispatched by the U
   for (const f of uiFiles()) {
     const src = readFileSync(f, 'utf8');
     for (const m of src.matchAll(/dispatch\(\{ ?type: ?'(\w+)'/g)) used.add(m[1]);
+    // Reviewed package orders dispatch their quoted type after confirmation.
+    for (const m of src.matchAll(/review\('(\w+)'/g)) used.add(m[1]);
     for (const m of src.matchAll(/type:\w+==='\w+'\?'(\w+)':'(\w+)'/g)) { used.add(m[1]); used.add(m[2]); }
   }
   for (const r of NATION_VERBS) used.add(r.type);
@@ -132,6 +134,9 @@ test('#6 map + deploy updates live forceDeployments in the same month and cannot
 test('#6 map - recall and the blockade naval-weight read see the live deployment', () => {
   const h = reactLike(); h.g.platforms = { ...h.g.platforms, carrier_group: 2, sub_fleet: 2 };
   h.g.forces = { ...h.g.forces, crews: { ...h.g.forces.crews, sea: h.g.forces.crews.sea } }; // #20 (E8): stationing needs trained crews
+  // This assertion exercises same-turn bookkeeping. Make the physical hulls ready;
+  // ordinary campaign MC correctly prevents treating every owned hull as available.
+  h.g.forces.fleet.cvn.mc=100;h.g.forces.fleet.ssn.mc=100;
   for (const u of ['carrier_group', 'carrier_group', 'sub_fleet', 'sub_fleet']) h.run('adjustDeployment', { region: RID, unit: u, delta: 1 });
   assert.equal(navalWeight(h.g.forceDeployments[RID]), 4);
   h.run('adjustDeployment', { region: RID, unit: 'sub_fleet', delta: -1 });

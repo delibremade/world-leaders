@@ -5,6 +5,7 @@ import { CHOKEPOINTS, IMPORT_ROUTES } from '../data/chokepoints.js';
 import { NATION_TRAITS } from '../data/nations.js';
 import { isDiversified, navalWeight, getEnergyTier } from './formulas.js';
 import { chokeWeight, laneCut } from './reach.js';
+import { missionStrengths } from './force-packages.js';
 export const energyRoutes=g=>IMPORT_ROUTES[Object.entries(REGIONS).find(([,r])=>r.homeFor?.includes(g.country?.id))?.[0]]||[];
 export const hasFossilImports=g=>['oil','gas','coal'].some(k=>g.importContracts?.has(k));
 export function importCost(g,{myRoutes=energyRoutes(g),cs=g.chokeStatus||{},sprShield=!!g.sprRelease&&g.spr>0,routeHit=hasFossilImports(g)&&myRoutes.some(k=>cs[k]==='disrupted')}={}) {
@@ -18,10 +19,20 @@ export function importCost(g,{myRoutes=energyRoutes(g),cs=g.chokeStatus||{},sprS
   if(bloc.opec>=1){let foss=0;['oil','gas','coal'].forEach(k=>{if(g.importContracts.has(k))foss++;});cost-=foss*16;}
   return Math.round(Math.max(0,cost));
 }
-export const protectionWeight=(g,id)=>navalWeight(g.forceDeployments?.[CHOKEPOINTS[id].region])+chokeWeight(g,id);
+// General sea presence can secure an open route. A disruption additionally needs
+// an actual ready escort on station; bases support that mission but cannot sail it.
+// Passing a shared mission snapshot keeps tick and multi-route UI reads inexpensive.
+export function routeProtection(g,id,strength=missionStrengths(g)){
+  const missions=strength[CHOKEPOINTS[id]?.region]||{},bases=chokeWeight(g,id);
+  const naval=Object.values(missions).reduce((n,units)=>n+navalWeight(units),0),escortNaval=navalWeight(missions.escort);
+  const weight=naval+bases,escortWeight=escortNaval+bases;
+  return {naval,bases,weight,escortNaval,escortWeight,canEscort:escortNaval>0&&escortWeight>=2,missions:Object.keys(missions)};
+}
+export const protectionWeight=(g,id)=>routeProtection(g,id).weight;
+export const escortProtectionWeight=(g,id)=>routeProtection(g,id).escortWeight;
 export function energySituation(g) {
-  const ids=energyRoutes(g),cs=g.chokeStatus||{};
-  const routes=ids.map(id=>{const cp=CHOKEPOINTS[id],naval=navalWeight(g.forceDeployments?.[cp.region]),bases=chokeWeight(g,id);return {id,...cp,status:cs[id]||'open',naval,bases,weight:protectionWeight(g,id),posture:g.forcePosture?.[cp.region]||'deter'};});
+  const ids=energyRoutes(g),cs=g.chokeStatus||{},strength=missionStrengths(g);
+  const routes=ids.map(id=>({id,...CHOKEPOINTS[id],status:cs[id]||'open',...routeProtection(g,id,strength)}));
   const exposed=hasFossilImports(g)&&routes.some(r=>r.status==='disrupted');
   const shield=!!g.sprRelease&&g.spr>0;
   const imports=importCost(g),unprotected=importCost(g,{sprShield:false}),protectedBill=importCost(g,{sprShield:true});

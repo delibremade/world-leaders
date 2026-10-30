@@ -2,6 +2,7 @@ import { PLATFORMS, DV } from '../data/platforms.js';
 import { procurementCost } from './formulas.js';
 import { programSupply } from './minerals.js';
 import { crewBlock } from './forces.js';
+import { ownedUnits } from './force-inventory.js';
 export function platformBlock(g,id,action='build'){
   const p=PLATFORMS[id];if(!p)return 'Unknown platform';
   if(action==='import'&&p.dev)return 'Development program: complete the domestic first article before production';
@@ -19,7 +20,7 @@ export function platformBlock(g,id,action='build'){
   return (g.stats?.treasury||0)<cost?`Need $${cost.toLocaleString('en-US')}M`:null;
 }
 export function platformAcquisition(g,id){
-  const p=PLATFORMS[id],supply=programSupply(g,id),owned=(g.platforms?.[id]||0)+(g.platformsImported?.[id]||0);
+  const p=PLATFORMS[id],supply=programSupply(g,id),owned=ownedUnits(g,id);
   const action=p.dev&&!g.developed?.has(id)?'develop':'build';
   const reason=platformBlock(g,id,action),months=g.platformDev?.[id]?.mo;
   const phase=months?'Development':supply.queued.length?'Awaiting minerals':owned?'Delivered':reason?'Requirements':'Ready for production';

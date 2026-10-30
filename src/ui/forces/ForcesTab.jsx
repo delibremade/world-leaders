@@ -1,7 +1,11 @@
 // Forces vertical (E5a, spec Part 8): people and readiness. Manpower | Quality | Training | Equipment | Specialized.
 // Reads state through forceView / crewStatus (the month's own rules) and dispatches actions; no game logic here.
 import { DeploymentOrders } from '../map/DeploymentOrders.jsx';
+import { ForcePackageDesk } from './ForcePackageDesk.jsx';
 import { deploymentOptions } from '../../sim/deployment-view.js';
+import { packageView } from '../../sim/force-packages.js';
+import { retirementQuote } from '../../sim/force-retirement.js';
+import { unitProfile } from '../../data/services.js';
 import { useState } from 'react';
 import { Seg } from '../shell/Seg.jsx';
 import { DataTable } from '../shell/DataTable.jsx';
@@ -38,16 +42,18 @@ function Deployments({v,request,dispatch,onJump}){
  const [destination,setDestination]=useState(request?.region||''),[selectedUnit,setSelectedUnit]=useState(request?.unit);
  const units=deploymentOptions(v),free=units.reduce((n,u)=>n+u.free,0);
  const regions=Object.entries(REGIONS).map(([rid,r])=>({rid,name:r.n,units:deploymentOptions(v,rid).filter(u=>u.here)})).filter(r=>r.units.length);
- return <div className="wl-deployment-workspace" data-force-orders>
-  <Panel id="orders" title="Deploy your forces" figure={`${free} packages available`}>
-   <DeploymentOrders g={v} region={request?.region} initialUnit={request?.unit} chooseRegion onRegion={setDestination} onUnit={setSelectedUnit} dispatch={dispatch} onJump={onJump}/>
+ return <div data-force-orders>
+  <ForcePackageDesk g={v} region={request?.region} initialPackage={request?.package} initialMission={request?.mission} dispatch={dispatch} onJump={onJump}/>
+  <details className="wl-individual-assets" data-individual-assets open={!!request?.unit}><summary>Individual assets</summary><div className="wl-deployment-workspace">
+  <Panel id="orders" title="Individual equipment" figure={`${free} batches available`}>
+   <DeploymentOrders g={v} region={request?.region} initialUnit={request?.unit} chooseRegion individualOnly onRegion={setDestination} onUnit={setSelectedUnit} dispatch={dispatch} onJump={onJump}/>
    {destination&&<button className="wl-btn" data-deployment-map onClick={()=>onJump({tab:'overview',mode:'military',region:destination,unit:selectedUnit})}>Inspect {REGIONS[destination].n} on map →</button>}
   </Panel>
   <Panel id="assignments" title="Current assignments" figure={`${regions.length} theaters`}>
    {!regions.length&&<p className="wl-note">No forces forward deployed. Your starting forces are available in the order form.</p>}
-   {regions.map(r=><div className="wl-deployment-assignment" key={r.rid} data-assignment-region={r.rid}><h3>{r.name}</h3><small>{POSTURE_LABELS[v.forcePosture?.[r.rid]||'deter']}</small>{r.units.map(u=><Row key={u.id} title={u.name} value={`×${u.here}`} trailing={<button className="wl-btn" data-assignment-recall={`${r.rid}:${u.id}`} onClick={()=>dispatch({type:'adjustDeployment',payload:{region:r.rid,unit:u.id,delta:-1}})}>Recall 1</button>}/>)}<button className="wl-btn" onClick={()=>onJump({tab:'forces',sub:'deployments',region:r.rid,unit:request?.unit})}>Manage this theater →</button></div>)}
+   {regions.map(r=><div className="wl-deployment-assignment" key={r.rid} data-assignment-region={r.rid}><h3>{r.name}</h3><small>Individual detachments: {POSTURE_LABELS[v.forcePosture?.[r.rid]||'deter']} · organized packages keep their own missions</small>{r.units.map(u=><Row key={u.id} title={u.name} sub={u.recallReason} value={`×${u.here}`} trailing={<button className="wl-btn" disabled={!(u.recallable??u.here)} title={u.recallReason||'Return this individual detachment home'} data-assignment-recall={`${r.rid}:${u.id}`} onClick={()=>dispatch({type:'adjustDeployment',payload:{region:r.rid,unit:u.id,delta:-1}})}>Recall 1</button>}/>)}<button className="wl-btn" onClick={()=>onJump({tab:'forces',sub:'deployments',region:r.rid,unit:request?.unit})}>Manage this theater →</button></div>)}
   </Panel>
- </div>;
+ </div></details></div>;
 }
 
 // F7 (#55): strength as headcounts against the 2024 force and the population bound; recruits as propensity of the eligible cohort.
@@ -115,7 +121,7 @@ function Training({ fv, v, ask, dispatch }) {
       <div className="wl-grid2" role="group" aria-label="Training level">
         {fv.levels.map((l, i) => <button key={l.id} type="button" className="wl-lvl" aria-pressed={fv.train === i} onClick={() => setLevel(i)} data-train={l.id}>{l.n}<small>${l.cost}M · →{l.target}</small></button>)}
       </div>
-      <div className="wl-note">Sustains readiness at the level's target. Joint Exercises posture (map region) adds +{R.exercise.target} for the exercising branch.</div>
+      <div className="wl-note">Sustains readiness at the level's target. Assigning a package to Joint Exercises adds +{R.exercise.target} for the exercising branch.</div>
     </Panel>
     <Panel id="readiness" title="Readiness by branch" figure={`${f0(fv.branches.reduce((a, b) => a + b.readiness, 0) / fv.branches.length)} avg`}>
       {fv.branches.map((b) => (
@@ -141,14 +147,18 @@ function Training({ fv, v, ask, dispatch }) {
   </>;
 }
 
-function Equipment({ fv, v, ask, dispatch, toast, onJump }) {
-  const fl = fleetView(v); const [selLine, setSelLine] = useState(null); const wide = useWide();
+function Equipment({ fv, v, ask, dispatch, toast, onJump, request }) {
+  const fl = fleetView(v),packages=packageView(v).packages;
+  const context=packages.find(p=>p.id===request?.package),focus=context?.components.slice().sort((a,b)=>a.readiness-b.readiness)[0];
+  const [selLine, setSelLine] = useState(()=>unitProfile(v.country.id,request?.unit||focus?.id).line||null); const wide = useWide();
   const own = (pid) => (BLACK_PROGRAMS[pid] ? +v.blackPrograms[pid] || 0 : (v.platforms[pid] || 0) + (v.platformsImported[pid] || 0));
   const meta = unitMeta;
   const ids = [...Object.keys(PLATFORMS), ...Object.keys(BLACK_PROGRAMS)].filter((pid) => own(pid) > 0);
   const maint = Object.entries(v.platforms).reduce((s, [pid, ct]) => s + (PLATFORMS[pid]?.maint || 0) * (ct || 0), 0);
   const where = (pid) => Object.entries(v.forceDeployments).filter(([, o]) => (o?.[pid] || 0) > 0).map(([rid, o]) => [rid, o[pid]]);
   const theaters = Object.entries(v.forceDeployments).map(([rid, o]) => [rid, Object.entries(o || {}).filter(([, n]) => n > 0)]).filter(([, us]) => us.length);
+  const available=Object.fromEntries(deploymentOptions(v).map(u=>[u.id,u]));
+  const theaterOptions=Object.fromEntries(theaters.map(([rid])=>[rid,Object.fromEntries(deploymentOptions(v,rid).map(u=>[u.id,u]))]));
   const gen = (pid) => BLACK_PROGRAMS[pid] ? SLOTS.find(([k]) => k === BLACK_PROGRAMS[pid].slot)?.[1] || 'Program' : 'Fielded platform';
   const station = (pid) => {
     const rid = document.getElementById(`oob_${pid}`)?.value;
@@ -170,13 +180,14 @@ function Equipment({ fv, v, ask, dispatch, toast, onJump }) {
       return <Panel key={bid} id={`inv_${bid}`} title={`${bn} inventory`} figure={mine.reduce((a, pid) => a + own(pid), 0)}>
         {mine.length === 0 && <div className="wl-note">Nothing fielded. Build in the Arsenal tab.</div>}
         {mine.map((pid) => {
-          const m = meta(pid); const n = own(pid); const w = where(pid); const st = w.reduce((a, [, k]) => a + k, 0); const dep = DEPLOYABLE.includes(pid); const c = unitCrew(v,pid);
-          return <Row key={pid} data-unit={pid} title={`${m.i} ${m.n}`} sub={`${gen(pid)} · ${c.n * n} personnel · ${dep ? `${st}/${n} stationed, ${n - st} in reserve` : 'national asset, applies automatically'}`}
+          const m = meta(pid); const n = own(pid); const w = where(pid); const st = w.reduce((a, [, k]) => a + k, 0); const dep = DEPLOYABLE.includes(pid); const c = unitCrew(v,pid),stock=available[pid];
+          return <Row key={pid} data-unit={pid} title={`${m.i} ${m.n}`} sub={`${gen(pid)} · ${c.n * n} personnel · ${dep ? `${st}/${n} stationed · ${stock?.free||0} available · ${stock?.reserved||0} reserved in packages` : 'national asset, applies automatically'}`}
             value={PLATFORMS[pid] ? `$${m.maint * (v.platforms[pid] || 0)}M/mo` : `×${n}`}>
             {dep && <div className="wl-row" style={{ flexWrap: 'wrap', marginTop: 4 }}>
-              {w.map(([rid, k]) => <span key={rid} className="wl-chip">{REGIONS[rid]?.n} ×{k} {POSTURE_LABELS[v.forcePosture[rid] || 'deter']?.slice(0, 2)} <button type="button" data-recall={pid} className="wl-btn wl-btn-sm wl-btn-alert" onClick={() => dispatch({ type: 'recallUnit', payload: { region: rid, unit: pid } })}>recall</button></span>)}
-              {n - st > 0 && <><select id={`oob_${pid}`} className="wl-sel" defaultValue="" aria-label={`Station ${m.n} in`}><option value="" disabled>station in…</option>{Object.entries(REGIONS).map(([rid, rg]) => <option key={rid} value={rid}>{rg.n}</option>)}</select>
-                <button type="button" className="wl-btn wl-btn-primary" onClick={() => station(pid)}>+ Station</button></>}
+              {w.map(([rid, k]) => {const u=theaterOptions[rid]?.[pid];return <span key={rid} className="wl-chip">{REGIONS[rid]?.n} ×{k} <button type="button" data-recall={pid} disabled={!u?.recallable} title={u?.recallReason||'Recall this individual detachment'} className="wl-btn wl-btn-sm wl-btn-alert" onClick={() => dispatch({ type: 'recallUnit', payload: { region: rid, unit: pid } })}>recall</button>{u?.recallReason&&<button type="button" className="wl-btn wl-btn-sm" onClick={()=>onJump({tab:'forces',sub:'deployments',region:rid,package:u.packages?.[0]?.id})}>Manage package →</button>}</span>;})}
+              <select id={`oob_${pid}`} className="wl-sel" defaultValue="" disabled={!stock?.free} aria-label={`Station ${m.n} in`}><option value="" disabled>station in…</option>{Object.entries(REGIONS).map(([rid, rg]) => <option key={rid} value={rid}>{rg.n}</option>)}</select>
+              <button type="button" className="wl-btn wl-btn-primary" disabled={!!stock?.reason||!stock} title={stock?.reason||'Assign an individual detachment'} onClick={() => station(pid)}>+ Station</button>
+              {stock?.reason&&<span className="wl-note">{stock.reason}</span>}
             </div>}
           </Row>;
         })}
@@ -186,7 +197,7 @@ function Equipment({ fv, v, ask, dispatch, toast, onJump }) {
   const theatersPanel = (
     <Panel id="theaters" title="Theater summary" figure={`${theaters.length} regions`}>
       {theaters.length === 0 && <div className="wl-note">No theater assets stationed.</div>}
-      {theaters.map(([rid, us]) => <Row key={rid} title={REGIONS[rid]?.n} sub={us.map(([pid, k]) => `${meta(pid)?.n} ×${k}`).join(' · ')} value={POSTURE_LABELS[v.forcePosture[rid] || 'deter']} />)}
+      {theaters.map(([rid, us]) => {const assigned=packages.filter(p=>p.region===rid);return <Row key={rid} title={REGIONS[rid]?.n} sub={assigned.map(p=>`${p.name} · ${POSTURE_LABELS[p.posture]}`).join('; ')||us.map(([pid,k])=>`${meta(pid)?.n} ×${k}`).join(' · ')} value={`${assigned.length} packages`} trailing={<button className="wl-btn" onClick={()=>onJump({tab:'forces',sub:'deployments',region:rid,package:assigned[0]?.id})}>Manage →</button>}/>;})}
     </Panel>
   );
   const maintPanel = (
@@ -247,13 +258,15 @@ function lineRow(l, sel, onSel) {
 }
 function lineDetail(l, fl, ask, dispatch, v, onJump) {
   const packageId=`fleet:${fl.nid}:${l.id}`,pkg=FLEET_PACKAGES[packageId];
-  const step = Math.min(l.count, RETIRE_STEP[l.cls] || 1);
+  const quote=retirementQuote(v,{line:l.id,n:1}),available=quote.available;
+  const step = Math.min(available, RETIRE_STEP[l.cls] || 1);
+  const stepQuote=retirementQuote(v,{line:l.id,n:step||1}),allQuote=retirementQuote(v,{line:l.id,n:available||1});
   const retire = (n) => ask({ title: `Retire ${hc(n)} ${l.n}`, cost: `saves about $${Math.round(l.cost * n / Math.max(1, l.count))}M/mo maintenance`, kind: 'alert', label: 'Retire',
     lines: [`${hc(l.count - n)} left in service. Retired ${CLS_N[l.cls]} do not come back; procurement adds new ones to this line.`, 'Their crews return to the pool for the rest of the fleet.'], run: () => dispatch({ type: 'retire', payload: { line: l.id, n } }) });
   const modernize = () => ask({ title: `${l.n}: block ${l.blk + 1} upgrade`, cost: `$${hc(l.modCost)}M once`, kind: 'warn', label: 'Start upgrade',
     lines: [`${fl.modMo} months in the depot at ${fl.depot}% throughput; ${Math.round(fl.rules.modShare * 100)}% of the fleet is unavailable meanwhile.`, `Then +${Math.round(fl.rules.blkGain * 100)}% effectiveness and +${Math.round(fl.rules.mcBlk * 100)}% MC target.`], run: () => dispatch({ type: 'modernize', payload: { line: l.id } }) });
   return <div className="wl-r wl-r-stack" data-line-detail={l.id} key={`${l.id}-detail`}>
-    <CommandCard id="fleet" placement="column" title={l.n} sub={`${hc(l.count)} ${CLS_N[l.cls]} · keys M R B K J`} color="#60a5fa" actions={fleetCommands(l, fl, step)} onRun={(a) => runCommand(a, { dispatch, ask })} />
+    <CommandCard id="fleet" placement="column" title={l.n} sub={`${hc(l.count)} ${CLS_N[l.cls]} · keys M R B K J`} color="#60a5fa" actions={fleetCommands(l, fl, step, v)} onRun={(a) => runCommand(a, { dispatch, ask })} />
     <div className="wl-r-main">
       <small>{hc(l.count)} {CLS_N[l.cls]} (2024: {hc(l.count2024)}{l.lost ? `, ${l.lost} lost` : ''}) · crew ratio {l.crewRatio} x {hc(l.crewSize)}{l.maintainers ? ` + ${l.maintainers} maintainers` : ''} · {hc(l.heads)} people · quality ×{f2(l.quality)}</small>
       <small>Based: {Object.entries(l.at).map(([r, k]) => `${REGIONS[r]?.n || r} ${hc(k)}`).join(' · ') || 'none'}{l.buys.length ? ` · procurement: ${l.buys.join(', ')}` : ''}</small>
@@ -264,9 +277,9 @@ function lineDetail(l, fl, ask, dispatch, v, onJump) {
       </Row>
       <div className="wl-grid2">
         <button type="button" className="wl-lvl" disabled={!!l.modWhy} data-modernize={l.id} onClick={modernize}>Modernize<small>{l.modWhy || `$${hc(l.modCost)}M · ${fl.modMo}mo · block ${l.blk + 1}`}</small></button>
-        <button type="button" className="wl-lvl" disabled={!l.count} data-retire={l.id} onClick={() => retire(step)}>Retire {hc(step)}<small>{l.count ? `${hc(l.count - step)} left` : 'none in service'}</small></button>
+        <button type="button" className="wl-lvl" disabled={!!stepQuote.block||!step} title={stepQuote.block||'Retire unreserved starting equipment'} data-retire={l.id} onClick={() => retire(step)}>Retire {hc(step)}<small>{stepQuote.block||`${hc(l.count - step)} left · ${hc(available)} available to retire`}</small></button>
       </div>
-      {l.count > step && <button type="button" className="wl-btn wl-btn-alert" data-retire-all={l.id} onClick={() => retire(l.count)}>Retire all {hc(l.count)}</button>}
+      {available > step && <button type="button" className="wl-btn wl-btn-alert" disabled={!!allQuote.block} title={allQuote.block||'Preserves equipment reserved in packages and purchased equipment'} data-retire-all={l.id} onClick={() => retire(available)}>Retire available {hc(available)}</button>}
     </div>
   </div>;
 }
@@ -339,12 +352,14 @@ export function ForcesTab({ sub, onSub, view, dispatch, toast, onJump, deploymen
   const fv = forceView(view);
   const gaps = fv.branches.filter((b) => b.gap > 0).length;
   const items = FORCES_SUBS.map((s) => (s.id === 'equipment' && gaps ? { ...s, badge: gaps, sev: 'alert' } : s));
+  const contextPackage=deploymentRequest?.package&&['equipment','training'].includes(sub)?packageView(view).packages.find(p=>p.id===deploymentRequest.package):null;
   const body = sub === 'deployments' ? <Deployments key={deploymentRequest?.at||'orders'} v={view} request={deploymentRequest} dispatch={dispatch} onJump={onJump}/> : sub === 'quality' ? <Quality fv={fv} onJump={onJump} /> : sub === 'training' ? <Training fv={fv} v={view} ask={setAct} dispatch={dispatch} />
-    : sub === 'equipment' ? <Equipment fv={fv} v={view} ask={setAct} dispatch={dispatch} toast={toast} onJump={onJump} /> : sub === 'specialized' ? <Specialized fv={fv} v={view} ask={setAct} dispatch={dispatch} onJump={onJump} />
+    : sub === 'equipment' ? <Equipment key={deploymentRequest?.at||'equipment'} request={deploymentRequest} fv={fv} v={view} ask={setAct} dispatch={dispatch} toast={toast} onJump={onJump} /> : sub === 'specialized' ? <Specialized fv={fv} v={view} ask={setAct} dispatch={dispatch} onJump={onJump} />
     : <Manpower fv={fv} v={view} dispatch={dispatch} />;
   return (
     <div className="wl-pane-wrap" data-sentinel="forces">
       <Seg id="forces" label="Forces" cols={3} items={items} active={sub} onSelect={onSub} />
+      {contextPackage&&<Panel id="package-remedy" title={contextPackage.name} figure={contextPackage.status} data-package-context={contextPackage.id}><Row title="Package readiness" sub={contextPackage.block||contextPackage.warnings?.join('; ')||'All planned components are available.'} trailing={<button className="wl-btn" data-package-return onClick={()=>onJump({tab:'forces',sub:'deployments',package:contextPackage.id,region:deploymentRequest.region||contextPackage.region,mission:deploymentRequest.mission||contextPackage.posture})}>Return to package orders →</button>}/></Panel>}
       <div className={`wl-tabroot${wide && !['equipment','deployments'].includes(sub) ? ' wl-cols' : ''}`} data-forces data-forces-sub={sub}>{body}</div>
       <ConfirmSheet act={act} onClose={() => setAct(null)} />
     </div>

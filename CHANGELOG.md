@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.98.0 (2026-10-30) — Service-owned force packages
+- Persistent formations combine actual owned aircraft, hulls and ground units under country-specific service ownership. Assign, transfer, recall, reinforce, rotate and disband through reviewed orders with composition and incremental monthly costs.
+- Map, Forces, Equipment, Procurement and intelligence handoffs preserve the selected theater, package and mission. Readiness, package reservations, physical losses and retirement use shared inventory accounting; reduced-strength batches remain usable.
+- Independent package missions feed regional influence, exercises, intelligence support and chokepoint protection. Readiness losses reduce effects without deleting equipment. Forward and humanitarian operating costs match the order quote, including during the opening grace period.
+- Intelligence shows agency responsibilities, actual SOF commitments/recovery and qualified reconnaissance support. Standing programs quote and charge their full doctrine-adjusted cycle cost once per launch; blocked cycles cost nothing.
+- Existing assignments migrate into detachments without extra inventory. National training and economics remain national; city production, travel time and logistics capacity are not invented.
+- Regression coverage adds package transactions, physical conservation, retirement, costs, migration and cross-screen flows at desktop and 390px widths. Replay baselines updated for the intentional mission/readiness/cost changes; prefix and verb coverage retained.
+
 ## 0.97.0 (2026-10-24) — Civilian economic geography
 - New Economy map layer with seven sector filters, 25 US hubs across the West Coast, inland, Gulf and East Coast, and starter hubs for every other playable country. Cities are separate from military sites.
 - Select a city or clustered group, search by city/activity, and open relevant energy, processing, supplier, research, service and trade controls. Nation and Economy link directly to the layer.

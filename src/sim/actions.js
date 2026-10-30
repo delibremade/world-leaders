@@ -1,4 +1,6 @@
-import {intelOrder} from './intel-operations.js';
+import {intelOrder,intelStandingOrder} from './intel-operations.js';
+import {PACKAGE_VERBS,PUBLIC_PACKAGE_VERBS,packageState,packageDeployments,packageView,syncPackages} from './force-packages.js';
+import {retirementQuote} from './force-retirement.js';
 import { NATIONS, BUYERS, DIP_TARGETS, HOST_NATIONS, NATION_BLOC, RD_MODS } from '../data/nations.js';
 import { setPermanent, RENEWABLE_DAMPER } from './effects.js';
 import { REGIONS, POSTURE_LABELS } from '../data/regions.js';
@@ -16,7 +18,7 @@ import { ALLIED_PROGRAMS, TIERS, TIER_ORDER, ACCESS_RULES } from '../data/allian
 import { rng } from './rng.js';
 import { memberOf } from '../data/event-ctx.js';
 import { startTranche, MINERAL_VERBS, authorizeRetort } from './minerals.js';
-import { crewBlock, FORCE_VERBS, tier1Plan, intelPlan, commitPlan, sofAdjust, sofPlan } from './forces.js';
+import { FORCE_VERBS, tier1Plan, intelPlan, commitPlan, sofAdjust, sofPlan } from './forces.js';
 import { SOF_RULES } from '../data/sof.js';
 import { BASE_VERBS } from './bases.js';
 import { responseAt } from './reach.js';
@@ -68,19 +70,9 @@ function deployPolicy(g,S,fx,issueType,optId){
   return true;
 }
 
-import { canStation, unitMeta } from '../data/deployment-catalog.js';
-import { stationInventory } from './forces.js';
 import { platformBlock } from './procurement-view.js';
-import { ownedUnits, deployedTotal } from './deployment-view.js';
 function deployUnit(g,S,fx,rid,pid){
-  if(!REGIONS[rid])return false;
-  if(!canStation(g.country?.id,pid)){fx.toast(`⚠ ${(PLATFORMS[pid]||BLACK_PROGRAMS[pid])?.n||pid} cannot be stationed${BLACK_PROGRAMS[pid]?.attachesTo?' — it attaches to '+BLACK_PROGRAMS[BLACK_PROGRAMS[pid].attachesTo].n+' wings':''}`);return false;}
-  const avail=ownedUnits(g,pid)-deployedTotal(g,pid);const nm=unitMeta(pid)?.n||pid;
-  if(avail<=0){fx.toast(`⚠ No free ${nm} — build more or recall from other regions`);return false;}
-  const crew=crewBlock(g,pid);if(crew){fx.toast(`⚠ ${crew}`);return false;} // E8 (#20): crews gate stationing
-  const n2={...g.forceDeployments,[rid]:{...(g.forceDeployments[rid]||{}),[pid]:(g.forceDeployments[rid]?.[pid]||0)+1}};g.forceDeployments=n2;S.setForceDeployments(n2);
-  stationInventory(g,S,pid,rid,1);
-  fx.toast(`🪖 ${nm} stationed in ${REGIONS[rid]?.n}`);return true;
+  return PACKAGE_VERBS.deployAsset(g,S,fx,{region:rid,unit:pid});
 }
 function establishEmbassy(g,S,fx,nid){
   const t=DIP_TARGETS.find(d=>d.id===nid);if(!t||g.embassies.has(nid))return;
@@ -144,7 +136,7 @@ function regimeChange(g,S,fx,nid){
   }
 }
 export function recordNuke(g,S,fx,e){const entry={...e,yr:g.date.yr,mo:g.date.mo};g.nukeLog=[entry,...g.nukeLog].slice(0,40);S.setNukeLog(g.nukeLog);}
-function recallUnit(g,S,fx,rid,pid){if(!g.forceDeployments?.[rid]?.[pid])return;const here={...g.forceDeployments[rid]};here[pid]-=1;if(here[pid]<=0)delete here[pid];g.forceDeployments={...g.forceDeployments,[rid]:here};S.setForceDeployments(g.forceDeployments);stationInventory(g,S);}
+function recallUnit(g,S,fx,rid,pid){return PACKAGE_VERBS.recallAsset(g,S,fx,{region:rid,unit:pid});}
 export function pushTension(g,S,fx,cid,d,why){
   const cur=g.rivalTension[cid]||0;const nv=Math.max(0,cur+d);
   if(nv>=100){S.setGameOver(`☢️ NUCLEAR EXCHANGE. Your ${why} pushed ${cid.charAt(0).toUpperCase()+cid.slice(1)} past the brink and the world did not survive the reply. Whoever "started it," it ended on your watch.`);return;}
@@ -291,7 +283,7 @@ function runIntelOp(g,S,fx,opId,targetId){
   const {cost:opCost,plan,odds:{successRate,discoverRate}}=order;
   if(g.absorbBonus>0)g.absorbBonus--;
   S.setStats(p=>({...p,treasury:p.treasury-opCost}));if(plan)commitPlan(g,S,fx,plan,targetId);
-  S.setIntelOps(p=>[...p,{id:`${opId}_${targetId}_${fx.now()}`,opId,targetId,monthsLeft:op.mo,successRate,discoverRate,type:op.type}]);
+  S.setIntelOps(p=>[...p,{id:`${opId}_${targetId}_${fx.now()}`,opId,targetId,monthsLeft:op.mo,successRate,discoverRate,type:op.type,commitments:order.commitments}]);
   S.setLog(p=>[{msg:`${op.i} Op launched vs ${targetId} — ${op.mo}mo`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
   fx.toast(`${op.i} ${op.n} operation underway`);
 }
@@ -468,8 +460,14 @@ function adjustDeployment(g,S,fx,selectedRegion,pid,delta){
   else if((g.forceDeployments[selectedRegion]||{})[pid]>0)recallUnit(g,S,fx,selectedRegion,pid);
 }
 function setPosture(g,S,fx,selectedRegion,k,from){
-  if(from==='sitroom'){S.setForcePosture(p=>{const n2={...p,[selectedRegion]:k};g.forcePosture=n2;return n2;});fx.toast(`🚢 Escort posture — ${REGIONS[selectedRegion]?.n}`);return;}
-  const l=POSTURE_LABELS[k];S.setForcePosture(p=>{const n2={...p,[selectedRegion]:k};g.forcePosture=n2;return n2;});fx.toast(`${l} posture set — ${REGIONS[selectedRegion]?.n}`);
+  if(!REGIONS[selectedRegion]||!POSTURE_LABELS[k])return false;
+  const f=packageState(g),rows=packageView({...g,forces:f}).packages;
+  const eligible=new Set(rows.filter(p=>p.region===selectedRegion&&(p.template==='detachment'||p.legacy)&&p.missions.includes(k)).map(p=>p.id));
+  const packages=f.packages.map(p=>eligible.has(p.id)?{...p,posture:k}:p);
+  g.forces={...f,packages};S.setForces(g.forces);
+  g.forceDeployments=packageDeployments(packages);S.setForceDeployments(g.forceDeployments);
+  g.forcePosture={...g.forcePosture,[selectedRegion]:k};S.setForcePosture(g.forcePosture);
+  fx.toast(`${POSTURE_LABELS[k]}: individual asset default and ${eligible.size} compatible detachment${eligible.size===1?'':'s'} in ${REGIONS[selectedRegion].n}`);return true;
 }
 function liftBlockade(g,S,fx,selectedRegion,from){
   S.setBlockades(p=>{const n2={...p};delete n2[selectedRegion];g.blockades=n2;return n2;});fx.toast(`⚓ ${REGIONS[selectedRegion]?.n} blockade lifted`);if(from==='sitroom')return;S.setLog(p=>[{msg:`⚓ Blockade lifted — ${REGIONS[selectedRegion]?.n}`,yr:g.date.yr,mo:g.date.mo},...p.slice(0,19)]);
@@ -661,8 +659,14 @@ function buildPlatform(g,S,fx,pid){const why=platformBlock(g,pid,'build');if(why
 function importPlatform(g,S,fx,pid){const why=platformBlock(g,pid,'import');if(why){fx.toast(`⚠ ${why}`);return;}const p=PLATFORMS[pid];
   const impCost=Math.round(p.cost*1.8);if((g.stats?.treasury||0)<impCost){fx.toast('⚠ Insufficient treasury');return;}S.setStats(pr=>({...pr,treasury:pr.treasury-impCost}));S.setPlatformsImported(pr=>({...pr,[pid]:(pr[pid]||0)+1}));S.setLog(pr=>[{msg:`🌐 ${p.n} purchased abroad — $${impCost}M`,yr:g.date.yr,mo:g.date.mo},...pr.slice(0,19)]);fx.toast(`🌐 ${p.n} imported (90% effectiveness, +25% maintenance)`);
 }
-function decommissionPlatform(g,S,fx,pid){const p=PLATFORMS[pid];S.setPlatforms(pr=>({...pr,[pid]:Math.max(0,(pr[pid]||0)-1)}));fx.toast(`${p.n} decommissioned`);}
-function retireImported(g,S,fx,pid){const p=PLATFORMS[pid];S.setPlatformsImported(pr=>({...pr,[pid]:Math.max(0,(pr[pid]||0)-1)}));fx.toast(`Imported ${p.n} retired`);}
+function retirePurchase(g,S,fx,pid,source){
+  const q=retirementQuote(g,{platform:pid,source});if(q.block){fx.toast(`⚠ ${q.block}`);return false;}
+  const field=source==='imported'?'platformsImported':'platforms',setter=source==='imported'?'setPlatformsImported':'setPlatforms';
+  g[field]={...g[field],[pid]:q.nextCount};S[setter](g[field]);g.forces=q.nextForces;S.setForces(g.forces);syncPackages(g,S);
+  fx.toast(`${PLATFORMS[pid].n}: retired ${q.platforms} surviving platform${q.platforms===1?'':'s'}`);return true;
+}
+function decommissionPlatform(g,S,fx,pid){return retirePurchase(g,S,fx,pid,'domestic');}
+function retireImported(g,S,fx,pid){return retirePurchase(g,S,fx,pid,'imported');}
 function cutExportDeal(g,S,fx,k){const nd={...g.defExports};delete nd[k];S.setDefExports(nd);fx.toast('Deal terminated');}
 function setIpPolicy(g,S,fx,k){const lab=IP_POLICY_LABELS[k];S.setIpPolicy(k);g.ipPolicy=k;fx.toast(`IP policy: ${lab.replace(/[^ -~]/g,'').trim()}`);}
 
@@ -699,7 +703,12 @@ function setProxyBudget(g,S,fx,v){S.setProxyBudget(v);fx.toast(v===0?'Proxy fund
 function setProxyAlloc(g,S,fx,rid,w){S.setProxyAlloc(p=>({...p,[rid]:w}));}
 function setIntelPosture(g,S,fx,k){const lab=INTEL_POSTURE_LABELS[k];S.setIntelPosture(k);g.intelPosture=k;fx.toast(`Response doctrine: ${lab}`);}
 function toggleCovertProgram(g,S,fx,cpId){const cp=COVERT_PROGRAMS[cpId];S.setCovertPrograms(prev=>{const n2=new Set(prev);if(n2.has(cpId)){n2.delete(cpId);fx.toast(`${cp.i} ${cp.n} defunded`);}else{n2.add(cpId);fx.toast(`${cp.i} ${cp.n} funded — $${cp.cost}M/mo`);}g.covertPrograms=n2;return n2;});}
-function toggleContinuousOp(g,S,fx,opId,target){const op=INTEL_OPS.find(o=>o.id===opId);const ck=`${op.id}@${target}`;S.setContinuousOps(p=>{const n2={...p};if(n2[ck]){delete n2[ck];fx.toast(`${op.n} standing program ended`);}else{n2[ck]=true;fx.toast(`♻️ ${op.n} now continuous vs ${target} — auto-relaunches (~1.6× cost)`);}g.continuousOps=n2;return n2;});}
+function toggleContinuousOp(g,S,fx,opId,target){
+  const ck=`${opId}@${target}`,op=INTEL_OPS.find(o=>o.id===opId),next={...g.continuousOps};
+  if(next[ck]){delete next[ck];fx.toast(`${op?.n||opId} standing program ended; active operation continues`);}
+  else{const q=intelStandingOrder(g,opId,target);if(q.block){fx.toast(`⚠ ${q.block}`);return false;}next[ck]=true;fx.toast(`${op.n} standing order: $${q.cost}M per ${q.months}-month operation, charged only when launched`);}
+  g.continuousOps=next;S.setContinuousOps(next);return true;
+}
 
 // Trade tab: bloc trade architecture (tiers, EU summit / pact, OPEC swing), bloc-group bulk statecraft, per-member
 // influence / embassy / mission, influence budget, sanctions, import contracts, currency posture.
@@ -879,6 +888,7 @@ export const VERBS={
   ...MINERAL_VERBS,
   ...FORCE_VERBS,
   ...BASE_VERBS,
+  ...PUBLIC_PACKAGE_VERBS,
   setCurrencyPosture:(g,S,fx,{posture})=>setCurrencyPosture(g,S,fx,posture),
 };
 

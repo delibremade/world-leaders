@@ -44,7 +44,7 @@ export function clickDriver(g) {
   const tryClick = async (re, opts = {}) => { const el = find(re, opts); if (!el) return false; el.click(); hits.push(String(re)); await flush(); return true; };
   // Pointer divs (issue cards, social programs, covert programs, decision options, doctrine cards).
   const div = (re, root = doc) => all('div', root).filter((d) => d.style.cursor === 'pointer' && re.test(d.textContent)).pop();
-  const clickDiv = async (re, root) => { const d = div(re, root); if (!d) throw new Error(`div target not found: ${re}`); d.click(); hits.push(String(re)); await flush(); };
+  const clickDiv = async (re, root) => { const d = div(re, root)||find(re,{root:root||doc}); if (!d) throw new Error(`card target not found: ${re}`); d.click(); hits.push(String(re)); await flush(); };
   const range = async (pred, value, nth = 0) => {
     const el = all('input[type=range]').filter(pred)[nth];
     if (!el) throw new Error('range input not found');
@@ -117,7 +117,7 @@ export const verbScript = (g, shocks) => {
       await click(/Establish SAP Office/);
       await arsenal('procurement');
       await click(/Develop \$400M/); await click(/^Build \$400M$/);
-      await click(/^−1$/); await click(/^−1🌐$/);
+      await click(/^−1$|^Retire 1$/); await click(/^−1🌐$|^Retire 1 import$/);
       // #20 (E8): the pay slider now reaches 0 (unpaid army); v57's runs 80..150. Same control, either range.
       // E5a: it lives in the Forces vertical (Manpower).
       await forces('manpower');
@@ -133,8 +133,9 @@ export const verbScript = (g, shocks) => {
     7: async () => { // intel: infra, budget, proxies, doctrine, covert program, ops
       await tab('intel');
       await click(/^Build \$600M/); await click(/^3$/); await click(/^\$160M$/); await range(mm(0, 100), 50, 0);
-      await click(/Expose/); await clickDiv(/Counter-Intelligence Grid/);
-      await click(/^🇨🇳 China$/); await click(/^Launch Op$/, { nth: 0 }); await click(/^♻️$/);
+      await click(/Expose|Public exposure/); await clickDiv(/Counter-Intelligence Grid/);
+      await click(/^🇨🇳 China$/); await click(/^Launch Op$/, { nth: 0 }); await click(/^♻️$|^Repeat mission/);
+      await tryClick(/^Enable repeats$/); // package-era UI reviews the full standing-cycle charge
     },
     8: async () => { // trade: influence, sanctions, blocs, bulk statecraft, per-nation statecraft, imports, currency
       await tab('trade');
