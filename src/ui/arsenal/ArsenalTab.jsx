@@ -13,6 +13,8 @@ import { Partnerships, Exports } from './Trade.jsx';
 import { BLACK_PROGRAMS, PLATFORMS, SLOTS, STAGES, DV } from '../../data/platforms.js';
 import { MINERALS } from '../../data/minerals.js';
 import { NATIONS } from '../../data/nations.js';
+import { REGIONS, POSTURE_LABELS } from '../../data/regions.js';
+import { packageState } from '../../sim/force-packages.js';
 import { meetsReq, sapRate, devCost, triadLegs, strategicWeight } from '../../sim/formulas.js';
 import { programView } from '../../sim/selectors.js';
 import { programSupply, inputsOf, mineralView } from '../../sim/minerals.js';
@@ -144,18 +146,22 @@ function Deterrence({ v }) {
   </>;
 }
 
-export function ArsenalTab({ sub, onSub, view, dispatch, toast, onJump, exportVert, onExportVert, initialPlatform }) {
+export function ArsenalTab({ sub, onSub, view, dispatch, toast, onJump, exportVert, onExportVert, initialPlatform, packageRequest }) {
   const [platform,setPlatform]=useState(initialPlatform||null);
   useEffect(()=>setPlatform(initialPlatform||null),[initialPlatform]);
   const conventional=id=>{setPlatform(id);onSub('procurement');};
   const wide = useWide();
+  const contextPackage=packageRequest?.package?packageState(view).packages.find(p=>p.id===packageRequest.package):null;
   const body = sub === 'procurement' ? <Procurement key={platform||"catalog"} v={view} dispatch={dispatch} initialPlatform={platform} onJump={onJump}/> : sub === 'supply' ? <Supply v={view} onJump={onJump} />
     : sub === 'partnerships' ? <Partnerships v={view} dispatch={dispatch} /> : sub === 'exports' ? <Exports v={view} dispatch={dispatch} vert={exportVert} onVert={onExportVert} />
     : sub === 'deterrence' ? <Deterrence v={view} /> : <Programs v={view} dispatch={dispatch} onConventional={conventional} onJump={onJump}/>;
   return (
     <div className="wl-pane-wrap" data-sentinel="arsenal">
       <Seg id="arsenal" label="Arsenal" items={ARSENAL_SUBS} active={sub} onSelect={onSub} cols={3} />
-      <div className={`wl-tabroot${wide && ['supply', 'partnerships', 'deterrence'].includes(sub) ? ' wl-cols' : ''}`} data-arsenal data-arsenal-sub={sub}>{body}</div>
+      <div className={`wl-tabroot${wide && ['supply', 'partnerships', 'deterrence'].includes(sub) ? ' wl-cols' : ''}`} data-arsenal data-arsenal-sub={sub}>
+        {sub==='procurement'&&contextPackage&&<Panel id="package-procurement" title="Package orders" data-package-procurement-context={contextPackage.id}><Row stack={!wide} title={contextPackage.name} style={{overflowWrap:'anywhere'}} sub={`${REGIONS[packageRequest.region]?.n||'Destination not chosen'} · ${POSTURE_LABELS[packageRequest.mission]||POSTURE_LABELS[contextPackage.posture]}`} trailing={<button className="wl-btn" data-package-procurement-return onClick={()=>onJump({tab:'forces',sub:'deployments',package:contextPackage.id,region:packageRequest.region,mission:packageRequest.mission})}>Return to package orders →</button>}/></Panel>}
+        {body}
+      </div>
     </div>
   );
 }

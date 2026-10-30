@@ -41,7 +41,8 @@ for(const [width,height] of [[1280,800],[1440,900],[390,844]]){
    assert.ok(await page.locator('[data-deal=gallium_japan]').count());
    if(width<1100){
     await page.evaluate(()=>window.__wl.region('EA'));await settle(page);
-    await openIndividualAssets(page);
+    assert.equal(await page.locator('[data-sheet] [data-region-panel]').count(),1,'legacy theater navigation retains its region sheet');
+    assert.equal(await page.locator('[data-sheet] [data-deployment-picker]').count(),1,'the legacy sheet exposes its individual planner directly');
     await page.getByLabel('Force package',{exact:true}).selectOption('fleet:usa:cvn');
     await page.locator('[data-map-deploy="fleet:usa:cvn"]').click();await settle(page);
     assert.match(await page.locator('[data-sheet] .wl-deployment-stock').innerText(),/1 here/);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {newCampaign,STATE_FIELDS} from '../src/sim/state.js';
 import {COUNTRIES} from '../src/data/nations.js';
 import {ownedUnits} from '../src/sim/force-inventory.js';
-import {packageState,packageView,packageOrder,PACKAGE_VERBS,packageDeployments,packageReservations,missionDeployments,missionReadyDeployments,missionCapability,regionalMissionEffects,packageSupport,reconcilePackages} from '../src/sim/force-packages.js';
+import {packageState,packageView,packageOrder,PACKAGE_VERBS,packageDeployments,packageReservations,missionDeployments,missionReadyDeployments,missionCapability,regionalMissionEffects,packageSupport,reconcilePackages,initializePackages} from '../src/sim/force-packages.js';
 import {theaterWeight} from '../src/sim/formulas.js';
 
 const fresh=(id='usa')=>newCampaign(COUNTRIES.find(c=>c.id===id));
@@ -30,6 +30,26 @@ test('legacy assignments migrate losslessly with their theater mission, never in
  const f=packageState(g);assert.deepEqual(packageDeployments(f.packages),g.forceDeployments);
  const old=f.packages.filter(p=>p.legacy);assert.equal(old.length,3);assert.ok(old.filter(p=>p.region==='WE').every(p=>p.posture==='escort'));
  const saved=JSON.parse(JSON.stringify(f));assert.deepEqual(packageState({...g,forces:saved}).packages,saved.packages);
+});
+
+test('a legacy save with a retired deployed asset migrates its missing plan without reserving nonexistent stock',()=>{
+ const g=fresh();
+ // The old decommission path could remove ownership while leaving the raw
+ // deployment ledger behind. A valid submarine assignment must survive beside it.
+ g.platforms={...g.platforms,carrier_group:0,sub_fleet:1};
+ g.forceDeployments={EA:{carrier_group:1,sub_fleet:1}};g.forcePosture={EA:'escort'};
+ const before=structuredClone(g),f=packageState(g),missing=f.packages.find(p=>p.plannedMembers.carrier_group);
+ assert.deepEqual(missing.members,{});assert.equal(missing.plannedMembers.carrier_group,1);assert.equal(missing.requiredMembers.carrier_group,1);
+ assert.equal(missing.region,'EA');assert.equal(missing.posture,'escort');
+ assert.deepEqual(packageDeployments(f.packages),{EA:{sub_fleet:1}});
+ assert.equal(packageReservations(g).carrier_group||0,0);
+ const row=packageView(g).packages.find(p=>p.id===missing.id);assert.equal(row.ready,false);assert.equal(row.components[0].count,0);
+ const quote=packageOrder(g,'recallForcePackage',{package:missing.id});assert.equal(quote.block,null);assert.deepEqual(quote.nextDeployments,{EA:{sub_fleet:1}});
+ assert.equal(quote.nextForces.packages.find(p=>p.id===missing.id).plannedMembers.carrier_group,1);
+ assert.deepEqual(g,before,'migration, view and order quote remain pure');
+ const h=harness(g);initializePackages(g,h.S);
+ assert.deepEqual(g.forceDeployments,{EA:{sub_fleet:1}});assert.equal(packageReservations(g).carrier_group||0,0);
+ assert.equal(g.forces.packages.find(p=>p.id===missing.id).plannedMembers.carrier_group,1);
 });
 
 test('assign, transfer, independent posture and recall use one atomic package order',()=>{

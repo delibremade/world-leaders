@@ -11,6 +11,7 @@ import { MINERALS } from '../../data/minerals.js';
 import { platformAcquisition } from '../../sim/procurement-view.js';
 import { deployedTotal, deploymentOptions } from '../../sim/deployment-view.js';
 import { retirementQuote } from '../../sim/force-retirement.js';
+import {packageOrder} from '../../sim/force-packages.js';
 import { meetsReq, procurementCost, recapCost } from '../../sim/formulas.js';
 
 const POLICIES = [['efficiency', '💲 Efficiency', 'Build −15%, maint −15%, effectiveness −5%'], ['balanced', '⚖️ Balanced', 'Standard terms'], ['surge', '🚀 Surge', 'Build +25%, maint +20%, effectiveness +8%']];
@@ -18,6 +19,9 @@ const POLICIES = [['efficiency', '💲 Efficiency', 'Build −15%, maint −15%,
 function PlatformRow({ pid, v, dispatch, onJump, availability }) {
   const acquisition=platformAcquisition(v,pid),[region,setRegion]=useState('');
   const available=availability?.free||0;
+  const deployment=region&&DEPLOYABLE.includes(pid)&&acquisition.owned>0?packageOrder(v,'deployAsset',{region,unit:pid}):null;
+  const deploymentBlock=deployment?deployment.block:availability?.reason;
+  const deploymentCost=deployment&&!deployment.block?` · $${deployment.costDelta.toLocaleString('en-US')}M/mo`:'';
   const domesticRetire=retirementQuote(v,{platform:pid,source:'domestic'}),importedRetire=retirementQuote(v,{platform:pid,source:'imported'});
   const { platforms, platformsImported, platformDev, developed, defLevels, procureMode } = v; const p = PLATFORMS[pid];
     const ct = platforms[pid] || 0; const imp = platformsImported[pid] || 0; const ok = meetsReq(p.req, defLevels);
@@ -40,7 +44,7 @@ function PlatformRow({ pid, v, dispatch, onJump, availability }) {
     {(ct>0&&domesticRetire.block||imp>0&&importedRetire.block)&&<p className="wl-reason" data-retirement-gate>{ct>0?domesticRetire.block:importedRetire.block}</p>}
     {onJump&&<div className="wl-map-shortcuts">{!ok&&<button data-procurement-research onClick={()=>onJump({tab:"technology"})}>Open required research →</button>}{acquisition.supply.binding&&<button data-procurement-supply={pid} onClick={()=>onJump({tab:"resources",sub:"deals",mineral:acquisition.supply.binding})}>Secure {MINERALS[acquisition.supply.binding]?.n} supply →</button>}{acquisition.crewReason&&<button onClick={()=>onJump({tab:"forces",sub:"training"})}>Crews & training →</button>}{DEPLOYABLE.includes(pid)&&acquisition.owned>0&&<button data-procurement-orders={pid} onClick={()=>onJump({tab:"forces",sub:"deployments",region:region||undefined,unit:pid})}>Assignments & recall →</button>}</div>}
     {acquisition.supply.queued.length>0&&<p className="wl-note" data-production-queue>{acquisition.supply.queued.length} paid order(s) waiting on minerals. Next delivery: {acquisition.supply.queued[0].months===Infinity?'supply needed':`about ${acquisition.supply.queued[0].months} months`}. {acquisition.supply.binding&&`Binding input: ${MINERALS[acquisition.supply.binding]?.n}.`}</p>}
-    {DEPLOYABLE.includes(pid)&&acquisition.owned>0&&<div className="wl-procurement-station"><p>{available} ready & available · {availability?.reserved||0} reserved in packages · {deployedTotal(v,pid)} stationed</p>{availability?.reason&&<p className="wl-reason">{availability.reason}</p>}<select className="wl-sel" aria-label="Deploy purchased platform to" value={region} onChange={e=>setRegion(e.target.value)}><option value="">Choose destination…</option>{Object.entries(REGIONS).map(([id,r])=><option key={id} value={id}>{r.n}</option>)}</select><button type="button" className="wl-btn wl-btn-primary" data-procurement-deploy={pid} disabled={!region||available<=0||!!availability?.reason} onClick={()=>dispatch({type:'deployUnit',payload:{unit:pid,region}})}>Deploy {p.n}</button></div>}
+    {DEPLOYABLE.includes(pid)&&acquisition.owned>0&&<div className="wl-procurement-station"><p>{available} ready & available · {availability?.reserved||0} reserved in packages · {deployedTotal(v,pid)} stationed</p>{deploymentBlock&&<p className="wl-reason" data-procurement-deployment-block={pid}>{deploymentBlock}</p>}<select className="wl-sel" aria-label="Deploy purchased platform to" value={region} onChange={e=>setRegion(e.target.value)}><option value="">Choose destination…</option>{Object.entries(REGIONS).map(([id,r])=><option key={id} value={id}>{r.n}</option>)}</select><button type="button" className="wl-btn wl-btn-primary" data-procurement-deploy={pid} disabled={!region||!!deploymentBlock} title={deploymentBlock||undefined} onClick={()=>dispatch({type:'deployUnit',payload:{unit:pid,region}})}>Deploy {p.n}{deploymentCost}</button></div>}
   </Row>;
 }
 

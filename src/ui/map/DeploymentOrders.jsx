@@ -17,7 +17,7 @@ export function DeploymentOrders({g,region,initialUnit,initialPackage,initialMis
   <p>Assign available equipment separately. Components reserved by a formation are managed through that package.</p>
   {chooseRegion?<label className="wl-map-posture">Destination theater<select aria-label="Deployment theater" value={rid} onChange={e=>{setChosen(e.target.value);onRegion?.(e.target.value);}}><option value="">Choose destination…</option>{Object.entries(REGIONS).map(([id,r])=><option key={id} value={id}>{r.n}</option>)}</select></label>:<div className="wl-map-eyebrow">DEPLOY & RECALL · {REGIONS[rid]?.n}</div>}
   {!rid?<p className="wl-map-muted">Choose where to send your forces. Existing starting forces and purchased packages use the same orders.</p>:<>
-   <DeploymentPicker key={initialUnit||'all'} units={units} region={rid} initialUnit={initialUnit} onUnit={onUnit} dispatch={dispatch} onJump={onJump}/>
+   <DeploymentPicker key={initialUnit||'all'} g={g} units={units} region={rid} initialUnit={initialUnit} onUnit={onUnit} dispatch={dispatch} onJump={onJump}/>
    <label className="wl-map-posture">Individual asset mission<select aria-label="Mission posture" value={g.forcePosture?.[rid]||'deter'} onChange={e=>dispatch({type:'setPosture',payload:{region:rid,posture:e.target.value}})}>{Object.entries(POSTURE_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>
    <p className="wl-map-muted">{here} equipment batches assigned in {REGIONS[rid]?.n}. This posture applies to individual assets; organized packages retain their own missions.</p>
   </>}

@@ -16,6 +16,7 @@ try{
    if(width<1100){await page.evaluate(()=>window.__wl.site('pcabello'));await selectOperationalPackage(page,carrier);await shot('facility-orders');await page.getByRole('button',{name:'Close sheet',exact:true}).click();}
    else{await page.getByLabel('Find a base or host nation').fill('Puerto Cabello');await page.locator('[data-map-inspector] .wl-map-row').first().click();await selectOperationalPackage(page,carrier);await shot('facility-orders');}
    await page.locator('[data-pulse=forces]').click();await selectOperationalPackage(page,carrier);await page.locator('[data-package-destination]').selectOption('ME');await shot('force-packages');
+   await page.locator('[data-package-procurement]').click();await page.locator('[data-package-procurement-context]').scrollIntoViewIfNeeded();await shot('package-procurement');await page.locator('[data-package-procurement-return]').click();
    await page.locator('[data-package-review=assignForcePackage]').click();await shot('package-review');
    await page.locator('[data-package-confirm]').click();await shot('deployment-orders');
    await page.locator('[data-package-composition] summary').click();await page.locator('[data-package-composition] .wl-package-component').last().scrollIntoViewIfNeeded();await shot('package-composition');await page.locator('[data-package-composition] summary').click();

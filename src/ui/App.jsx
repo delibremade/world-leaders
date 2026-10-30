@@ -576,7 +576,7 @@ function WorldLeadersInner({resumeSignal}){
     if(mode)setMapMode(mode);if(card)setDockFocus({card,at:Date.now()});
     if(pan){if(mapRef.current)mapRef.current.focus?.(pan);else panPending.current=pan;}
     if(tab==='forces'){if(sub)setForcesSub(sub);setDeploymentRequest(prev=>({region,unit,package:packageId,mission,at:(prev?.at||0)+1}));}
-    if(tab==='arsenal'){if(sub)setArsenalSub(sub);setPlatformRequest(prev=>({platform,at:(prev?.at||0)+1}));}
+    if(tab==='arsenal'){if(sub)setArsenalSub(sub);setPlatformRequest(prev=>({platform,package:packageId,region,mission,at:(prev?.at||0)+1}));}
     if(tab==='resources'){if(sub)setResSub(sub);setMineralRequest(prev=>({mineral,at:(prev?.at||0)+1}));}
     if(tab==='sitroom')setCovertRequest(prev=>({target,at:(prev?.at||0)+1}));
     if(tab==='intel'&&(target||nation||op)){setSelIntelTarget(target||nation||null);setOpFocus(op||null);}
@@ -1364,8 +1364,8 @@ function WorldLeadersInner({resumeSignal}){
         </div>}</div>}
 
         {/* ARSENAL TAB (E5b): programs, procurement, supply, partnerships, exports, deterrence. Sub-tabs and cards live in src/ui/arsenal. */}
-        {activeTab==='arsenal'&&<ArsenalTab key={platformRequest?.at||0} initialPlatform={platformRequest?.platform} sub={arsenalSub} onSub={setArsenalSub} dispatch={dispatch} toast={showToast} onJump={goPane} exportVert={selExportVert} onExportVert={setSelExportVert}
-          view={{country,nationRelations,defensePacts,budgetAlloc,stats,resExtraction,importContracts,tradeAgreements,blocTrade,ipPolicy,defLevels,intelBudget,intelOps,covertPrograms,intelInfra,platforms,platformsImported,arsenal,blackPrograms,blackResearch,date,sapOffice,minerals,forces,forceDeployments,platformDev,developed,defResearch,procureMode,sectorAge,activePolicies,globalDef,defExports,demand,sphere,embassies,nukeLog}}/>}
+        {activeTab==='arsenal'&&<ArsenalTab key={platformRequest?.at||0} initialPlatform={platformRequest?.platform} packageRequest={platformRequest} sub={arsenalSub} onSub={setArsenalSub} dispatch={dispatch} toast={showToast} onJump={goPane} exportVert={selExportVert} onExportVert={setSelExportVert}
+          view={{country,nationRelations,defensePacts,budgetAlloc,stats,resExtraction,importContracts,tradeAgreements,blocTrade,ipPolicy,defLevels,intelBudget,intelOps,covertPrograms,intelInfra,platforms,platformsImported,arsenal,blackPrograms,blackResearch,date,sapOffice,minerals,forces,forceDeployments,forcePosture,platformDev,developed,defResearch,procureMode,sectorAge,activePolicies,globalDef,defExports,demand,sphere,embassies,nukeLog}}/>}
 
         {/* FORCES TAB (E5a): people and readiness. Sub-tabs and cards live in src/ui/forces. */}
         {activeTab==='forces'&&<ForcesTab deploymentRequest={deploymentRequest} sub={forcesSub} onSub={setForcesSub} dispatch={dispatch} toast={showToast} onJump={goPane}
@@ -1834,7 +1834,7 @@ function WorldLeadersInner({resumeSignal}){
                   <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'5px'}}>
                     <span style={{fontSize:'11px',color:hereTot>0?'#8fdfff':'#9aa8bf',fontWeight:600}}>⚓ Forward Deployment — {hereTot} stationed · {Math.max(0,availTot)} available fleet-wide</span>
                   </div>
-                  <DeploymentPicker key={selectedRegion} units={units} region={selectedRegion} dispatch={dispatch}/>
+                  <DeploymentPicker key={selectedRegion} g={liveState()} units={units} region={selectedRegion} dispatch={dispatch}/>
                   <p className="wl-note">Readiness and mission determine operational effects. Forward deployment adds $4M per equipment batch each month; humanitarian missions add $30M per batch.</p>
                   <button className="wl-btn" data-theater-package-missions onClick={()=>jumpTo({tab:'forces',sub:'deployments',region:selectedRegion})}>Manage package missions & readiness →</button>
                   {hereTot>0&&<details style={{marginTop:8}}><summary>Individual asset mission</summary><p style={{fontSize:11,color:"#9aa8bf"}}>Sets the default and updates compatible individual detachments. Composed packages keep their own missions.</p><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{Object.entries(POSTURE_LABELS).map(([k,label])=><button className="wl-btn" key={k} aria-pressed={(forcePosture[selectedRegion]||"deter")===k} onClick={()=>dispatch({type:"setPosture",payload:{region:selectedRegion,posture:k}})}>{label}</button>)}</div></details>}

@@ -97,6 +97,25 @@ test('maintenance remedy preserves the formation and intended mission when retur
  }finally{g.close();}
 });
 
+test('procurement returns to the selected package and restores each new destination and mission',async()=>{
+ const {g,q,click,choose}=await campaign();try{
+  const before=g.w.__wl.dispatched().length;
+  for(const [id,region,mission]of [['pkg:4','ME','deter'],['pkg:2','EA','isr']]){
+   await click(`[data-force-package-card="${id}"]`);
+   await choose('[data-package-destination]',region);await choose('[data-package-mission]',mission);
+   const name=g.w.__wl.packages().packages.find(p=>p.id===id).name;
+   await click('[data-package-procurement]');
+   assert.equal(q('[data-arsenal]').getAttribute('data-arsenal-sub'),'procurement');
+   const context=q('[data-package-procurement-context]');assert.equal(context.getAttribute('data-package-procurement-context'),id);assert.ok(context.textContent.includes(name));
+   await click('[data-package-procurement-return]');
+   assert.equal(q('[data-package-inspector]').getAttribute('data-package-inspector'),id);
+   assert.equal(q('[data-package-destination]').value,region);assert.equal(q('[data-package-mission]').value,mission);
+  }
+  assert.equal(g.w.__wl.dispatched().length,before,'visiting procurement and returning does not issue an order');
+  assert.equal(g.faulted(),false);
+ }finally{g.close();}
+});
+
 test('equipment retirement controls protect components reserved by a package at home',async()=>{
  const {g,q,click}=await campaign();try{
   g.w.__wl.forceLine('cvn',{n:1});await flush();

@@ -72,19 +72,22 @@ export function packageState(g){
  for(const t of templatesFor(g.country.id).filter(t=>t.initial)){
   const a=assembly(g,f,packages,t.id,inventory);if(!a.block&&total(a.members))packages.push(makePackage(g,nextPackageId++,t.id,a.members,undefined,{requiredMembers:requiredFrom(a.coverage)}));
  }
- return {...f,packageVersion:1,nextPackageId,packages};
+ // Old deployment ledgers can retain retired/lost equipment. Keep the requested
+ // formation as its plan, but never migrate nonexistent inventory into a reservation.
+ return reconcileBook(g,{...f,packageVersion:1,nextPackageId,packages});
 }
 export const packageReservations=(g,{excludePackage}={})=>reservations(packageState(g).packages,excludePackage);
 
 // Reconcile genuine physical losses only. Planned composition stays visible for reinforcement;
 // a maintenance/readiness dip does not delete aircraft, ships or personnel.
-export function reconcilePackages(g){
- const f=packageState(g),left=Object.fromEntries(deploymentIds(g.country.id).map(id=>[id,ownedUnits(g,id,f)])),changed=new Map();
+function reconcileBook(g,f){
+ const left=Object.fromEntries(deploymentIds(g.country.id).map(id=>[id,ownedUnits(g,id,f)])),changed=new Map();
  for(const p of ordered(f.packages)){const members={};for(const [id,n]of Object.entries(p.members)){const have=Math.min(n,Math.max(0,left[id]||0));if(have)members[id]=have;left[id]=(left[id]||0)-have;}
   if(JSON.stringify(members)!==JSON.stringify(p.members))changed.set(p.id,{...copy(p),members});}
  if(!changed.size)return f;
  return {...f,packages:f.packages.map(p=>changed.get(p.id)||p)};
 }
+export const reconcilePackages=g=>reconcileBook(g,packageState(g));
 function persist(g,S,f){
  g.forces=f;S.setForces(f);g.forceDeployments=packageDeployments(f.packages);S.setForceDeployments(g.forceDeployments);stationInventory(g,S);
  return g.forces;
